@@ -1,0 +1,12 @@
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\bin\Debug\net10.0\DevNexus.ServiceDefaults.deps.json
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\bin\Debug\net10.0\DevNexus.ServiceDefaults.dll
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\bin\Debug\net10.0\DevNexus.ServiceDefaults.pdb
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.csproj.AssemblyReference.cache
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.GeneratedMSBuildEditorConfig.editorconfig
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.AssemblyInfoInputs.cache
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.AssemblyInfo.cs
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.csproj.CoreCompileInputs.cache
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.dll
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\refint\DevNexus.ServiceDefaults.dll
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\DevNexus.ServiceDefaults.pdb
+E:\zbg\DevNexus-AI\DevNexus.ServiceDefaults\obj\Debug\net10.0\ref\DevNexus.ServiceDefaults.dll

@@ -1,0 +1,16 @@
+@page "/login"
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<PageTitle>Login</PageTitle>
+
+<FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.Center" Style="height: 100vh; background: url('https://bing.biturl.top/?resolution=1920&format=image&index=0&mkt=zh-CN') no-repeat center center fixed; background-size: cover;">
+    <FluentCard Width="400px" Height="300px" Style="background-color: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px);">
+        <FluentStack Orientation="Orientation.Vertical" VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.Center">
+            <h3>Welcome Back</h3>
+            <FluentTextField Placeholder="Username" Style="width: 100%;" />
+            <FluentTextField Placeholder="Password" TextFieldType="TextFieldType.Password" Style="width: 100%;" />
+            <FluentButton Appearance="Appearance.Accent" Style="width: 100%;">Login</FluentButton>
+            <FluentAnchor Href="#" Appearance="Appearance.Hypertext">Forgot password?</FluentAnchor>
+        </FluentStack>
+    </FluentCard>
+</FluentStack>

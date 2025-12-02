@@ -1,0 +1,4 @@
+E:\zbg\DevNexus-AI\DevNexus.Web\DevNexus.Web.Client\obj\Debug\net10.0\staticwebassets.build.json
+E:\zbg\DevNexus-AI\DevNexus.Web\DevNexus.Web.Client\obj\Debug\net10.0\staticwebassets.build.json
+E:\zbg\DevNexus-AI\DevNexus.Web\DevNexus.Web.Client\obj\Debug\net10.0\staticwebassets.build.json
+E:\zbg\DevNexus-AI\DevNexus.Web\DevNexus.Web.Client\obj\Debug\net10.0\staticwebassets.build.json

@@ -1,0 +1,6 @@
+@DevNexus.ApiService_HostAddress = http://localhost:5237
+
+GET {{DevNexus.ApiService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

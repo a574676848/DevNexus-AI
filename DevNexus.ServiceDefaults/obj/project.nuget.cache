@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "dgSpecHash": "LFpeIW5KKJM=",
+  "success": true,
+  "projectFilePath": "E:\\zbg\\DevNexus-AI\\DevNexus.ServiceDefaults\\DevNexus.ServiceDefaults.csproj",
+  "expectedPackageFiles": [
+    "E:\\net\\.nuget\\microsoft.extensions.ambientmetadata.application\\10.0.0\\microsoft.extensions.ambientmetadata.application.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.compliance.abstractions\\10.0.0\\microsoft.extensions.compliance.abstractions.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.dependencyinjection.autoactivation\\10.0.0\\microsoft.extensions.dependencyinjection.autoactivation.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.diagnostics.exceptionsummarization\\10.0.0\\microsoft.extensions.diagnostics.exceptionsummarization.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.http.diagnostics\\10.0.0\\microsoft.extensions.http.diagnostics.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.http.resilience\\10.0.0\\microsoft.extensions.http.resilience.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.resilience\\10.0.0\\microsoft.extensions.resilience.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.servicediscovery\\10.0.0\\microsoft.extensions.servicediscovery.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.servicediscovery.abstractions\\10.0.0\\microsoft.extensions.servicediscovery.abstractions.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.telemetry\\10.0.0\\microsoft.extensions.telemetry.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\microsoft.extensions.telemetry.abstractions\\10.0.0\\microsoft.extensions.telemetry.abstractions.10.0.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry\\1.14.0\\opentelemetry.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.api\\1.14.0\\opentelemetry.api.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.api.providerbuilderextensions\\1.14.0\\opentelemetry.api.providerbuilderextensions.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.exporter.opentelemetryprotocol\\1.14.0\\opentelemetry.exporter.opentelemetryprotocol.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.extensions.hosting\\1.14.0\\opentelemetry.extensions.hosting.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.instrumentation.aspnetcore\\1.14.0\\opentelemetry.instrumentation.aspnetcore.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.instrumentation.http\\1.14.0\\opentelemetry.instrumentation.http.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\opentelemetry.instrumentation.runtime\\1.14.0\\opentelemetry.instrumentation.runtime.1.14.0.nupkg.sha512",
+    "E:\\net\\.nuget\\polly.core\\8.4.2\\polly.core.8.4.2.nupkg.sha512",
+    "E:\\net\\.nuget\\polly.extensions\\8.4.2\\polly.extensions.8.4.2.nupkg.sha512",
+    "E:\\net\\.nuget\\polly.ratelimiting\\8.4.2\\polly.ratelimiting.8.4.2.nupkg.sha512"
+  ],
+  "logs": []
+}
