@@ -1,32 +1,25 @@
 {
   "format": 1,
   "restore": {
-    "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.AppHost\\DevNexus.AppHost.csproj": {}
+    "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost/DevNexus.AppHost.csproj": {}
   },
   "projects": {
-    "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.AppHost\\DevNexus.AppHost.csproj": {
+    "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost/DevNexus.AppHost.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.AppHost\\DevNexus.AppHost.csproj",
+        "projectUniqueName": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost/DevNexus.AppHost.csproj",
         "projectName": "DevNexus.AppHost",
-        "projectPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.AppHost\\DevNexus.AppHost.csproj",
-        "packagesPath": "E:\\net\\.nuget",
-        "outputPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.AppHost\\obj\\",
+        "projectPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost/DevNexus.AppHost.csproj",
+        "packagesPath": "/home/runner/.nuget/packages/",
+        "outputPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost/obj/",
         "projectStyle": "PackageReference",
-        "fallbackFolders": [
-          "d:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "C:\\Users\\57467\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/home/runner/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net10.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -51,7 +44,7 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "dependencies": {
-            "Aspire.Dashboard.Sdk.win-x64": {
+            "Aspire.Dashboard.Sdk.linux-x64": {
               "target": "Package",
               "version": "[9.5.2, )",
               "autoReferenced": true
@@ -60,7 +53,7 @@
               "target": "Package",
               "version": "[9.5.2, )"
             },
-            "Aspire.Hosting.Orchestration.win-x64": {
+            "Aspire.Hosting.Orchestration.linux-x64": {
               "target": "Package",
               "version": "[9.5.2, )",
               "autoReferenced": true
@@ -82,7 +75,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.100/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

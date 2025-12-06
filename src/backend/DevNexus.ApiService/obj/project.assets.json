@@ -3273,46 +3273,38 @@
     ]
   },
   "packageFolders": {
-    "E:\\net\\.nuget": {},
-    "d:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/home/runner/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ApiService\\DevNexus.ApiService.csproj",
+      "projectUniqueName": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ApiService/DevNexus.ApiService.csproj",
       "projectName": "DevNexus.ApiService",
-      "projectPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ApiService\\DevNexus.ApiService.csproj",
-      "packagesPath": "E:\\net\\.nuget",
-      "outputPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ApiService\\obj\\",
+      "projectPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ApiService/DevNexus.ApiService.csproj",
+      "packagesPath": "/home/runner/.nuget/packages/",
+      "outputPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ApiService/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "d:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\57467\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/home/runner/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net10.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
-        "C:\\Program Files\\dotnet\\library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.Core\\DevNexus.Core.csproj": {
-              "projectPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.Core\\DevNexus.Core.csproj"
+            "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.Core/DevNexus.Core.csproj": {
+              "projectPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.Core/DevNexus.Core.csproj"
             },
-            "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.Infrastructure\\DevNexus.Infrastructure.csproj": {
-              "projectPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.Infrastructure\\DevNexus.Infrastructure.csproj"
+            "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.Infrastructure/DevNexus.Infrastructure.csproj": {
+              "projectPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.Infrastructure/DevNexus.Infrastructure.csproj"
             },
-            "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ServiceDefaults\\DevNexus.ServiceDefaults.csproj": {
-              "projectPath": "E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ServiceDefaults\\DevNexus.ServiceDefaults.csproj"
+            "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ServiceDefaults/DevNexus.ServiceDefaults.csproj": {
+              "projectPath": "/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ServiceDefaults/DevNexus.ServiceDefaults.csproj"
             }
           }
         }
@@ -3373,7 +3365,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.100/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.100/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.AspNetCore": "(,10.0.32767]",
           "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",
