@@ -17,5 +17,5 @@ public class DevNexus_AppHost
     /// <summary>
     /// The path to the Aspire Host project.
     /// </summary>
-    public static string ProjectPath => """E:\zbg\DevNexus-AI\src\backend\DevNexus.AppHost""";
+    public static string ProjectPath => """/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.AppHost""";
 }

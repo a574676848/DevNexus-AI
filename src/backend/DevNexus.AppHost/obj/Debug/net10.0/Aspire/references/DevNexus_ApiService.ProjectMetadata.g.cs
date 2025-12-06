@@ -15,5 +15,5 @@ public class DevNexus_ApiService : global::Aspire.Hosting.IProjectMetadata
     /// <summary>
     /// The path to the DevNexus_ApiService project.
     /// </summary>
-    public string ProjectPath => """E:\zbg\DevNexus-AI\src\backend\DevNexus.ApiService\DevNexus.ApiService.csproj""";
+    public string ProjectPath => """/home/runner/work/DevNexus-AI/DevNexus-AI/src/backend/DevNexus.ApiService/DevNexus.ApiService.csproj""";
 }
