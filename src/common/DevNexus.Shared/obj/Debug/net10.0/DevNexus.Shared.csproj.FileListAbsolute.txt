@@ -1,0 +1,12 @@
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\bin\Debug\net10.0\DevNexus.Shared.deps.json
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\bin\Debug\net10.0\DevNexus.Shared.dll
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\bin\Debug\net10.0\DevNexus.Shared.pdb
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.GeneratedMSBuildEditorConfig.editorconfig
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.AssemblyInfoInputs.cache
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.AssemblyInfo.cs
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.csproj.CoreCompileInputs.cache
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.sourcelink.json
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.dll
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\refint\DevNexus.Shared.dll
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\DevNexus.Shared.pdb
+E:\zbg\DevNexus-AI\src\common\DevNexus.Shared\obj\Debug\net10.0\ref\DevNexus.Shared.dll
