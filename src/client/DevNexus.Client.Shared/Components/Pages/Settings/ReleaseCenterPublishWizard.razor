@@ -1,0 +1,460 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Editor
+@using DevNexus.Client.Shared.Components.Icons
+
+<div class="wizard-overlay" @onclick="Owner.ClosePublishWizard">
+    <div class="wizard-modal" @onclick:stopPropagation="true">
+        <div class="wizard-modal__header">
+            <div>
+                <h3>发布流程</h3>
+            </div>
+            <button class="icon-action" type="button" title="关闭" aria-label="关闭" @onclick="Owner.ClosePublishWizard">
+                <XIcon Size="16" />
+            </button>
+        </div>
+
+        <div class="wizard-progress">
+            <button class="wizard-progress__item @(Owner.wizardStep == 1 ? "active" : null)" @onclick="@(() => Owner.GoToWizardStep(1))">1. 选择方式</button>
+            <button class="wizard-progress__item @(Owner.wizardStep == 2 ? "active" : null)" @onclick="@(() => Owner.GoToWizardStep(2))">2. 确认发布包</button>
+            <button class="wizard-progress__item @(Owner.wizardStep == 3 ? "active" : null)" @onclick="@(() => Owner.GoToWizardStep(3))">3. 设置投放</button>
+            <button class="wizard-progress__item @(Owner.wizardStep == 4 ? "active" : null)" @onclick="@(() => Owner.GoToWizardStep(4))">4. 提交</button>
+            <button class="wizard-progress__item @(Owner.wizardStep == 5 ? "active" : null)" disabled>5. 完成</button>
+        </div>
+
+        <div class="wizard-modal__body">
+            @if (Owner.wizardStep == 1)
+            {
+                <section class="wizard-panel">
+                    <div class="section-head">
+                        <div>
+                            <h4>版本来源</h4>
+                        </div>
+                    </div>
+
+                    <div class="wizard-choice-grid">
+                        <button class="wizard-choice @(Owner.wizardReleaseMode == "import" ? "active" : null)" @onclick="@(() => Owner.wizardReleaseMode = "import")">
+                            <strong>导入构建元数据</strong>
+                            <span>生成版本与默认投放配置。</span>
+                        </button>
+                        <button class="wizard-choice @(Owner.wizardReleaseMode == "manual" ? "active" : null)" @onclick="@(() => Owner.wizardReleaseMode = "manual")">
+                            <strong>手动填写版本</strong>
+                            <span>适合补录历史版本或临时测试。</span>
+                        </button>
+                    </div>
+
+                    @if (Owner.wizardReleaseMode == "import")
+                    {
+                        <div class="wizard-block">
+                            <div class="section-head">
+                                <div>
+                                    <h4>构建元数据</h4>
+                                </div>
+                                <div class="button-row">
+                                    <button class="ghost-action ghost-action--sm" @onclick="@(() => Owner.LoadImportMetadataTemplate("stable"))">稳定版模板</button>
+                                    <button class="ghost-action ghost-action--sm" @onclick="@(() => Owner.LoadImportMetadataTemplate("gray"))">灰度版模板</button>
+                                </div>
+                            </div>
+                            <div class="metadata-editor-area metadata-editor-area--wizard">
+                                <div class="metadata-editor__wrapper">
+                                    <MonacoEditor @ref="Owner._importMetadataEditor"
+                                                  Content="@Owner.importMetadataJson"
+                                                  Language="json"
+                                                  Theme="vs-light"
+                                                  FontSize="13"
+                                                  ShowMinimap="false"
+                                                  WordWrap="true"
+                                                  OnContentChanged="Owner.HandleImportMetadataChangedAsync" />
+                                    <div class="metadata-editor__toolbar">
+                                        <button class="metadata-editor__btn" type="button" title="格式化 JSON" @onclick="Owner.FormatImportMetadataJson">
+                                            <ListIcon Size="14" />
+                                        </button>
+                                        <button class="metadata-editor__btn" type="button" title="放大查看" @onclick="Owner.OpenImportMetadataDialog">
+                                            <MaximizeIcon Size="14" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="metadata-status @(Owner.HasImportMetadataJsonError ? "metadata-status--error" : "metadata-status--ok")">
+                                    @Owner.ImportMetadataJsonStatusText
+                                </div>
+                            </div>
+                            <div class="checkbox-row">
+                                <label class="checkbox-label"><input type="checkbox" @bind="Owner.wizardPublishRelease" /> <span>导入即发布</span></label>
+                                <label class="checkbox-label"><input type="checkbox" @bind="Owner.wizardCreateRollout" /> <span>导入即创建投放</span></label>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="wizard-block">
+                            <div class="form-grid form-grid--wizard-compact">
+                                <label>
+                                    <span>版本号</span>
+                                    <input @bind="Owner.releaseForm.Version" placeholder="例如 1.2.0" />
+                                </label>
+                                <label>
+                                    <span>渠道</span>
+                                    <select @bind="Owner.releaseForm.Channel">
+                                        @foreach (var channel in ReleaseCenter.ReleaseChannelOptions)
+                                        {
+                                            <option value="@channel">@channel</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="span-2">
+                                    <span>版本标题</span>
+                                    <input @bind="Owner.releaseForm.Title" placeholder="例如 Windows 稳定版热修复" />
+                                </label>
+                                <label class="span-2">
+                                    <span>发行说明</span>
+                                    <textarea @bind="Owner.releaseForm.ReleaseNotes" placeholder="简要记录本次版本变更。"></textarea>
+                                </label>
+                            </div>
+                            <div class="checkbox-row">
+                                <label class="checkbox-label"><input type="checkbox" @bind="Owner.wizardPublishRelease" /> <span>保存即发布</span></label>
+                                <label class="checkbox-label"><input type="checkbox" @bind="Owner.wizardCreateRollout" /> <span>同时创建投放</span></label>
+                            </div>
+                        </div>
+                    }
+
+                    @if (Owner.GetWizardValidationErrors(1).Count > 0)
+                    {
+                        <div class="validation-stack">
+                            @foreach (var error in Owner.GetWizardValidationErrors(1))
+                            {
+                                <article class="validation-item">@error</article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (Owner.wizardStep == 2)
+            {
+                <section class="wizard-panel">
+                    <div class="section-head">
+                        <div>
+                            <h4>确认发布包</h4>
+                        </div>
+                        @if (Owner.wizardReleaseMode != "import")
+                        {
+                            <div class="button-row">
+                                <button class="ghost-action" type="button" @onclick="Owner.AddArtifact">新增发布包</button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="artifact-list">
+                        @foreach (var artifact in Owner.GetWizardArtifacts())
+                        {
+                            <article class="artifact-card">
+                                @if (Owner.wizardReleaseMode == "import")
+                                {
+                                    <div class="artifact-summary-grid">
+                                        <div class="artifact-summary-item">
+                                            <span>平台</span>
+                                            <strong>@artifact.Platform</strong>
+                                        </div>
+                                        <div class="artifact-summary-item">
+                                            <span>架构</span>
+                                            <strong>@artifact.Architecture</strong>
+                                        </div>
+                                        <div class="artifact-summary-item">
+                                            <span>包类型</span>
+                                            <strong>@artifact.PackageType</strong>
+                                        </div>
+                                        <div class="artifact-summary-item artifact-summary-item--wide">
+                                            <span>下载地址</span>
+                                            <strong>@artifact.DownloadUrl</strong>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="artifact-grid">
+                                        <label>
+                                            <span>平台</span>
+                                            <select @bind="artifact.Platform">
+                                                @foreach (var platform in ReleaseCenter.ArtifactPlatformOptions)
+                                                {
+                                                    <option value="@platform">@platform</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>架构</span>
+                                            <select @bind="artifact.Architecture">
+                                                @foreach (var arch in ReleaseCenter.ArtifactArchitectureOptions)
+                                                {
+                                                    <option value="@arch">@arch</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>包类型</span>
+                                            <select @bind="artifact.PackageType">
+                                                @foreach (var ptype in ReleaseCenter.ArtifactPackageTypeOptions)
+                                                {
+                                                    <option value="@ptype">@ptype</option>
+                                                }
+                                            </select>
+                                        </label>
+                                        <label>
+                                            <span>下载地址</span>
+                                            <input @bind="artifact.DownloadUrl" placeholder="https://..." />
+                                        </label>
+                                    </div>
+                                }
+                            </article>
+                        }
+                    </div>
+
+                    @if (Owner.GetWizardValidationErrors(2).Count > 0)
+                    {
+                        <div class="validation-stack">
+                            @foreach (var error in Owner.GetWizardValidationErrors(2))
+                            {
+                                <article class="validation-item">@error</article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (Owner.wizardStep == 3)
+            {
+                <section class="wizard-panel">
+                    <div class="section-head">
+                        <div>
+                            <h4>设置投放策略</h4>
+                        </div>
+                    </div>
+
+                    <div class="checkbox-row">
+                        <label class="checkbox-label"><input type="checkbox" @bind="Owner.wizardCreateRollout" /> <span>创建投放</span></label>
+                    </div>
+
+                    @if (Owner.wizardCreateRollout)
+                    {
+                        <div class="form-grid form-grid--wizard-compact">
+                            <label>
+                                <span>目标版本</span>
+                                <select @bind="Owner.rolloutForm.ReleaseIdString">
+                                    @if (!string.IsNullOrWhiteSpace(Owner.WizardPendingReleaseOptionValue))
+                                    {
+                                        <option value="@Owner.WizardPendingReleaseOptionValue">@Owner.WizardPendingReleaseOptionLabel</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="">请选择版本</option>
+                                    }
+                                    @if (Owner.releaseForm.ReleaseId.HasValue && Owner.releaseForm.ReleaseId.Value.ToString() != Owner.WizardPendingReleaseOptionValue)
+                                    {
+                                        <option value="@Owner.releaseForm.ReleaseId" selected>@Owner.GetPlannedReleaseDisplayText()</option>
+                                    }
+                                    @foreach (var release in Owner.releases)
+                                    {
+                                        @if (!Owner.releaseForm.ReleaseId.HasValue || release.ReleaseId != Owner.releaseForm.ReleaseId.Value)
+                                        {
+                                            <option value="@release.ReleaseId">@($"{release.Version} / {release.Channel}")</option>
+                                        }
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>平台</span>
+                                <select @bind="Owner.rolloutForm.Platform">
+                                    @foreach (var platform in ReleaseCenter.ArtifactPlatformOptions)
+                                    {
+                                        <option value="@platform">@platform</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>架构</span>
+                                <select @bind="Owner.rolloutForm.Architecture">
+                                    @foreach (var arch in ReleaseCenter.ArtifactArchitectureOptions)
+                                    {
+                                        <option value="@arch">@arch</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>渠道</span>
+                                <select @bind="Owner.rolloutForm.Channel">
+                                    @foreach (var channel in ReleaseCenter.ReleaseChannelOptions)
+                                    {
+                                        <option value="@channel">@channel</option>
+                                    }
+                                </select>
+                            </label>
+                            <label>
+                                <span>灰度比例</span>
+                                <input type="number" min="0" max="100" @bind="Owner.rolloutForm.RolloutPercent" />
+                            </label>
+                            <label>
+                                <span>强制更新</span>
+                                <select @bind="Owner.rolloutForm.ForceUpdate">
+                                    <option value="false">否</option>
+                                    <option value="true">是</option>
+                                </select>
+                            </label>
+                        </div>
+                    }
+
+                    @if (Owner.GetWizardValidationErrors(3).Count > 0)
+                    {
+                        <div class="validation-stack">
+                            @foreach (var error in Owner.GetWizardValidationErrors(3))
+                            {
+                                <article class="validation-item">@error</article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (Owner.wizardStep == 4)
+            {
+                <section class="wizard-panel">
+                    <div class="section-head">
+                        <div>
+                            <h4>最后确认</h4>
+                        </div>
+                    </div>
+
+                    <div class="wizard-block wizard-block--plain">
+                        <h4>即将执行</h4>
+                        <div class="checklist-stack">
+                            @foreach (var item in Owner.GetWizardExecutionChecklist())
+                            {
+                                <article class="checklist-item">
+                                    <span class="checklist-item__dot"></span>
+                                    <span>@item</span>
+                                </article>
+                            }
+                        </div>
+                    </div>
+
+                    @if (Owner.GetWizardRiskWarnings().Count > 0)
+                    {
+                        <div class="wizard-block wizard-block--warning wizard-block--dense">
+                            <h4>提交提醒</h4>
+                            <div class="warning-stack">
+                                @foreach (var warning in Owner.GetWizardRiskWarnings())
+                                {
+                                    <article class="warning-item">
+                                        <span class="warning-item__icon">!</span>
+                                        <span>@warning</span>
+                                    </article>
+                                }
+                            </div>
+                            <div class="acknowledge-panel">
+                                <label class="acknowledge-checkbox">
+                                    <input type="checkbox" @bind="Owner.wizardAcknowledgeRisks" />
+                                    <span>已确认风险</span>
+                                </label>
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+
+            @if (Owner.wizardStep == 5 && Owner.wizardCompleted)
+            {
+                <section class="wizard-panel">
+                    <div class="wizard-success wizard-success--compact">
+                        <div class="wizard-success__badge">发布完成</div>
+                        <h4>@(Owner.wizardLastRelease?.Version ?? "已完成")</h4>
+                    </div>
+
+                    <div class="review-grid">
+                        <article class="review-card">
+                            <span>实际版本</span>
+                            <strong>@(Owner.wizardLastRelease == null ? "未识别到版本结果" : $"{Owner.wizardLastRelease.Version} / {Owner.wizardLastRelease.Channel}")</strong>
+                        </article>
+                        <article class="review-card">
+                            <span>版本状态</span>
+                            <strong>@(Owner.wizardLastRelease == null ? "未知" : Owner.GetReleaseStatusText(Owner.wizardLastRelease.Status))</strong>
+                        </article>
+                        <article class="review-card">
+                            <span>投放摘要</span>
+                            <strong>@(Owner.wizardLastRollout == null ? "未创建投放" : $"{Owner.wizardLastRollout.Platform} / {Owner.wizardLastRollout.Architecture} / {Owner.wizardLastRollout.Channel}")</strong>
+                        </article>
+                        <article class="review-card">
+                            <span>灰度与状态</span>
+                            <strong>@(Owner.wizardLastRollout == null ? "无" : $"{Owner.wizardLastRollout.RolloutPercent}% / {Owner.GetRolloutStatusText(Owner.wizardLastRollout)}")</strong>
+                        </article>
+                    </div>
+
+                    <div class="wizard-block">
+                        <div class="section-head">
+                            <div>
+                                <h4>执行结果</h4>
+                            </div>
+                        </div>
+                        <div class="checklist-stack">
+                            @foreach (var item in Owner.wizardExecutionResults)
+                            {
+                                <article class="checklist-item">
+                                    <span class="checklist-item__dot"></span>
+                                    <span>@item</span>
+                                </article>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="button-row">
+                        <button class="ghost-action" @onclick="Owner.CopyWizardSummaryAsync">复制发布摘要</button>
+                        <button class="ghost-action" @onclick="Owner.CopyVersionAsync" disabled="@(Owner.wizardLastRelease == null)">复制版本号</button>
+                        <button class="ghost-action" @onclick="Owner.CopyRolloutSummaryAsync" disabled="@(Owner.wizardLastRollout == null)">复制投放信息</button>
+                    </div>
+
+                    <div class="review-grid">
+                        <button class="review-card review-card--action" @onclick="@(() => CloseAndSwitch("rollouts"))">
+                            <span>下一步</span>
+                            <strong>投放策略</strong>
+                            <span class="review-card__cta">
+                                <ChevronRightIcon Size="14" />
+                                <span>继续</span>
+                            </span>
+                        </button>
+                        <button class="review-card review-card--action" @onclick="@(() => CloseAndSwitch("observability"))">
+                            <span>下一步</span>
+                            <strong>运行观测</strong>
+                            <span class="review-card__cta">
+                                <ChevronRightIcon Size="14" />
+                                <span>继续</span>
+                            </span>
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
+
+        <div class="wizard-modal__footer">
+            <button class="ghost-action" @onclick="Owner.GoToPreviousWizardStep" disabled="@(Owner.wizardStep == 1 || Owner.wizardStep == 5)">上一步</button>
+            @if (Owner.wizardStep < 4)
+            {
+                <button class="primary-action" @onclick="Owner.GoToNextWizardStep" disabled="@(!Owner.CanProceedFromWizardStep(Owner.wizardStep))">下一步</button>
+            }
+            else if (Owner.wizardStep == 4)
+            {
+                <button class="primary-action" @onclick="Owner.CompleteWizardAsync" disabled="@(Owner.isSaving || !Owner.CanCompleteWizard())">确认并执行</button>
+            }
+            else
+            {
+                <button class="primary-action" @onclick="Owner.ClosePublishWizard">完成</button>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ReleaseCenter Owner { get; set; } = default!;
+
+    private void CloseAndSwitch(string tab)
+    {
+        Owner.ClosePublishWizard();
+        Owner.SwitchTab(tab);
+    }
+}

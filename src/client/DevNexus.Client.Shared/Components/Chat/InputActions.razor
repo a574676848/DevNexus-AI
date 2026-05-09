@@ -1,0 +1,51 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+<!-- Bottom Actions -->
+<div class="input-actions">
+    <!-- 快捷键提示和切换 -->
+    <button type="button"
+            class="input-tip shortcut-tip"
+            @onclick="ToggleEnterMode"
+            aria-pressed="@EnterToSend"
+            title="点击切换发送快捷键">
+        <i class="fa-solid fa-keyboard"></i>
+        @if (EnterToSend)
+        {
+            <span><kbd>Enter</kbd> 发送 | <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
+        }
+        else
+        {
+            <span><kbd>Ctrl</kbd>+<kbd>Enter</kbd> 发送 | <kbd>Enter</kbd> 换行</span>
+        }
+    </button>
+
+    @if (CanCancel)
+    {
+        <button type="button" class="btn-send btn-cancel" @onclick="HandleCancelClickAsync" title="@CancelLabel">
+            <span>@CancelLabel</span>
+        </button>
+    }
+    else if (IsBusy)
+    {
+        <button type="button" class="btn-send btn-sending" disabled title="@BusyLabel">
+            <i class="fa-solid fa-clock"></i>
+            <span>@BusyLabel</span>
+        </button>
+    }
+    else if (IsSending)
+    {
+        <button type="button" class="btn-send btn-sending" disabled title="消息正在发送">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+            <span>发送中...</span>
+        </button>
+    }
+    else
+    {
+        <button type="button" class="btn-send @( _isSendingClick ? "btn-send--pressed" : string.Empty)"
+                @onclick="HandleSendClickAsync"
+                disabled="@IsSendDisabled"
+                title="@SendButtonTooltip">
+            <span>@(HasPendingUploads ? "语义准备中" : SendLabel)</span>
+        </button>
+    }
+</div>

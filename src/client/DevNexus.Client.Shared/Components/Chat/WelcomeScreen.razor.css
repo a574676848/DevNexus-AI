@@ -1,0 +1,64 @@
+/* WelcomeScreen.razor.css - AI 能力开场白样式 */
+
+.welcome-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    background: var(--dnx-bg-canvas, #f5f6f7);
+    position: relative;
+    overflow: hidden;
+}
+
+.welcome-screen::before {
+    content: '';
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08)) 0%, transparent 60%);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.welcome-content {
+    max-width: clamp(300px, 80%, 600px);
+    text-align: center;
+    z-index: 1;
+    animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.welcome-logo {
+    margin-bottom: 32px;
+}
+
+.welcome-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--dnx-text-primary, #182026);
+    margin: 0 0 12px;
+    letter-spacing: -0.5px;
+}
+
+.welcome-subtitle {
+    font-size: 16px;
+    color: var(--dnx-text-secondary, #5f6b76);
+    margin: 0;
+    line-height: 1.6;
+    font-weight: 400;
+}

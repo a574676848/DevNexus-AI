@@ -1,0 +1,324 @@
+@page "/settings/users"
+@attribute [Authorize(Roles = "Admin")]
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Shared
+
+<div class="user-management-container">
+    
+    <div class="content-wrapper">
+        <!-- 头部：标题 + 搜索框 + 创建按钮 -->
+        <div class="page-header">
+            <div class="header-title">
+                <h1>用户管理</h1>
+                <span class="header-subtitle">管理系统用户权限与状态</span>
+            </div>
+            
+            <div class="header-actions">
+                <div class="search-box">
+                    <SearchIcon Size="16" Stroke="currentColor" />
+                    <input type="text"
+                           @bind="searchQuery"
+                           @bind:event="oninput"
+                           @onkeyup="HandleSearchKeyUp"
+                           disabled="@(isLoading || isSaving)"
+                           placeholder="搜索用户..." />
+                </div>
+                
+                <button class="btn-primary" @onclick="ShowCreateDialog" disabled="@isSaving">
+                    <PlusIcon Size="18" />
+                    <span>新建用户</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 用户列表 -->
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <LoadingSpinner Message="正在加载用户数据..." Size="lg" />
+            </div>
+        }
+        else if (users.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon-wrapper">
+                    <UserManagementIcon Size="64" Stroke="#9ca3af" />
+                </div>
+                <h3>暂无用户</h3>
+                <p>当前系统没有任何用户，开始创建第一个用户吧</p>
+                <button class="btn-primary" @onclick="ShowCreateDialog" disabled="@isSaving">
+                    <PlusIcon Size="16" />
+                    <span>立即创建</span>
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="user-grid">
+                @foreach (var user in users)
+                {
+                    <div class="user-card @(user.IsEnabled ? "" : "disabled")">
+                        <div class="card-glow"></div>
+                        
+                        <!-- 卡片头部 -->
+                        <div class="card-header">
+                            <UserAvatar DisplayName="@(user.DisplayName ?? user.Username)" 
+                                        AvatarUrl="@user.AvatarUrl" 
+                                        CustomStyle="width: 42px; height: 42px; font-size: 18px; border-radius: 10px; transition: transform 0.3s ease;" />
+                            <div class="user-identity">
+                                <div class="username" title="@user.Username">@user.Username</div>
+                                <div class="email" title="@user.Email">@user.Email</div>
+                            </div>
+                            <div class="status-badge @(user.IsEnabled ? "active" : "inactive")">
+                                <span class="dot"></span>
+                                <span>@(user.IsEnabled ? "活跃" : "禁用")</span>
+                            </div>
+                        </div>
+
+                        <!-- 卡片信息 -->
+                        <div class="card-body">
+                            <div class="info-row">
+                                <span class="label">昵称</span>
+                                <span class="value">@(string.IsNullOrEmpty(user.DisplayName) ? "-" : user.DisplayName)</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">角色</span>
+                                <div class="roles-wrapper">
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="role-pill @role.ToLower()">@GetRoleDisplayName(role)</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="info-row">
+                                <span class="label">注册时间</span>
+                                <span class="value">@user.CreatedAt.ToString("yyyy/MM/dd")</span>
+                            </div>
+                        </div>
+
+                        <!-- 卡片操作 (Hover显示) -->
+                        <div class="card-actions-overlay">
+                            <button class="action-btn" @onclick="() => ShowEditDialog(user)" title="编辑信息" disabled="@isSaving">
+                                <EditIcon Size="16" />
+                            </button>
+                            <button class="action-btn" @onclick="() => ShowResetPasswordDialog(user)" title="重置密码" disabled="@isSaving">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                                </svg>
+                            </button>
+                            <button class="action-btn @(user.IsEnabled ? "warning" : "success")" 
+                                    @onclick="() => ToggleUserStatus(user)"
+                                    title="@(user.IsEnabled ? "禁用账户" : "启用账户")"
+                                    disabled="@isSaving">
+                                @if (user.IsEnabled)
+                                {
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <circle cx="12" cy="12" r="10"/>
+                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <CheckCircleIcon Size="16" />
+                                }
+                            </button>
+                            <div class="divider"></div>
+                            <button class="action-btn danger" @onclick="() => ShowDeleteDialog(user)" title="永久删除" disabled="@isSaving">
+                                <TrashIcon Size="16" />
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- 分页 -->
+            @if (totalPages > 1)
+            {
+                <div class="pagination">
+                    <button class="page-btn" disabled="@(currentPage <= 1 || isLoading || isSaving)" @onclick="PreviousPage">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 18l-6-6 6-6"/>
+                        </svg>
+                    </button>
+                    <span class="page-info">@currentPage / @totalPages</span>
+                    <button class="page-btn" disabled="@(currentPage >= totalPages || isLoading || isSaving)" @onclick="NextPage">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 18l6-6-6-6"/>
+                        </svg>
+                    </button>
+                </div>
+            }
+        }
+
+        <!-- 消息提示 -->
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="message-toast @(messageSuccess ? "success" : "error")">
+                @if (messageSuccess)
+                {
+                    <CheckCircleIcon Size="18" />
+                }
+                else
+                {
+                    <AlertCircleIcon Size="18" />
+                }
+                <span>@message</span>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- 创建/编辑用户对话框 -->
+@if (showDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseDialog">
+        <div class="dialog-container" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>@(isEditing ? "编辑用户" : "创建用户")</h3>
+                <button class="btn-close" @onclick="CloseDialog" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" @bind="formData.Username" placeholder="输入用户名" disabled="@isEditing" class="input" />
+                </div>
+
+                <div class="form-group">
+                    <label>邮箱</label>
+                    <input type="email" @bind="formData.Email" placeholder="输入邮箱" class="input" />
+                </div>
+
+                @if (!isEditing)
+                {
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" @bind="formData.Password" placeholder="输入密码" class="input" />
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>显示名称</label>
+                    <input type="text" @bind="formData.DisplayName" placeholder="输入显示名称" class="input" />
+                </div>
+
+                <div class="form-group">
+                    <label>角色</label>
+                    <select @bind="formData.SelectedRole" class="input">
+                        <option value="User">普通用户</option>
+                        <option value="Admin">管理员</option>
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="form-error">
+                        <AlertCircleIcon Size="14" />
+                        <span>@dialogError</span>
+                    </div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="CloseDialog">取消</button>
+                <button class="btn-primary" @onclick="SaveUser" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>保存中...</span>
+                    }
+                    else
+                    {
+                        <span>保存</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 重置密码对话框 -->
+@if (showResetPasswordDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseResetPasswordDialog">
+        <div class="dialog-container dialog-small" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>重置密码</h3>
+                <button class="btn-close" @onclick="CloseResetPasswordDialog" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <p>为用户 <strong>@selectedUser?.Username</strong> 设置新密码：</p>
+
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" @bind="newPassword" placeholder="输入新密码（至少6位）" class="input" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="form-error">
+                        <AlertCircleIcon Size="14" />
+                        <span>@dialogError</span>
+                    </div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="CloseResetPasswordDialog">取消</button>
+                <button class="btn-primary" @onclick="ResetPassword" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>重置中...</span>
+                    }
+                    else
+                    {
+                        <span>重置密码</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 删除确认对话框 -->
+@if (showDeleteDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseDeleteDialog">
+        <div class="dialog-container dialog-small" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>确认删除</h3>
+                <button class="btn-close" @onclick="CloseDeleteDialog" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <div class="confirm-content">
+                    <div class="confirm-icon danger">
+                        <TrashIcon Size="24" />
+                    </div>
+                    <p class="confirm-message">确定要删除用户 <strong>@selectedUser?.Username</strong> 吗？此操作不可撤销。</p>
+                </div>
+
+                @if (!string.IsNullOrEmpty(dialogError))
+                {
+                    <div class="form-error">
+                        <AlertCircleIcon Size="14" />
+                        <span>@dialogError</span>
+                    </div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="CloseDeleteDialog">取消</button>
+                <button class="btn-danger" @onclick="DeleteUser" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>删除中...</span>
+                    }
+                    else
+                    {
+                        <span>确认删除</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+

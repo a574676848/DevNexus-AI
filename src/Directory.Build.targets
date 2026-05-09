@@ -1,0 +1,29 @@
+<Project>
+
+  <ItemGroup>
+    <!--
+      在默认 Item 已经展开后再次兜底移除，确保设计时构建与命令行构建都不会把
+      构建产物目录中的生成代码纳入编译。
+    -->
+    <Compile Remove="obj\**\*.cs" />
+    <Compile Remove="bin\**\*.cs" />
+    <Compile Remove=".validation\**\*.cs" />
+    <Compile Remove="artifacts\**\*.cs" />
+
+    <Content Remove="obj\**\*" />
+    <Content Remove="bin\**\*" />
+    <Content Remove=".validation\**\*" />
+    <Content Remove="artifacts\**\*" />
+
+    <None Remove="obj\**\*" />
+    <None Remove="bin\**\*" />
+    <None Remove=".validation\**\*" />
+    <None Remove="artifacts\**\*" />
+
+    <EmbeddedResource Remove="obj\**\*" />
+    <EmbeddedResource Remove="bin\**\*" />
+    <EmbeddedResource Remove=".validation\**\*" />
+    <EmbeddedResource Remove="artifacts\**\*" />
+  </ItemGroup>
+
+</Project>

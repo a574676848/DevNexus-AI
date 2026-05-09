@@ -1,0 +1,52 @@
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (Show)
+{
+    <div class="dialog-overlay" @onclick="OnClose">
+        <div class="dialog-container dialog-small" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>确认删除</h3>
+                <button class="btn-close" @onclick="OnClose" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <div class="confirm-content">
+                    <div class="confirm-icon danger">
+                        <TrashIcon Size="24" />
+                    </div>
+                    <p class="confirm-message">@Message</p>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="OnClose">取消</button>
+                <button class="btn-danger" @onclick="OnConfirmDelete" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>删除中..</span>
+                    }
+                    else
+                    {
+                        <span>删除</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+
+    [Parameter]
+    public string Message { get; set; } = "";
+
+    [Parameter]
+    public bool IsSubmitting { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnConfirmDelete { get; set; }
+}

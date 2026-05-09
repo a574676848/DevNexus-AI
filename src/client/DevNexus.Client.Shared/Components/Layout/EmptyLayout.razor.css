@@ -1,0 +1,24 @@
+/* EmptyLayout - Modern Premium UI */
+
+.empty-layout {
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(circle at top right, rgba(34, 197, 94, 0.05), transparent 40%),
+        radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.05), transparent 40%),
+        var(--bg-primary, #f5f5f7);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 主内容区域 */
+.empty-content {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}

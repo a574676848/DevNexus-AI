@@ -1,0 +1,213 @@
+@page "/settings/control-hub"
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IJSRuntime JS
+
+<div class="control-hub">
+    <nav class="tabs">
+        <button class="tab @(activeTab == "llm" ? "active" : "")" @onclick="@(() => SetActiveTab("llm"))">
+            <span class="tab-icon">
+                <LLMIcon Size="16" />
+            </span>
+            <span>LLM 供应商</span>
+        </button>
+        <button class="tab @(activeTab == "embedding" ? "active" : "")" @onclick="@(() => SetActiveTab("embedding"))">
+            <span class="tab-icon">
+                <EmbeddingIcon Size="16" />
+            </span>
+            <span>Embedding</span>
+        </button>
+        <button class="tab @(activeTab == "search" ? "active" : "")" @onclick="@(() => SetActiveTab("search"))">
+            <span class="tab-icon">
+                <SearchIcon Size="16" />
+            </span>
+            <span>搜索引擎</span>
+        </button>
+        <button class="tab @(activeTab == "storage" ? "active" : "")" @onclick="@(() => SetActiveTab("storage"))">
+            <span class="tab-icon">
+                <StorageIcon Size="16" />
+            </span>
+            <span>存储服务</span>
+        </button>
+        <button class="tab @(activeTab == "note" ? "active" : "")" @onclick="@(() => SetActiveTab("note"))">
+            <span class="tab-icon">
+                <NoteIcon Size="16" />
+            </span>
+            <span>笔记服务</span>
+        </button>
+    </nav>
+
+    <div class="tab-content">
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <span>加载中...</span>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-state">
+                <svg class="error-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p>@errorMessage</p>
+                <button class="retry-btn" @onclick="LoadDataAsync">重试</button>
+            </div>
+        }
+        else
+        {
+            @switch (activeTab)
+            {
+                case "llm":
+                    <LLMProviderPanel Providers="llmProviders" OnRefresh="LoadLLMProvidersAsync" />
+                    break;
+                case "embedding":
+                    <EmbeddingProviderPanel Providers="embeddingProviders"
+                                            GlobalVectorSize="embeddingGlobalVectorSize"
+                                            OnRefresh="LoadEmbeddingProvidersAsync" />
+                    break;
+                case "search":
+                    <SearchProviderPanel Providers="searchProviders" OnRefresh="LoadSearchProvidersAsync" />
+                    break;
+                case "storage":
+                    <StorageProviderPanel Providers="storageProviders" OnRefresh="LoadStorageProvidersAsync" />
+                    break;
+                case "note":
+                    <NoteProviderPanel Providers="noteProviders" OnRefresh="LoadNoteProvidersAsync" />
+                    break;
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private string activeTab = "llm";
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? toastMessage;
+    private string? toastType; // "success", "error", "warning", "info"
+
+    // Supplier data
+    private List<LLMProviderResponse> llmProviders = new();
+    private List<EmbeddingProviderResponse> embeddingProviders = new();
+    private int embeddingGlobalVectorSize = 1024;
+    private List<SearchProviderResponse> searchProviders = new();
+    private List<StorageProviderResponse> storageProviders = new();
+    private List<NoteProviderResponse> noteProviders = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        toastMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            await Task.WhenAll(
+            LoadLLMProvidersAsync(),
+            LoadEmbeddingProvidersAsync(),
+            LoadSearchProvidersAsync(),
+            LoadStorageProvidersAsync(),
+            LoadNoteProvidersAsync()
+            );
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "ControlHub.LoadDataAsync", new() { ["Action"] = "LoadData" });
+            errorMessage = "加载数据失败，请重试";
+            toastMessage = $"操作失败: {ex.Message}";
+            toastType = "error";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+            if (!string.IsNullOrEmpty(toastMessage))
+            {
+                await JS.InvokeVoidAsync("showToast", toastMessage, toastType);
+            }
+        }
+    }
+
+    private async Task LoadLLMProvidersAsync()
+    {
+        try
+        {
+            llmProviders = await ApiService.GetLLMProvidersAsync(true);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载 LLM 供应商失败: {ex.Message}", "ControlHub.LoadLLM");
+        }
+    }
+
+    private async Task LoadEmbeddingProvidersAsync()
+    {
+        try
+        {
+            embeddingGlobalVectorSize = await ApiService.GetEmbeddingGlobalVectorSizeAsync();
+            embeddingProviders = await ApiService.GetEmbeddingProvidersAsync(true);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载 Embedding 供应商失败: {ex.Message}", "ControlHub.LoadEmbedding");
+        }
+    }
+
+    private async Task LoadSearchProvidersAsync()
+    {
+        try
+        {
+            searchProviders = await ApiService.GetSearchProvidersAsync(true);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载 Search 供应商失败: {ex.Message}", "ControlHub.LoadSearch");
+        }
+    }
+
+    private async Task LoadStorageProvidersAsync()
+    {
+        try
+        {
+            storageProviders = await ApiService.GetStorageProvidersAsync(true);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载 Storage 供应商失败: {ex.Message}", "ControlHub.LoadStorage");
+        }
+    }
+
+    private async Task LoadNoteProvidersAsync()
+    {
+        try
+        {
+            noteProviders = (await ApiService.GetAllProvidersAsync(true)).ToList();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载笔记供应商失败: {ex.Message}", "ControlHub.LoadNote");
+        }
+    }
+}

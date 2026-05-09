@@ -1,0 +1,183 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Components.Icons
+@using Microsoft.Extensions.Logging
+@inject IApiService ApiService
+@inject IJSRuntime JS
+@inject ILogger<LogoSelector> Logger
+@inject ILogoService LogoService
+
+<div class="logo-selector">
+    <div class="logo-mode-tabs">
+        <button type="button" class="logo-mode-tab @(logoMode == LogoSelectionMode.Preset ? "active" : "")"
+                @onclick="() => logoMode = LogoSelectionMode.Preset">从预设选择</button>
+        <button type="button" class="logo-mode-tab @(logoMode == LogoSelectionMode.Custom ? "active" : "")"
+                @onclick="() => logoMode = LogoSelectionMode.Custom">自定义上传</button>
+    </div>
+
+    @if (logoMode == LogoSelectionMode.Preset)
+    {
+        <div class="logo-preset-grid">
+            @foreach (var logo in PresetLogos)
+            {
+                <div class="logo-preset-item @(SelectedLogo == logo ? "selected" : "")"
+                     @onclick="() => SelectPreset(logo)">
+                    <img src="@logo" alt="Logo" />
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <InputFile OnChange="HandleLogoUpload" accept="image/*" style="display: none;" id="@InputId" />
+        <div class="logo-upload-area" @onclick="TriggerUpload" @onclick:stopPropagation>
+            @if (!string.IsNullOrEmpty(SelectedLogo) && !PresetLogos.Contains(SelectedLogo))
+            {
+                <img src="@GetFullUrl(SelectedLogo)" alt="Logo" class="logo-preview" @onerror="HandlePreviewError" />
+                <div class="logo-overlay">
+                    <UploadIcon Size="20" />
+                    <span>更换 Logo</span>
+                </div>
+            }
+            else
+            {
+                <div class="logo-placeholder">
+                    <UploadIcon Size="32" Stroke="#9ca3af" />
+                    <span>点击上传 Logo</span>
+                    <span class="logo-hint">支持 PNG、JPG、SVG 格式</span>
+                </div>
+            }
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(SelectedLogo))
+    {
+        <div class="logo-selected-preview">
+            <span>已选择:</span>
+            <img src="@GetFullUrl(SelectedLogo)" alt="Selected Logo" />
+        </div>
+    }
+</div>
+
+@code {
+    private enum LogoSelectionMode { Preset, Custom }
+
+    /// <summary>
+    /// 预设 Logo 列表（从 LogoService 动态加载）
+    /// </summary>
+    private IReadOnlyList<string> PresetLogos { get; set; } = Array.Empty<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LogoService.InitializeAsync();
+        PresetLogos = LogoService.GetPresetLogos();
+    }
+
+    /// <summary>
+    /// 当前选中的 Logo URL
+    /// </summary>
+    [Parameter]
+    public string? SelectedLogo { get; set; }
+
+    /// <summary>
+    /// Logo 选择变化回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<string?> SelectedLogoChanged { get; set; }
+
+    /// <summary>
+    /// 文件输入元素的唯一 ID
+    /// </summary>
+    [Parameter]
+    public string InputId { get; set; } = $"logo-upload-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// 消息输出（上传成功/失败）
+    /// </summary>
+    [Parameter]
+    public EventCallback<(string Message, bool Success)> OnMessage { get; set; }
+
+    private LogoSelectionMode logoMode = LogoSelectionMode.Preset;
+
+    /// <summary>
+    /// 重置模式为预设
+    /// </summary>
+    public void Reset()
+    {
+        logoMode = LogoSelectionMode.Preset;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// 获取完整 URL（使用统一的 LogoService）
+    /// </summary>
+    private string GetFullUrl(string? url)
+    {
+        return LogoService.GetLogoUrl(url);
+    }
+
+    private async Task SelectPreset(string logoPath)
+    {
+        await SelectedLogoChanged.InvokeAsync(logoPath);
+    }
+
+    private async Task TriggerUpload()
+    {
+        await JS.InvokeVoidAsync("eval", $"document.getElementById('{InputId}').click()");
+    }
+
+    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // 验证文件类型
+        if (!file.ContentType.StartsWith("image/"))
+        {
+            await OnMessage.InvokeAsync(("请选择图片文件", false));
+            return;
+        }
+
+        // 验证文件大小（最大 2MB）
+        const long maxSize = 2 * 1024 * 1024;
+        if (file.Size > maxSize)
+        {
+            await OnMessage.InvokeAsync(("图片大小不能超过 2MB", false));
+            return;
+        }
+
+        try
+        {
+            // 生成唯一的对象键
+            var extension = Path.GetExtension(file.Name);
+            var objectKey = $"provider-logos/{Guid.NewGuid()}{extension}";
+
+            // 使用智能上传（自动根据存储模式选择正确的上传方式）
+            await using var stream = file.OpenReadStream(maxSize);
+            var uploadResult = await ApiService.SmartUploadFileAsync(stream, file.Name, file.ContentType, "provider-logos");
+
+            if (uploadResult.Confirmed && !string.IsNullOrEmpty(uploadResult.FileUrl))
+            {
+                // 更新选中的 Logo 并触发重新渲染
+                await SelectedLogoChanged.InvokeAsync(uploadResult.FileUrl);
+                StateHasChanged(); // 确保组件重新渲染以显示新图片
+                await OnMessage.InvokeAsync(("Logo 上传成功", true));
+            }
+            else
+            {
+                await OnMessage.InvokeAsync(("上传 Logo 失败", false));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "上传 Logo 失败");
+            await OnMessage.InvokeAsync(("上传 Logo 失败，请重试", false));
+        }
+    }
+
+    private void HandlePreviewError()
+    {
+        // 如果预览图片加载失败，回退到默认图标
+        StateHasChanged();
+    }
+}
+

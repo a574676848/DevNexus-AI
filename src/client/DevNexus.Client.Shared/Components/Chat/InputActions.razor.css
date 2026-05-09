@@ -1,0 +1,142 @@
+/* InputActions.razor.css */
+
+.input-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 20px;
+    background: transparent;
+}
+
+.input-tip {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
+/* Shortcut Tip */
+.shortcut-tip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 6px 12px;
+    border-radius: var(--dnx-radius-sm, 6px);
+    transition: all 0.2s ease;
+    user-select: none;
+    color: var(--dnx-text-secondary, #5f6b76);
+}
+
+.shortcut-tip:hover {
+    background: var(--dnx-bg-surface-hover, #eef1f2);
+    color: var(--dnx-text-primary, #182026);
+    /* No bouncy transform */
+}
+
+.shortcut-tip:focus-visible {
+    outline: none;
+    box-shadow: var(--dnx-focus-ring, 0 0 0 2px rgba(7, 193, 96, 0.22));
+}
+
+.shortcut-tip i {
+    font-size: var(--font-sm);
+}
+
+.shortcut-tip kbd {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-family: Consolas, monospace;
+    background-color: var(--dnx-bg-surface, #ffffff);
+    border: 1px solid var(--dnx-border-subtle, #e3e7ea);
+    border-radius: var(--dnx-radius-xs, 4px);
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+    transition: all 0.2s ease;
+}
+
+.shortcut-tip:hover kbd {
+    background-color: var(--dnx-bg-surface, #ffffff);
+    border-color: var(--dnx-border-strong, #bcc6cd);
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+.btn-send {
+    background: var(--dnx-brand-green, #07c160);
+    color: var(--dnx-text-inverse, #ffffff);
+    border: 1px solid var(--dnx-brand-green, #07c160);
+    padding: 8px 24px;
+    border-radius: var(--dnx-radius-sm, 6px);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+    min-width: 80px;
+    cursor: pointer;
+}
+
+.btn-send:hover:not(:disabled) {
+    background: var(--dnx-brand-green-hover, #06ad56);
+    border-color: var(--dnx-brand-green-hover, #06ad56);
+    box-shadow: var(--dnx-shadow-md, 0 6px 18px rgba(16, 24, 40, 0.08));
+    /* No bouncy transform per UI standard */
+}
+
+.btn-send:active:not(:disabled) {
+    /* Muted tactile reduction instead of extreme scaling */
+    opacity: 0.9;
+    box-shadow: none;
+}
+
+.btn-send.btn-send--pressed {
+    opacity: 0.9;
+    box-shadow: none;
+}
+
+.btn-send:focus-visible {
+    outline: none;
+    box-shadow: var(--dnx-focus-ring, 0 0 0 2px rgba(7, 193, 96, 0.22));
+}
+
+/* Disabled State */
+.btn-send:disabled {
+    background: var(--dnx-bg-canvas, #f5f6f7);
+    color: var(--dnx-text-tertiary, #7d8892);
+    border-color: var(--dnx-border-default, #d5dbe0);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.btn-send.btn-sending {
+    background: var(--dnx-bg-surface-muted, #f7f8f9);
+    color: var(--dnx-brand-green, #07c160);
+    border-color: rgba(7, 193, 96, 0.22);
+    /* Remove heartbeat/pulse animation for a quieter sending state */
+}
+
+/* Cancel Button */
+.btn-cancel {
+    background: var(--dnx-bg-surface, #ffffff);
+    color: var(--dnx-danger, #d64545);
+    border-color: var(--dnx-danger, #d64545);
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+.btn-cancel:hover:not(:disabled) {
+    background: #fdf5f5;
+    color: var(--dnx-danger, #d64545);
+    border-color: var(--dnx-danger, #d64545);
+    box-shadow: var(--dnx-shadow-md, 0 6px 18px rgba(16, 24, 40, 0.08));
+}
+
+.btn-cancel:active:not(:disabled) {
+    opacity: 0.9;
+    box-shadow: none;
+}
+
+/* Disable old pulse */
+@keyframes send-pulse {
+}

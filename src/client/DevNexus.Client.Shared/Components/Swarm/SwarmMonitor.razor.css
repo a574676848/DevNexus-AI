@@ -1,0 +1,275 @@
+/* SwarmMonitor.razor.css - Modern Premium UI */
+
+/* ===== 面板容器 ===== */
+.swarm-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.96);
+    color: var(--text-primary);
+    border-left: 1px solid rgba(0, 0, 0, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+/* ===== 错误提示条 ===== */
+.error-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: var(--spacing-sm, 8px) var(--spacing-md, 16px);
+    background: var(--brand-red-light, #fef2f2);
+    color: var(--brand-red, #dc2626);
+    border-bottom: 1px solid rgba(250, 81, 81, 0.2);
+    font-size: var(--font-sm, 12px);
+    font-weight: var(--font-weight-medium, 500);
+    flex-shrink: 0;
+}
+
+.close-error {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    margin-left: auto;
+    font-size: var(--font-lg, 16px);
+    line-height: 1;
+    padding: 0 2px;
+}
+
+.close-panel {
+    border: 1px solid rgba(250, 81, 81, 0.2);
+    background: var(--bg-primary, #ffffff);
+    color: var(--brand-red, #dc2626);
+    border-radius: var(--radius-md, 6px);
+    height: 22px;
+    padding: 0 8px;
+    font-size: var(--font-xs, 11px);
+    font-weight: var(--font-weight-semibold, 600);
+    cursor: pointer;
+    transition: all var(--transition-fast) var(--ease-smooth);
+}
+
+.close-panel:hover {
+    background: var(--brand-red-light, #fee2e2);
+}
+
+/* ===== 头部（两行布局）===== */
+.panel-header {
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    flex-shrink: 0;
+}
+
+/* 第一行：标题 + 操作按钮 */
+.header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px 0;
+}
+
+.header-row-top {
+    padding: 10px 14px 6px;
+}
+
+.header-row-bottom {
+    padding: 4px 14px 10px;
+}
+
+.header-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-icon {
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, var(--brand-green-lighter) 0%, var(--brand-green-light) 100%);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+}
+
+.panel-title {
+    font-size: 13px;
+    font-weight: var(--font-weight-semibold, 600);
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* 头部右侧 - 独立窗口 & 关闭按钮 */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* 第二行：徽章 + 统计 + 控制 */
+.header-stats-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 会话 ID 徽章（截短显示） */
+.swarm-badge {
+    font-size: var(--font-xs);
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--brand-green-lighter) 0%, rgba(255, 255, 255, 0.8) 100%);
+    color: var(--brand-green);
+    padding: 3px 10px;
+    border-radius: 9999px;
+    border: 1px solid rgba(7, 193, 96, 0.2);
+    box-shadow: 0 2px 8px rgba(7, 193, 96, 0.05);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+    font-family: var(--font-mono);
+}
+
+/* 统计数字 */
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.stat-label {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
+.stat-value {
+    font-size: 13px;
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+}
+
+/* 控制按钮组 */
+.control-group {
+    display: flex;
+    gap: 4px;
+    margin-left: 4px;
+}
+
+.ctrl-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 28px;
+    padding: 0 12px;
+    border: none;
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--text-secondary);
+    border-radius: 9999px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    font-size: var(--font-sm);
+    font-weight: 500;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.ctrl-btn:hover {
+    background: #ffffff;
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.ctrl-btn:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.ctrl-btn.pause:hover {
+    color: var(--brand-warning);
+    background: rgba(255, 152, 0, 0.1);
+}
+
+.ctrl-btn.resume:hover {
+    color: var(--brand-green);
+    background: var(--brand-green-lighter);
+}
+
+.ctrl-btn.abort:hover {
+    color: var(--brand-red);
+    background: var(--brand-red-light);
+}
+
+/* 图标按钮（独立窗口、关闭）*/
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    flex-shrink: 0;
+}
+
+.btn-action:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05), inset 0 1px 1px #ffffff;
+}
+
+.btn-action:active {
+    transform: translateY(0) scale(0.92);
+}
+
+.btn-action.btn-close:hover {
+    background: var(--brand-red-light);
+    color: var(--brand-red);
+}
+
+/* ===== 内容区 ===== */
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+}
+
+/* 区块标题 */
+.section {
+    margin-bottom: 20px;
+}
+
+.section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.section-head .section-title {
+    margin-bottom: 0;
+}
+
+.section-title {
+    font-size: var(--font-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}

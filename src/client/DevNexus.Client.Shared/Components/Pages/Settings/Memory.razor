@@ -1,0 +1,517 @@
+@page "/settings/memory"
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Components.Icons
+@using Microsoft.AspNetCore.Components.Web
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IErrorTranslationService ErrorTranslation
+
+<div class="memory-page">
+    @if (isLoading)
+    {
+        <LoadingSpinner Message="加载记忆数据..." Size="md" />
+    }
+    else
+    {
+        @* 页面头部 *@
+        <div class="page-header">
+            <div class="header-icon">
+                <BrainIcon Size="24" Stroke="var(--brand-green)" />
+            </div>
+            <div class="header-info">
+                <h1>记忆管理</h1>
+                <p>管理 AI 对你的认知和理解，帮助 AI 更好地为你服务</p>
+            </div>
+        </div>
+        
+        @* 标签页切换 *@
+        <div class="tab-container">
+            <button class="tab-button @(activeTab == "profile" ? "active" : "")" 
+                    @onclick='() => SwitchTab("profile")'>
+                <UserIcon Size="14" Stroke="currentColor" />
+                用户画像
+            </button>
+            <button class="tab-button @(activeTab == "timeline" ? "active" : "")" 
+                    @onclick='() => SwitchTab("timeline")'>
+                <ClockIcon Size="14" Stroke="currentColor" />
+                记忆时间线
+            </button>
+        </div>
+
+        @* 用户画像（显性记忆）*@
+        @if (activeTab == "profile")
+        {
+            <div class="settings-container">
+                @* 添加新事实 *@
+                <div class="settings-group">
+                    <div class="group-header">
+                        <PlusIcon Size="14" Stroke="var(--brand-green)" />
+                        <span>添加新画像</span>
+                    </div>
+                    <div class="action-bar-container">
+                        <div class="action-bar-group">
+                            <select @bind="newFact.Category" class="action-bar-select">
+                                <option value="">选择分类...</option>
+                                <option value="偏好">偏好</option>
+                                <option value="技能">技能</option>
+                                <option value="工作">工作</option>
+                                <option value="习惯">习惯</option>
+                                <option value="其他">其他</option>
+                            </select>
+                            <div class="action-bar-divider"></div>
+                            <input type="text" @bind="newFact.Content" 
+                                   placeholder="输入关于你的新特征（如：习惯早起）..." 
+                                   class="action-bar-input" />
+                            <button class="btn-action" @onclick="AddFact" disabled="@isAddingFact">
+                                @if (isAddingFact)
+                                {
+                                    <span class="btn-spinner small"></span>
+                                }
+                                else
+                                {
+                                    <span>添加画像</span>
+                                }
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(addFactMessage))
+                        {
+                            <div class="message @(addFactSuccess ? "success" : "error") action-message">
+                                @addFactMessage
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @* 已有画像列表 *@
+                <div class="settings-group">
+                    <div class="group-header">
+                        <LayersIcon Size="14" Stroke="var(--brand-green)" />
+                        <span>我的画像 (@userFacts.Count)</span>
+                    </div>
+                    
+                    @if (userFacts.Count == 0)
+                    {
+                        <div class="settings-card empty-state">
+                            <DatabaseIcon Size="48" Stroke="var(--text-muted)" />
+                            <p>暂无画像数据</p>
+                            <span class="hint">AI 会在对话中逐渐学习并记录你的偏好</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="facts-grid">
+                            @{
+                                var pagedFacts = userFacts.OrderByDescending(f => f.IsPinned)
+                                                          .ThenByDescending(f => f.ConfidenceScore)
+                                                          .Skip((profileCurrentPage - 1) * profilePageSize)
+                                                          .Take(profilePageSize);
+                            }
+                            @foreach (var fact in pagedFacts)
+                            {
+                                <div class="fact-card @(fact.IsPinned ? "pinned" : "")">
+                                    <div class="fact-header">
+                                        <span class="category-badge">@fact.Category</span>
+                                        <div class="fact-actions">
+                                            <button class="icon-btn" title="@(fact.IsPinned ? "取消固定" : "固定")" 
+                                                    @onclick="() => TogglePin(fact.Id)">
+                                                @if (fact.IsPinned)
+                                                {
+                                                    <PinFilledIcon Size="14" Stroke="var(--brand-green)" />
+                                                }
+                                                else
+                                                {
+                                                    <PinIcon Size="14" Stroke="currentColor" />
+                                                }
+                                            </button>
+                                            <button class="icon-btn delete" title="删除" 
+                                                    @onclick="() => DeleteFact(fact.Id)">
+                                                <TrashIcon Size="14" Stroke="currentColor" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="fact-content">@fact.Content</div>
+                                    <div class="fact-meta">
+                                        <span class="confidence" title="置信度">
+                                            <TrendingUpIcon Size="12" Stroke="currentColor" />
+                                            @((fact.ConfidenceScore * 10))%
+                                        </span>
+                                        <span class="created" title="创建时间">
+                                            <ClockIcon Size="12" Stroke="currentColor" />
+                                            @FormatTimeAgo(fact.CreatedAt)
+                                        </span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        
+                        @if (profileTotalPages > 1)
+                        {
+                            <div class="pagination-container">
+                                <button class="btn-page" disabled="@(profileCurrentPage == 1)" @onclick="() => GoToProfilePage(profileCurrentPage - 1)">上一页</button>
+                                <span class="page-info">@profileCurrentPage / @profileTotalPages</span>
+                                <button class="btn-page" disabled="@(profileCurrentPage == profileTotalPages)" @onclick="() => GoToProfilePage(profileCurrentPage + 1)">下一页</button>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+
+        @* 记忆时间线（隐性记忆）*@
+        @if (activeTab == "timeline")
+        {
+            <div class="settings-container">
+                @* 搜索 *@
+                <div class="settings-group">
+                    <div class="group-header">
+                        <SearchIcon Size="14" Stroke="var(--brand-green)" />
+                        <span>搜索记忆</span>
+                    </div>
+                    <div class="action-bar-container">
+                        <div class="action-bar-group">
+                            <SearchIcon Size="16" Stroke="var(--text-muted)" CssClass="action-bar-icon" />
+                            <input type="text" @bind="searchQuery" @bind:event="oninput"
+                                   @onkeypress="HandleSearchKeyPress"
+                                   placeholder="输入关键词搜索相关记忆..." 
+                                   class="action-bar-input" />
+                            <button class="btn-action" @onclick="SearchMemories" disabled="@isSearching">
+                                @if (isSearching)
+                                {
+                                    <span class="btn-spinner small"></span>
+                                }
+                                else
+                                {
+                                    <span>搜索</span>
+                                }
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(searchMessage))
+                        {
+                            <div class="message action-message">@searchMessage</div>
+                        }
+                    </div>
+                </div>
+
+                @* 时间线列表 *@
+                <div class="settings-group">
+                    <div class="group-header">
+                        <CalendarIcon Size="14" Stroke="var(--brand-green)" />
+                        <span>@(isShowingSearchResults ? "搜索结果" : "记忆时间线")</span>
+                        @if (isShowingSearchResults)
+                        {
+                            <button class="btn-clear-search" @onclick="ClearSearch" title="清空搜索">
+                                ✕
+                            </button>
+                        }
+                    </div>
+                    
+                    @if (episodicMemories.Count == 0)
+                    {
+                        <div class="settings-card empty-state">
+                            <InboxIcon Size="48" Stroke="var(--text-muted)" />
+                            <p>@(isShowingSearchResults ? "未找到相关记忆" : "暂无记忆记录")</p>
+                            <span class="hint">AI 会在每次对话后自动沉淀重要信息</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="timeline-container">
+                            @foreach (var memory in episodicMemories)
+                            {
+                                <div class="timeline-item">
+                                    <div class="timeline-dot"></div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-header">
+                                            <span class="timeline-date">
+                                                <CalendarIcon Size="12" Stroke="currentColor" />
+                                                @memory.Date.ToString("yyyy-MM-dd HH:mm")
+                                            </span>
+                                            @if (memory.Score.HasValue)
+                                            {
+                                                <span class="relevance-badge">
+                                                    相关度: @((memory.Score.Value * 100).ToString("F0"))%
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="timeline-summary">@memory.Summary</div>
+                                        @if (memory.Tags?.Count > 0)
+                                        {
+                                            <div class="timeline-tags">
+                                                @foreach (var tag in memory.Tags.Take(5))
+                                                {
+                                                    <span class="tag">@tag</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (!isShowingSearchResults && hasMoreMemories)
+                        {
+                            <div class="load-more">
+                                <button class="btn-secondary" @onclick="LoadMoreMemories" disabled="@isLoadingMore">
+                                    @(isLoadingMore ? "加载中..." : "加载更多")
+                                </button>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string activeTab = "profile";
+    
+    // 用户画像状态
+    private List<UserFactDto> userFacts = new();
+    private AddUserFactRequest newFact = new();
+    private bool isAddingFact = false;
+    private string? addFactMessage;
+    private bool addFactSuccess;
+    
+    // 用户画像分页
+    private int profileCurrentPage = 1;
+    private int profilePageSize = 12;
+    private int profileTotalPages => (int)Math.Ceiling(userFacts.Count / (double)profilePageSize);
+    
+    // 时间线状态
+    private List<EpisodicMemoryDto> episodicMemories = new();
+    private string searchQuery = "";
+    private bool isSearching = false;
+    private bool isShowingSearchResults = false;
+    private string? searchMessage;
+    private int currentPage = 1;
+    private bool hasMoreMemories = true;
+    private bool isLoadingMore = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private void GoToProfilePage(int page)
+    {
+        if (page >= 1 && page <= profileTotalPages)
+        {
+            profileCurrentPage = page;
+        }
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var factsTask = ApiService.GetUserFactsAsync();
+            var timelineTask = ApiService.GetMemoryTimelineAsync();
+
+            await Task.WhenAll(factsTask, timelineTask);
+
+            userFacts = await factsTask;
+            episodicMemories = await timelineTask;
+            hasMoreMemories = episodicMemories.Count >= 20;
+        }
+        catch (Exception ex)
+        {
+            var translatedError = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Memory.LoadData", new() { ["TranslatedError"] = translatedError });
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SwitchTab(string tab)
+    {
+        activeTab = tab;
+        if (tab == "timeline")
+        {
+            isShowingSearchResults = false;
+            searchQuery = "";
+        }
+    }
+
+    private async Task AddFact()
+    {
+        if (string.IsNullOrWhiteSpace(newFact.Category) || string.IsNullOrWhiteSpace(newFact.Content))
+        {
+            addFactMessage = "请填写分类和内容";
+            addFactSuccess = false;
+            return;
+        }
+
+        isAddingFact = true;
+        addFactMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await ApiService.AddUserFactAsync(newFact);
+            userFacts.Insert(0, result);
+            newFact = new AddUserFactRequest();
+            addFactMessage = "画像添加成功";
+            addFactSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            addFactMessage = ErrorTranslation.Translate(ex);
+            addFactSuccess = false;
+            await RemoteLog.LogErrorAsync(ex, "Memory.AddFact");
+        }
+        finally
+        {
+            isAddingFact = false;
+            StateHasChanged();
+            
+            // 3秒后清除消息
+            await Task.Delay(3000);
+            addFactMessage = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteFact(Guid factId)
+    {
+        try
+        {
+            await ApiService.DeleteUserFactAsync(factId);
+            userFacts.RemoveAll(f => f.Id == factId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "Memory.DeleteFact");
+        }
+    }
+
+    private async Task TogglePin(Guid factId)
+    {
+        try
+        {
+            await ApiService.TogglePinFactAsync(factId);
+            var fact = userFacts.FirstOrDefault(f => f.Id == factId);
+            if (fact != null)
+            {
+                fact.IsPinned = !fact.IsPinned;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "Memory.TogglePin");
+        }
+    }
+
+    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchMemories();
+        }
+    }
+
+    private async Task ClearSearch()
+    {
+        searchQuery = "";
+        searchMessage = null;
+        isShowingSearchResults = false;
+        await LoadTimeline();
+    }
+
+    private async Task SearchMemories()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            isShowingSearchResults = false;
+            searchMessage = null;
+            await LoadTimeline();
+            return;
+        }
+
+        isSearching = true;
+        searchMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            episodicMemories = await ApiService.SearchMemoriesAsync(searchQuery);
+            isShowingSearchResults = true;
+            
+            if (episodicMemories.Count == 0)
+            {
+                searchMessage = $"未找到包含 \"{searchQuery}\" 的记忆，请尝试其他关键词";
+            }
+            else
+            {
+                searchMessage = $"找到 {episodicMemories.Count} 条相关记忆";
+            }
+        }
+        catch (Exception ex)
+        {
+            searchMessage = "搜索失败，请稍后重试";
+            await RemoteLog.LogErrorAsync(ex, "Memory.SearchMemories");
+        }
+        finally
+        {
+            isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadTimeline()
+    {
+        currentPage = 1;
+        episodicMemories = await ApiService.GetMemoryTimelineAsync(currentPage);
+        hasMoreMemories = episodicMemories.Count >= 20;
+        StateHasChanged();
+    }
+
+    private async Task LoadMoreMemories()
+    {
+        isLoadingMore = true;
+        StateHasChanged();
+
+        try
+        {
+            currentPage++;
+            var moreMemories = await ApiService.GetMemoryTimelineAsync(currentPage);
+            episodicMemories.AddRange(moreMemories);
+            hasMoreMemories = moreMemories.Count >= 20;
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "Memory.LoadMoreMemories");
+        }
+        finally
+        {
+            isLoadingMore = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string FormatTimeAgo(DateTime dateTime)
+    {
+        var span = DateTime.UtcNow - dateTime;
+        
+        return span switch
+        {
+            { TotalMinutes: < 1 } => "刚刚",
+            { TotalHours: < 1 } => $"{(int)span.TotalMinutes} 分钟前",
+            { TotalDays: < 1 } => $"{(int)span.TotalHours} 小时前",
+            { TotalDays: < 7 } => $"{(int)span.TotalDays} 天前",
+            { TotalDays: < 30 } => $"{(int)(span.TotalDays / 7)} 周前",
+            _ => dateTime.ToString("yyyy-MM-dd")
+        };
+    }
+}
+

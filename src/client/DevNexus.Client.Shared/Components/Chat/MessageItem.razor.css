@@ -1,0 +1,544 @@
+/* MessageItem.razor.css - Modern Minimalist UI Style */
+
+.message-item {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    opacity: 0;
+    animation: fadeIn 0.2s ease-out forwards;
+    width: 100%;
+    will-change: transform, opacity;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* User Message: Right Aligned */
+.message-item.user-message {
+    flex-direction: row-reverse;
+}
+
+/* Avatar - Modern Premium UI Style (36px, circle) */
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 2px solid var(--white-bg);
+}
+
+.message-avatar:hover {
+    /* No heavy translation */
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+.user-avatar {
+    background: var(--dnx-bg-canvas, #f5f6f7);
+    color: var(--dnx-text-secondary, #5f6b76);
+    font-size: var(--font-sm);
+}
+
+.ai-avatar {
+    background: var(--dnx-bg-surface, #ffffff);
+    color: var(--dnx-brand-green, #07c160);
+    border: 1px solid var(--dnx-border-subtle, #e3e7ea);
+}
+
+/* Message Body Container */
+.message-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    max-width: 65%;
+    width: fit-content;
+}
+
+.user-message .message-body {
+    align-items: flex-end;
+}
+
+/* 用户消息进入编辑态时，给重新编辑区域留出更充裕的横向空间 */
+.user-message:has(.edit-mode-container) .message-body {
+    width: min(100%, 52rem);
+    max-width: min(92%, 52rem);
+}
+
+.user-message:has(.edit-mode-container) .message-content {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--dnx-bg-canvas, #f5f6f7);
+    border-color: var(--dnx-border-strong, #bcc6cd);
+    box-shadow: var(--dnx-shadow-md, 0 6px 18px rgba(16, 24, 40, 0.08));
+    overflow: visible;
+}
+
+.user-message:has(.edit-mode-container) .message-content:hover {
+    background: var(--dnx-bg-surface-muted, #f7f8f9);
+    box-shadow: var(--dnx-shadow-md, 0 6px 18px rgba(16, 24, 40, 0.08));
+}
+
+.ai-message .message-body {
+    align-items: flex-start;
+}
+
+/* Message Content Bubble - Modern Premium Style */
+.message-content {
+    padding: 12px 18px;
+    font-size: var(--font-base);
+    line-height: var(--leading-normal);
+    word-break: break-word;
+    position: relative;
+    max-width: 100%;
+    overflow-x: auto;
+    transition: all 0.2s ease;
+}
+
+.message-item .message-avatar,
+.message-item .message-content {
+    animation: fadeIn 0.2s ease-out both;
+}
+
+.message-item.user-message .message-content {
+    animation-name: fadeIn;
+}
+
+.message-item.ai-message .message-content {
+    animation-name: fadeIn;
+}
+
+.message-item:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.message-item:nth-child(2) {
+    animation-delay: 0.03s;
+}
+
+.message-item:nth-child(3) {
+    animation-delay: 0.06s;
+}
+
+.message-item:nth-child(4) {
+    animation-delay: 0.09s;
+}
+
+.message-item:nth-child(5) {
+    animation-delay: 0.12s;
+}
+
+.message-item:nth-child(6) {
+    animation-delay: 0.15s;
+}
+
+.message-item:nth-child(7) {
+    animation-delay: 0.18s;
+}
+
+.message-item:nth-child(8) {
+    animation-delay: 0.21s;
+}
+
+/* User Bubble: Neutral Glassmorphism style (Gemini-inspired color but DevNexus material) */
+.user-message .message-content {
+    background: var(--dnx-bg-canvas, #f5f6f7);
+    color: var(--dnx-text-primary, #182026);
+    border-radius: var(--dnx-radius-md, 10px) var(--dnx-radius-xs, 4px) var(--dnx-radius-md, 10px) var(--dnx-radius-md, 10px);
+    border: 1px solid var(--dnx-border-subtle, #e3e7ea);
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+    overflow: visible;
+}
+
+/* AI Bubble: Glassmorphism White with bottom-left sharp tail */
+.ai-message .message-content {
+    background: var(--dnx-bg-surface, #ffffff);
+    color: var(--dnx-text-primary, #182026);
+    border-radius: var(--dnx-radius-xs, 4px) var(--dnx-radius-md, 10px) var(--dnx-radius-md, 10px) var(--dnx-radius-md, 10px);
+    border: 1px solid var(--dnx-border-default, #d5dbe0);
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+}
+
+/* Subtle hover interactions */
+.user-message .message-content:hover {
+    background: var(--dnx-bg-surface-muted, rgba(247, 248, 249, 1));
+}
+
+.ai-message .message-content:hover {
+    box-shadow: var(--dnx-shadow-md, 0 6px 18px rgba(16, 24, 40, 0.08));
+}
+
+.message-item:hover .message-content {
+    /* No bouncy transform per UI standard */
+}
+
+.message-item--entry-fresh .message-content {
+    animation-duration: 0.2s;
+}
+
+.message-item--entry-replay .message-content {
+    animation: fadeIn 0.2s ease-out both;
+}
+
+.message-item--entry-replay .message-content::after {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    border: 1px solid rgba(7, 193, 96, 0.18);
+    box-shadow: 0 0 0 1px rgba(7, 193, 96, 0.08), 0 0 24px rgba(7, 193, 96, 0.08);
+    opacity: 0;
+    pointer-events: none;
+    animation: replay-flash 0.5s ease-out both;
+}
+
+.message-item--entry-replay .message-avatar {
+    animation: replay-avatar 0.46s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.message-content::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(7, 193, 96, 0.12), transparent 62%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.message-item:hover .message-content::before {
+    opacity: 1;
+}
+
+/* 消息操作按钮容器 (在气泡外部下方) */
+.message-actions-container {
+    width: 100%;
+    margin-top: 4px;
+    opacity: 0.28;
+    transform: translateY(2px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* AI 消息操作按钮：居左 */
+.ai-message .message-actions-container {
+    display: flex;
+    justify-content: flex-start;
+}
+
+/* 用户消息操作按钮：居右 */
+.user-message .message-actions-container {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* 悬浮整个消息条目时显示操作按钮 */
+.message-item:hover .message-actions-container {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.message-item:focus-within .message-actions-container {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.message-item.streaming .message-actions-container {
+    opacity: 0;
+    pointer-events: none;
+}
+
+@keyframes bubble-rise {
+    from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes bubble-rise-user {
+    from {
+        opacity: 0;
+        transform: translate3d(8px, 8px, 0) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes bubble-rise-ai {
+    from {
+        opacity: 0;
+        transform: translate3d(-8px, 8px, 0) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes bubble-replay {
+    0% {
+        opacity: 0;
+        transform: translateY(8px) scale(0.98);
+        box-shadow: 0 0 0 rgba(7, 193, 96, 0);
+    }
+
+    65% {
+        opacity: 1;
+        transform: translateY(0) scale(1.01);
+        box-shadow: 0 10px 24px rgba(7, 193, 96, 0.08);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        box-shadow: inherit;
+    }
+}
+
+@keyframes replay-flash {
+    0% {
+        opacity: 0;
+        transform: scale(0.98);
+    }
+
+    35% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1);
+    }
+}
+
+@keyframes replay-avatar {
+    0% {
+        transform: translateY(2px) scale(0.96);
+        filter: saturate(0.9);
+    }
+
+    60% {
+        transform: translateY(-1px) scale(1.02);
+        filter: saturate(1.05);
+    }
+
+    100% {
+        transform: translateY(0) scale(1);
+        filter: saturate(1);
+    }
+}
+
+/* ===== 消息内容中的列表样式 ===== */
+
+/* 有序列表和无序列表基础样式 */
+.message-content ol,
+.message-content ul {
+    margin: 12px 0;
+    padding-left: 24px;
+    list-style-position: outside;
+}
+
+/* 有序列表使用数字 */
+.message-content ol {
+    list-style-type: decimal;
+}
+
+/* 无序列表使用圆点 */
+.message-content ul {
+    list-style-type: disc;
+}
+
+/* 列表项样式 */
+.message-content li {
+    margin: 6px 0;
+    line-height: 1.6;
+    padding-left: 4px;
+}
+
+/* 嵌套列表的额外缩进 */
+.message-content li>ol,
+.message-content li>ul {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+/* 嵌套无序列表使用空心圆 */
+.message-content ul ul {
+    list-style-type: circle;
+}
+
+/* 第三层嵌套使用方块 */
+.message-content ul ul ul {
+    list-style-type: square;
+}
+
+/* 嵌套有序列表使用小写字母 */
+.message-content ol ol {
+    list-style-type: lower-alpha;
+}
+
+/* 第三层嵌套使用罗马数字 */
+.message-content ol ol ol {
+    list-style-type: lower-roman;
+}
+
+/* 列表内段落间距 */
+.message-content li p {
+    margin: 4px 0;
+}
+
+/* 紧凑列表（连续列表项之间无空行） */
+.message-content li+li {
+    margin-top: 4px;
+}
+
+/* 用户消息中的列表样式（适配浅色背景） */
+.user-message .message-content ol,
+.user-message .message-content ul {
+    color: inherit;
+    /* 跟随父容器颜色 */
+}
+
+.user-message .message-content li::marker {
+    color: var(--text-secondary);
+}
+
+/* ===== 分屏折叠按钮样式 ===== */
+.collapsed-block-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    margin: 8px 0;
+    background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+    border: 1px dashed rgba(7, 193, 96, 0.3);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+    width: fit-content;
+}
+
+.collapsed-block-btn:hover {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--list-hover) 100%);
+    border-color: var(--brand-green, #07c160);
+    color: var(--brand-green, #07c160);
+    transform: translateX(2px);
+}
+
+.collapsed-block-btn:active {
+    transform: scale(0.98);
+}
+
+.collapsed-block-btn .block-icon {
+    font-size: 16px;
+}
+
+.collapsed-block-btn .block-label {
+    font-weight: 500;
+}
+
+.collapsed-block-btn .expand-hint {
+    font-size: 10px;
+    color: var(--brand-green, #07c160);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.collapsed-block-btn:hover .expand-hint {
+    opacity: 1;
+}
+
+/* 保持文件末尾的附件样式穿透，其余编辑模式移至子组件 */
+.user-message ::deep .message-artifacts .pasted-document-chip {
+    background: var(--bg-secondary);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+    max-width: 100%;
+}
+
+
+.user-message ::deep .message-artifacts .chip-icon {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.user-message ::deep .message-artifacts .chip-filename {
+    color: var(--text-primary);
+}
+
+.user-message ::deep .message-artifacts .chip-meta {
+    color: var(--text-secondary);
+}
+
+/* ===== 图表容器特殊处理 - 允许突破父容器宽度限制 ===== */
+/* 当消息包含图表时,图表应该占据更大的宽度以提供更好的可读性 */
+
+/* AI消息中包含图表时,让message-body使用更大的宽度 */
+.ai-message:has(.chart-block-container) .message-body {
+    max-width: 90%;
+    /* 图表消息使用90%宽度而不是65% */
+}
+
+/* 图表块容器本身占满父容器 */
+.ai-message .chart-block-container {
+    width: 100%;
+    max-width: 100%;
+    margin: 16px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .message-item,
+    .message-item .message-avatar,
+    .message-item .message-content,
+    .message-actions-container,
+    .collapsed-block-btn,
+    .message-item--entry-replay .message-content::after,
+    .message-item--entry-replay .message-avatar {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@media (hover: none) {
+    .message-actions-container {
+        opacity: 0.72;
+        transform: none;
+    }
+}
+
+/* 移动端响应式调整 */
+@media (max-width: 768px) {
+    .ai-message:has(.chart-block-container) .message-body {
+        max-width: 95%;
+    }
+
+    .user-message:has(.edit-mode-container) .message-body {
+        width: 100%;
+        max-width: 98%;
+    }
+}

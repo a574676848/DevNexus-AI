@@ -1,0 +1,119 @@
+/* DevNexus AI - Fluent Design Depth (Elevation) */
+
+/* Resting (Default) - Elevation 0 */
+.depth-0 {
+    box-shadow: none;
+}
+
+/* Rest - Elevation 2 */
+.depth-2 {
+    box-shadow:
+        0px 0.3px 0.9px rgba(0, 0, 0, 0.12),
+        0px 1.6px 3.6px rgba(0, 0, 0, 0.16);
+}
+
+/* Hover - Elevation 4 */
+.depth-4 {
+    box-shadow:
+        0px 0.6px 1.8px rgba(0, 0, 0, 0.11),
+        0px 3.2px 7.2px rgba(0, 0, 0, 0.13);
+}
+
+/* Pressed - Elevation 8 */
+.depth-8 {
+    box-shadow:
+        0px 1.2px 3.6px rgba(0, 0, 0, 0.11),
+        0px 6.4px 14.4px rgba(0, 0, 0, 0.13);
+}
+
+/* Dialog/Flyout - Elevation 16 */
+.depth-16 {
+    box-shadow:
+        0px 4.8px 14.4px rgba(0, 0, 0, 0.18),
+        0px 25.6px 57.6px rgba(0, 0, 0, 0.22);
+}
+
+/* Modal/Popup - Elevation 64 */
+.depth-64 {
+    box-shadow:
+        0px 19.2px 57.6px rgba(0, 0, 0, 0.22),
+        0px 102.4px 230.4px rgba(0, 0, 0, 0.18);
+}
+
+/* Light theme adjustments */
+[data-theme="light"] .depth-2 {
+    box-shadow:
+        0px 0.3px 0.9px rgba(0, 0, 0, 0.08),
+        0px 1.6px 3.6px rgba(0, 0, 0, 0.11);
+}
+
+[data-theme="light"] .depth-4 {
+    box-shadow:
+        0px 0.6px 1.8px rgba(0, 0, 0, 0.07),
+        0px 3.2px 7.2px rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .depth-8 {
+    box-shadow:
+        0px 1.2px 3.6px rgba(0, 0, 0, 0.07),
+        0px 6.4px 14.4px rgba(0, 0, 0, 0.09);
+}
+
+[data-theme="light"] .depth-16 {
+    box-shadow:
+        0px 4.8px 14.4px rgba(0, 0, 0, 0.12),
+        0px 25.6px 57.6px rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="light"] .depth-64 {
+    box-shadow:
+        0px 19.2px 57.6px rgba(0, 0, 0, 0.14),
+        0px 102.4px 230.4px rgba(0, 0, 0, 0.12);
+}
+
+/* Interactive depth transitions */
+.depth-interactive {
+    transition: box-shadow var(--transition-fast);
+}
+
+.depth-interactive:hover {
+    box-shadow:
+        0px 0.6px 1.8px rgba(0, 0, 0, 0.11),
+        0px 3.2px 7.2px rgba(0, 0, 0, 0.13);
+}
+
+.depth-interactive:active {
+    box-shadow:
+        0px 0.3px 0.9px rgba(0, 0, 0, 0.12),
+        0px 1.6px 3.6px rgba(0, 0, 0, 0.16);
+}
+
+/* Border reveal (Fluent effect) */
+.border-reveal {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+}
+
+.border-reveal::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    bottom: -1px;
+    border-radius: inherit;
+    background: linear-gradient(135deg,
+            rgba(255, 255, 255, 0.1) 0%,
+            transparent 40%,
+            transparent 60%,
+            rgba(255, 255, 255, 0.1) 100%);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+    pointer-events: none;
+    z-index: -1;
+}
+
+.border-reveal:hover::before {
+    opacity: 1;
+}

@@ -1,0 +1,105 @@
+@using System.Diagnostics
+@inject IRemoteLogService RemoteLogService
+@inject NavigationManager NavigationManager
+
+<div class="app-error-page">
+    <div class="app-error-card animate-fade-in">
+        <div class="app-error-header">
+            <div class="app-error-logo">
+                <DevNexusLogo Size="56" GlowIntensity="1.2" />
+            </div>
+            <div class="app-error-title-block">
+                <div class="app-error-badge">应用异常</div>
+                <h1>页面加载失败</h1>
+                <p>系统已记录异常，下面提供可直接用于排查的上下文。</p>
+            </div>
+        </div>
+
+        <div class="app-error-summary">
+            <div class="app-error-summary__label">异常摘要</div>
+            <div class="app-error-summary__text">@ExceptionMessage</div>
+        </div>
+
+        <div class="app-error-meta">
+            <div><span>类型</span><strong>@ExceptionType</strong></div>
+            <div><span>TraceId</span><strong>@TraceId</strong></div>
+            <div><span>SpanId</span><strong>@SpanId</strong></div>
+        </div>
+
+        <details class="app-error-details">
+            <summary>展开详细错误信息</summary>
+            <pre>@StackTraceText</pre>
+        </details>
+
+        <div class="app-error-actions">
+            <button type="button" class="app-error-primary" @onclick="ReloadAsync">重新加载</button>
+            <button type="button" class="app-error-secondary" @onclick="GoHomeAsync">返回首页</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 当前异常对象。
+    /// </summary>
+    [Parameter]
+    public Exception? Exception { get; set; }
+
+    private Exception? _loggedException;
+    private string ExceptionType => Exception?.GetType().FullName ?? "Unknown";
+    private string ExceptionMessage => Exception?.Message ?? "未获取到异常消息。";
+    private string TraceId => Activity.Current?.TraceId.ToString() ?? "--";
+    private string SpanId => Activity.Current?.SpanId.ToString() ?? "--";
+    private string StackTraceText =>
+        Exception?.ToString() ?? "未获取到异常详情。";
+
+    /// <summary>
+    /// 在参数更新时尝试记录异常日志，避免重复上报。
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Exception is null || ReferenceEquals(_loggedException, Exception))
+        {
+            return;
+        }
+
+        _loggedException = Exception;
+
+        try
+        {
+            await RemoteLogService.LogErrorAsync(
+                Exception,
+                "AppErrorView",
+                new Dictionary<string, object?>
+                {
+                    ["ExceptionType"] = ExceptionType,
+                    ["TraceId"] = TraceId,
+                    ["SpanId"] = SpanId,
+                    ["Message"] = Exception.Message,
+                    ["StackTrace"] = Exception.StackTrace
+                });
+        }
+        catch
+        {
+            Console.WriteLine($"[AppErrorView] {Exception}");
+        }
+    }
+
+    /// <summary>
+    /// 重新加载当前页面。
+    /// </summary>
+    private Task ReloadAsync()
+    {
+        NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 返回首页。
+    /// </summary>
+    private Task GoHomeAsync()
+    {
+        NavigationManager.NavigateTo("/", forceLoad: true);
+        return Task.CompletedTask;
+    }
+}

@@ -1,0 +1,195 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Client.Shared.Services.State
+@using DevNexus.Client.Shared.Components.Icons
+@inject NavigationManager Nav
+@inject IApiService ApiService
+@inject IUserStateService UserState
+@implements IDisposable
+
+<div class="nav-sidebar">
+    @* User Avatar with Connection Status (Top) *@
+    <div class="nav-top">
+        <button class="nav-item avatar-btn" title="个人资料" @onclick="ToggleProfilePopup">
+            <UserAvatar DisplayName="@(userInfo?.DisplayName ?? userInfo?.Username)" 
+                        AvatarUrl="@userInfo?.AvatarUrl" 
+                        Size="md" />
+            @* 连接状态指示点 *@
+            <span class="connection-dot @(IsConnected ? "connected" : "disconnected")" 
+                  title="@GetConnectionTooltip()"></span>
+        </button>
+    </div>
+
+    @* Main Navigation (Middle) *@
+    <div class="nav-middle">
+        <a href="/" class="nav-item @(IsChatActive ? "active" : "")" title="聊天" @onclick="NavigateToChat" @onclick:preventDefault>
+            <ChatIcon Size="22" />
+        </a>
+
+        <NavLink href="/analytics/audit" class="nav-item" title="审计看板">
+            <AnalyticsIcon Size="22" />
+        </NavLink>
+
+        <NavLink href="/settings/integrations" class="nav-item" title="集成管理">
+            <LayersIcon Size="22" />
+        </NavLink>
+
+        @if (userInfo?.Roles.Contains("Admin") == true)
+        {
+            <NavLink href="/settings/control-hub" class="nav-item" title="控制中心">
+                <ControlHubIcon Size="22" />
+            </NavLink>
+
+            <NavLink href="/settings/experiences" class="nav-item" title="经验管理">
+                <ExperienceIcon Size="22" />
+            </NavLink>
+
+            <NavLink href="/settings/users" class="nav-item" title="用户管理">
+                <UserManagementIcon Size="22" />
+            </NavLink>
+        }
+    </div>
+
+    @* Bottom Actions (Bottom) *@
+    <div class="nav-bottom">
+        <button class="nav-item" title="设置" @onclick="ToggleSettingsPopup">
+            <SettingsIcon Size="22" />
+        </button>
+    </div>
+</div>
+
+@* 个人资料弹窗 *@
+<ProfilePopup @bind-IsVisible="showProfilePopup" />
+
+@code {
+    /// <summary>
+    /// 是否已连接到服务器
+    /// </summary>
+    [Parameter]
+    public bool IsConnected { get; set; }
+
+    [Parameter]
+    public bool IsArtifactConnected { get; set; }
+
+    /// <summary>
+    /// 当前用户信息
+    /// </summary>
+    private UserInfo? userInfo;
+
+    /// <summary>
+    /// 是否显示个人资料弹窗
+    /// </summary>
+    private bool showProfilePopup = false;
+
+    /// <summary>
+    /// 打开设置弹窗事件
+    /// </summary>
+    [Parameter]
+    public EventCallback OnSettingsRequested { get; set; }
+
+    /// <summary>
+    /// 判断当前是否在聊天相关页面（/, /chat, /chat/{sessionId}）
+    /// </summary>
+    private bool IsChatActive => IsChatRoute(Nav.Uri);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 订阅用户状态变更
+        UserState.OnUserChanged += HandleUserChanged;
+        
+        // 订阅路由变化事件，用于更新聊天图标选中状态
+        Nav.LocationChanged += HandleLocationChanged;
+        
+        await LoadUserInfoAsync();
+    }
+
+    /// <summary>
+    /// 判断给定 URI 是否为聊天相关路由
+    /// </summary>
+    private bool IsChatRoute(string uri)
+    {
+        var relativePath = new Uri(uri).AbsolutePath;
+        return relativePath == "/" 
+            || relativePath.Equals("/chat", StringComparison.OrdinalIgnoreCase)
+            || relativePath.StartsWith("/chat/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 处理路由变化，刷新组件状态
+    /// </summary>
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// 导航到聊天页面
+    /// </summary>
+    private void NavigateToChat()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    private string GetConnectionTooltip()
+    {
+        if (!IsConnected)
+        {
+            return "服务器未连接";
+        }
+
+        return IsArtifactConnected
+            ? "服务器已连接"
+            : "聊天已连接，Artifact 通道未连接";
+    }
+
+    /// <summary>
+    /// 处理用户状态变更
+    /// </summary>
+    private async Task HandleUserChanged(UserInfo? user)
+    {
+        userInfo = user;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// 加载用户信息
+    /// </summary>
+    private async Task LoadUserInfoAsync()
+    {
+        try
+        {
+            userInfo = await ApiService.GetCurrentUserAsync();
+            StateHasChanged();
+        }
+        catch
+        {
+            // 静默处理，保持默认显示
+        }
+    }
+
+    /// <summary>
+    /// 切换个人资料弹窗显示状态
+    /// </summary>
+    private void ToggleProfilePopup()
+    {
+        showProfilePopup = !showProfilePopup;
+    }
+
+    /// <summary>
+    /// 切换设置弹窗显示状态
+    /// </summary>
+    private async Task ToggleSettingsPopup()
+    {
+        await OnSettingsRequested.InvokeAsync();
+    }
+
+    /// <summary>
+    /// 释放资源
+    /// </summary>
+    public void Dispose()
+    {
+        UserState.OnUserChanged -= HandleUserChanged;
+        Nav.LocationChanged -= HandleLocationChanged;
+    }
+}
+

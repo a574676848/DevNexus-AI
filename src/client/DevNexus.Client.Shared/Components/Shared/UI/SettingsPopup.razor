@@ -1,0 +1,550 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.DTOs
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Shared.Enums
+@using DevNexus.Client.Shared.Services.State
+@using Microsoft.Extensions.Logging
+@inject IClientVersionService ClientVersionService
+@inject IApiService ApiService
+@inject IAuthService AuthService
+@inject IUpdateService UpdateService
+@inject NavigationManager Nav
+@inject IUserStateService UserState
+@inject IWindowService WindowService
+@implements IDisposable
+
+@if (IsVisible)
+{
+    <div class="settings-popup-overlay" @onclick="Close" @onclick:stopPropagation="false">
+        <div class="settings-popup" @onclick:stopPropagation="true">
+            @* 菜单项列表 *@
+            <div class="menu-section">
+                @* 查看/修改资料 *@
+                <button class="menu-item" @onclick="NavigateToProfile">
+                    <i class="fa-solid fa-user-pen menu-icon"></i>
+                    <span class="menu-text">查看/修改资料</span>
+                    <i class="fa-solid fa-chevron-right menu-arrow"></i>
+                </button>
+
+                @* 记忆管理 *@
+                <button class="menu-item" @onclick="NavigateToMemory">
+                    <i class="fa-solid fa-brain menu-icon"></i>
+                    <span class="menu-text">记忆管理</span>
+                    <i class="fa-solid fa-chevron-right menu-arrow"></i>
+                </button>
+
+                @* AI 技能管理 *@
+                <button class="menu-item" @onclick="NavigateToSkills">
+                    <i class="fa-solid fa-puzzle-piece menu-icon"></i>
+                    <span class="menu-text">AI 技能管理</span>
+                    <i class="fa-solid fa-chevron-right menu-arrow"></i>
+                </button>
+
+                @if (IsAdmin)
+                {
+                    <button class="menu-item" @onclick="NavigateToReleaseCenter">
+                        <i class="fa-solid fa-rocket menu-icon"></i>
+                        <span class="menu-text">版本发布中心</span>
+                        <i class="fa-solid fa-chevron-right menu-arrow"></i>
+                    </button>
+                }
+
+                @* 系统信息 (可展开) *@
+                <button class="menu-item has-submenu @(showSystemInfo ? "expanded" : "")" @onclick="ToggleSystemInfo">
+                    <i class="fa-solid fa-circle-info menu-icon"></i>
+                    <span class="menu-text">系统信息</span>
+                    <i class="fa-solid fa-chevron-down menu-arrow @(showSystemInfo ? "rotated" : "")"></i>
+                </button>
+
+                @if (showSystemInfo)
+                {
+                    <div class="submenu">
+                        @* 客户端版本 *@
+                        <div class="submenu-item info-item">
+                            <span class="submenu-label">客户端版本</span>
+                            <span class="submenu-value">@version</span>
+                        </div>
+
+                        @* 检测更新 *@
+                        <button class="submenu-item clickable" @onclick="CheckForUpdate" disabled="@isCheckingUpdate">
+                            <span class="submenu-label">
+                                @if (isCheckingUpdate)
+                                {
+                                    <span class="spinner-sm"></span>
+                                    <span>检测中...</span>
+                                }
+                                else
+                                {
+                                    <span>检测更新</span>
+                                }
+                            </span>
+                            @if (!string.IsNullOrEmpty(updateMessage))
+                            {
+                                <span class="submenu-value @(hasUpdate ? "highlight" : "")">@updateMessage</span>
+                            }
+                        </button>
+
+                        @* 系统健康 *@
+                        <button class="submenu-item clickable" @onclick="CheckHealth" disabled="@isCheckingHealth">
+                            <span class="submenu-label">
+                                @if (isCheckingHealth)
+                                {
+                                    <span class="spinner-sm"></span>
+                                    <span>检测中...</span>
+                                }
+                                else
+                                {
+                                    <span>系统健康</span>
+                                }
+                            </span>
+                            @if (healthStatus != null)
+                            {
+                                <span class="submenu-value @(healthStatus.Equals("Healthy", StringComparison.OrdinalIgnoreCase) ? "healthy" : "unhealthy")">
+                                    @healthStatus
+                                </span>
+                            }
+                        </button>
+
+                        @* 服务器信息 (仅管理员) *@
+                        @if (IsAdmin)
+                        {
+                            <button class="submenu-item clickable" @onclick="OpenServerInfoModal" disabled="@isLoadingServerInfo">
+                                <span class="submenu-label">
+                                    @if (isLoadingServerInfo)
+                                    {
+                                        <span class="spinner-sm"></span>
+                                        <span>加载中...</span>
+                                    }
+                                    else
+                                    {
+                                        <span>服务器信息</span>
+                                    }
+                                </span>
+                                @if (serverInfo != null)
+                                {
+                                    <span class="submenu-value">v@(serverInfo.Version)</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* 分隔线 *@
+            <div class="menu-divider"></div>
+
+            @* 运维控制台 (仅管理员) *@
+            @if (IsAdmin)
+            {
+                <div class="menu-section">
+                     <button class="menu-item" @onclick="OpenHangfire">
+                        <i class="fa-solid fa-fire menu-icon text-danger"></i>
+                        <span class="menu-text">Hangfire 任务</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square menu-arrow"></i>
+                    </button>
+                    
+                     <button class="menu-item" @onclick="OpenSeq">
+                        <i class="fa-solid fa-chart-line menu-icon text-info"></i>
+                        <span class="menu-text">Seq 日志</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square menu-arrow"></i>
+                    </button>
+                </div>
+                <div class="menu-divider"></div>
+            }
+
+            @* 笔记系统入口 (所有用户) *@
+            <div class="menu-section">
+                <button class="menu-item" @onclick="OpenNotes">
+                    <i class="fa-solid fa-book menu-icon text-primary"></i>
+                    <span class="menu-text">打开笔记系统</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square menu-arrow"></i>
+                </button>
+            </div>
+
+            @* 分隔线 *@
+            <div class="menu-divider"></div>
+
+            @* 预留功能区域 *@
+            <div class="menu-section">
+                @* 模型定价管理 (仅管理员) *@
+                @if (IsAdmin)
+                {
+                    <button class="menu-item" @onclick="NavigateToModelPricing">
+                        <i class="fa-solid fa-coins menu-icon"></i>
+                        <span class="menu-text">模型定价管理</span>
+                        <i class="fa-solid fa-chevron-right menu-arrow"></i>
+                    </button>
+                }
+
+                @* 切换主题 (预留) *@
+                <button class="menu-item disabled" disabled title="功能开发中">
+                    <i class="fa-solid fa-palette menu-icon"></i>
+                    <span class="menu-text">切换主题</span>
+                    <span class="menu-badge">即将推出</span>
+                </button>
+
+                @* 隐私设置 (预留) *@
+                <button class="menu-item disabled" disabled title="功能开发中">
+                    <i class="fa-solid fa-shield menu-icon"></i>
+                    <span class="menu-text">隐私设置</span>
+                    <span class="menu-badge">即将推出</span>
+                </button>
+            </div>
+
+            @* 分隔线 *@
+            <div class="menu-divider"></div>
+
+            @* 退出登录 *@
+            <div class="menu-section">
+                <button class="menu-item danger" @onclick="Logout">
+                    <i class="fa-solid fa-right-from-bracket menu-icon"></i>
+                    <span class="menu-text">退出登录</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    @* 服务器信息弹窗 *@
+    <ServerInfoModal @bind-IsVisible="showServerInfoModal" ServerInfo="serverInfo" />
+}
+
+@code {
+    /// <summary>
+    /// 打开 Hangfire 控制台
+    /// </summary>
+    private async Task OpenHangfire()
+    {
+        await EnsureServerInfoLoaded();
+        
+        var url = serverInfo?.HangfireUrl;
+        if (string.IsNullOrEmpty(url))
+        {
+            // 回退到默认地址
+            url = "https://localhost:17093/hangfire";
+        }
+        
+        await Close();
+        WindowService.OpenWebWindow(url, "Hangfire 控制台");
+    }
+
+    /// <summary>
+    /// 打开 Seq 日志
+    /// </summary>
+    private async Task OpenSeq()
+    {
+        await EnsureServerInfoLoaded();
+        
+        var url = serverInfo?.SeqUrl;
+        if (string.IsNullOrEmpty(url))
+        {
+            // 回退到默认地址
+            url = "http://localhost:5342";
+        }
+        
+        await Close();
+        WindowService.OpenWebWindow(url, "Seq 日志");
+    }
+
+    /// <summary>
+    /// 打开笔记系统
+    /// </summary>
+    private async Task OpenNotes()
+    {
+        try
+        {
+            string? url = null;
+
+            // 优先尝试从用户的默认笔记集成获取
+            try
+            {
+                var userIntegrations = await ApiService.GetUserIntegrationsAsync();
+                var defaultNoteIntegration = userIntegrations
+                    .Where(i => i.IntegrationType == IntegrationType.NoteSystem && i.IsDefault && i.IsActive)
+                    .FirstOrDefault();
+
+                if (defaultNoteIntegration?.ProviderId.HasValue == true)
+                {
+                    var provider = await ApiService.GetProviderByIdAsync(defaultNoteIntegration.ProviderId.Value);
+                    url = provider?.Endpoint;
+                }
+            }
+            catch
+            {
+                // 如果获取用户集成失败，继续尝试其他方式
+            }
+
+            // 如果没有用户集成，尝试从服务器信息获取
+            if (string.IsNullOrEmpty(url))
+            {
+                await EnsureServerInfoLoaded();
+                url = serverInfo?.NotesUrl;
+            }
+
+            // 如果服务器信息中没有，尝试从默认供应商获取
+            if (string.IsNullOrEmpty(url))
+            {
+                var defaultProvider = await ApiService.GetDefaultProviderAsync();
+                url = defaultProvider?.Endpoint;
+            }
+
+            if (string.IsNullOrEmpty(url))
+            {
+                // 没有配置任何笔记供应商
+                url = "about:blank"; // 或显示提示信息
+            }
+
+            await Close();
+            WindowService.OpenWebWindow(url, "笔记系统");
+        }
+        catch
+        {
+            // 静默处理
+            await Close();
+        }
+    }
+
+    /// <summary>
+    /// 确保服务器信息已加载
+    /// </summary>
+    private async Task EnsureServerInfoLoaded()
+    {
+        if (serverInfo == null)
+        {
+            try
+            {
+                serverInfo = await ApiService.GetServerInfoAsync();
+            }
+            catch
+            {
+                // 静默处理，使用默认值
+            }
+        }
+    }
+
+    /// <summary>
+    /// 弹窗是否可见
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// 弹窗可见状态变化回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    // 用户信息
+    private UserInfo? userInfo;
+
+    // 客户端版本
+    private string version => ClientVersionService.CurrentVersion;
+
+    // 系统信息展开状态
+    private bool showSystemInfo = false;
+    
+    // 更新检测
+    private bool isCheckingUpdate = false;
+    private string? updateMessage;
+    private bool hasUpdate = false;
+    
+    // 健康检测
+    private bool isCheckingHealth = false;
+    private string? healthStatus;
+    
+    // 服务器信息
+    private bool isLoadingServerInfo = false;
+    private ServerInfoResponseDto? serverInfo;
+    private bool showServerInfoModal = false;
+
+    /// <summary>
+    /// 是否为管理员 - 直接从 UserState 获取，确保状态同步
+    /// </summary>
+    private bool IsAdmin => UserState.CurrentUser?.Roles?.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)) == true;
+
+    protected override void OnInitialized()
+    {
+        UserState.OnUserChanged += HandleUserChanged;
+        userInfo = UserState.CurrentUser;
+    }
+
+    /// <summary>
+    /// 处理用户状态变更
+    /// </summary>
+    private async Task HandleUserChanged(UserInfo? user)
+    {
+        userInfo = user;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// 关闭弹窗
+    /// </summary>
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    /// <summary>
+    /// 导航到个人资料页面
+    /// </summary>
+    private async Task NavigateToProfile()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/profile");
+    }
+
+    /// <summary>
+    /// 导航到记忆管理页面
+    /// </summary>
+    private async Task NavigateToMemory()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/memory");
+    }
+
+    /// <summary>
+    /// 导航到 AI 技能管理页面
+    /// </summary>
+    private async Task NavigateToSkills()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/skills");
+    }
+
+    /// <summary>
+    /// 导航到版本发布中心页面
+    /// </summary>
+    private async Task NavigateToReleaseCenter()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/release-center");
+    }
+
+    /// <summary>
+    /// 导航到模型定价管理页面
+    /// </summary>
+    private async Task NavigateToModelPricing()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/model-pricing");
+    }
+
+    /// <summary>
+    /// 切换系统信息展开状态
+    /// </summary>
+    private void ToggleSystemInfo()
+    {
+        showSystemInfo = !showSystemInfo;
+    }
+
+    /// <summary>
+    /// 检测更新
+    /// </summary>
+    private async Task CheckForUpdate()
+    {
+        isCheckingUpdate = true;
+        updateMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var update = await UpdateService.CheckForUpdateAsync();
+            if (update != null)
+            {
+                hasUpdate = true;
+                updateMessage = UpdateService.PresentationMode switch
+                {
+                    UpdatePresentationMode.RefreshOnly => $"发现新版本 v{update.Version}，请刷新页面",
+                    UpdatePresentationMode.ManualDownload => $"发现新版本 v{update.Version}，可下载并打开安装包",
+                    _ => $"发现新版本 v{update.Version}"
+                };
+            }
+            else
+            {
+                hasUpdate = false;
+                updateMessage = "已是最新版本";
+            }
+        }
+        catch
+        {
+            hasUpdate = false;
+            updateMessage = "检测失败";
+        }
+        finally
+        {
+            isCheckingUpdate = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 检测系统健康状态
+    /// </summary>
+    private async Task CheckHealth()
+    {
+        isCheckingHealth = true;
+        healthStatus = null;
+        StateHasChanged();
+
+        try
+        {
+            var health = await ApiService.GetHealthAsync();
+            healthStatus = health.Status;
+        }
+        catch
+        {
+            healthStatus = "Error";
+        }
+        finally
+        {
+            isCheckingHealth = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 打开服务器信息弹窗并获取数据
+    /// </summary>
+    private async Task OpenServerInfoModal()
+    {
+        showServerInfoModal = true;
+        
+        if (serverInfo == null)
+        {
+             isLoadingServerInfo = true;
+             StateHasChanged();
+             
+             try
+             {
+                 serverInfo = await ApiService.GetServerInfoAsync();
+             }
+             catch
+             {
+                 // 静默处理
+             }
+             finally
+             {
+                 isLoadingServerInfo = false;
+                 StateHasChanged();
+             }
+        }
+    }
+
+    /// <summary>
+    /// 退出登录
+    /// </summary>
+    private async Task Logout()
+    {
+        await Close();
+        await AuthService.LogoutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    /// <summary>
+    /// 释放资源
+    /// </summary>
+    public void Dispose()
+    {
+        UserState.OnUserChanged -= HandleUserChanged;
+    }
+}

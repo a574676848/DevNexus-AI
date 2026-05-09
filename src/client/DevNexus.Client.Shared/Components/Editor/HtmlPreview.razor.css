@@ -1,0 +1,18 @@
+/* HtmlPreview.razor.css - Modern Premium UI */
+
+.html-preview-container {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--white-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.05), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.html-preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--white-bg);
+}

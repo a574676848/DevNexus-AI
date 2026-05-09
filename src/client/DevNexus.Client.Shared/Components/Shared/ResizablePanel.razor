@@ -1,0 +1,210 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Web
+
+<div class="resizable-panel-wrapper @DirectionClass @ContainerClass" 
+     id="@ContainerId"
+     style="@PanelStyle">
+    
+    @if (Direction == ResizeDirection.Vertical)
+    {
+        <!-- 垂直调整：Handle 在顶部 -->
+        <div @ref="_resizeHandle"
+             class="resize-handle resize-handle-vertical"
+             @onpointerdown="OnResizePointerDown"
+             @onpointermove="OnResizePointerMove"
+             @onpointerup="OnResizePointerUp"
+             @onpointercancel="OnResizePointerUp">
+        </div>
+        <div class="resizable-content @(AllowContentOverflow ? "resizable-content-overflow-visible" : string.Empty)">
+            @ChildContent
+        </div>
+    }
+    else
+    {
+        <!-- 水平调整：Handle 在右侧或左侧 -->
+        <div class="resizable-content @(AllowContentOverflow ? "resizable-content-overflow-visible" : string.Empty)">
+            @ChildContent
+        </div>
+        <div @ref="_resizeHandle"
+             class="resize-handle resize-handle-horizontal"
+             @onpointerdown="OnResizePointerDown"
+             @onpointermove="OnResizePointerMove"
+             @onpointerup="OnResizePointerUp"
+             @onpointercancel="OnResizePointerUp">
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// 调整方向
+    /// </summary>
+    public enum ResizeDirection
+    {
+        Horizontal,  // 水平调整宽度
+        Vertical     // 垂直调整高度
+    }
+
+    #region Parameters
+
+    [Parameter] public ResizeDirection Direction { get; set; } = ResizeDirection.Horizontal;
+    [Parameter] public string ContainerId { get; set; } = "";
+    [Parameter] public string ContainerClass { get; set; } = "";
+    [Parameter] public double InitialSize { get; set; } = 250;
+    [Parameter] public double MinSize { get; set; } = 100;
+    [Parameter] public double MaxSize { get; set; } = 500;
+    [Parameter] public EventCallback<double> SizeChanged { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public bool AllowContentOverflow { get; set; }
+    
+    /// <summary>
+    /// 用于持久化尺寸的 localStorage 键（可选）
+    /// </summary>
+    [Parameter] public string? StorageKey { get; set; }
+
+    #endregion
+
+    #region State
+
+    private ElementReference _resizeHandle;
+    private double _currentSize;
+    private bool _isResizing = false;
+    private double _startPosition;
+    private double _startSize;
+
+    #endregion
+
+    #region Computed Properties
+
+    private string DirectionClass => Direction == ResizeDirection.Vertical 
+        ? "direction-vertical" 
+        : "direction-horizontal";
+
+    private string PanelStyle => Direction == ResizeDirection.Vertical
+        ? $"height: {_currentSize:F0}px;"
+        : $"width: {_currentSize:F0}px;";
+
+    public double CurrentSize
+    {
+        get => _currentSize;
+        private set
+        {
+            if (_currentSize != value)
+            {
+                _currentSize = value;
+                SizeChanged.InvokeAsync(value);
+                _ = SaveSizeToStorageAsync();
+            }
+        }
+    }
+
+    #endregion
+
+    #region Lifecycle
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 尝试从 localStorage 加载保存的尺寸
+        if (!string.IsNullOrEmpty(StorageKey))
+        {
+            try
+            {
+                var savedSizeRaw = await JS.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+                if (double.TryParse(savedSizeRaw, out var savedSize)
+                    && savedSize >= MinSize
+                    && savedSize <= MaxSize)
+                {
+                    _currentSize = savedSize;
+                    return;
+                }
+            }
+            catch { /* 忽略 localStorage 错误 */ }
+        }
+
+        _currentSize = InitialSize;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (_currentSize == 0)
+        {
+            _currentSize = InitialSize;
+        }
+        
+        // 确保尺寸在有效范围内
+        _currentSize = Math.Clamp(_currentSize, MinSize, MaxSize);
+    }
+
+    #endregion
+
+    #region Public Methods
+
+    /// <summary>
+    /// 设置尺寸（用于外部调整）
+    /// </summary>
+    public void SetSize(double size)
+    {
+        CurrentSize = Math.Clamp(size, MinSize, MaxSize);
+        StateHasChanged();
+    }
+
+    #endregion
+
+    #region Resize Logic
+
+    private async Task OnResizePointerDown(PointerEventArgs e)
+    {
+        _isResizing = true;
+        _startPosition = Direction == ResizeDirection.Vertical ? e.ClientY : e.ClientX;
+        _startSize = CurrentSize;
+        
+        // 捕获指针以确保在拖动时始终接收事件
+        await JS.InvokeVoidAsync("setPointerCapture", _resizeHandle, e.PointerId);
+    }
+
+    private void OnResizePointerMove(PointerEventArgs e)
+    {
+        if (!_isResizing) return;
+
+        double delta;
+        if (Direction == ResizeDirection.Vertical)
+        {
+            // 垂直：向上拖动增加高度
+            delta = _startPosition - e.ClientY;
+        }
+        else
+        {
+            // 水平：向右拖动增加宽度
+            delta = e.ClientX - _startPosition;
+        }
+
+        var newSize = _startSize + delta;
+        CurrentSize = Math.Clamp(newSize, MinSize, MaxSize);
+    }
+
+    private async Task OnResizePointerUp(PointerEventArgs e)
+    {
+        if (_isResizing)
+        {
+            _isResizing = false;
+            
+            // 释放指针捕获
+            await JS.InvokeVoidAsync("releasePointerCapture", _resizeHandle, e.PointerId);
+        }
+    }
+
+    private async Task SaveSizeToStorageAsync()
+    {
+        if (!string.IsNullOrEmpty(StorageKey))
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.setItem", StorageKey, _currentSize);
+            }
+            catch { /* 忽略 localStorage 错误 */ }
+        }
+    }
+
+    #endregion
+}

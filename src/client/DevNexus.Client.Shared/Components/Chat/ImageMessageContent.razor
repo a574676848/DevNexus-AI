@@ -1,0 +1,24 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IImagePreviewService PreviewService
+
+@if (!string.IsNullOrEmpty(ImageUrl))
+{
+    <div class="image-message-container">
+        <div class="image-thumbnail" @onclick="OpenPreview">
+            <img src="@ImageUrl" alt="Generated Image" loading="lazy" />
+            <div class="image-overlay">
+                <i class="fa-solid fa-magnifying-glass-plus"></i>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string ImageUrl { get; set; } = string.Empty;
+
+    private void OpenPreview()
+    {
+        PreviewService.Show(ImageUrl);
+    }
+}
+

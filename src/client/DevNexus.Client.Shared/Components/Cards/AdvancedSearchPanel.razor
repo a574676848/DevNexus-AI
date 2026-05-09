@@ -1,0 +1,305 @@
+@using System.Text.Json
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Components.Icons
+@namespace DevNexus.Client.Shared.Components.Cards
+
+@* 高级搜索面板：分层展示搜索结果和网页内容 *@
+<div class="advanced-search-panel">
+    @* 顶部：搜索头部信息 *@
+    <div class="search-header">
+        <SearchIcon Size="18" />
+        <span class="header-title">搜索结果汇总</span>
+        <span class="result-count">(@ResultCount 条)</span>
+        <span class="engine-badge">@Engine</span>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="search-loading">
+            <LoadingSpinner Size="sm" />
+            <span>正在整理搜索结果及网页内容...</span>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="search-error">
+            <AlertCircleIcon Size="16" />
+            <span>@ErrorMessage</span>
+        </div>
+    }
+    else if (Results.Count == 0)
+    {
+        <div class="search-empty">暂无搜索结果</div>
+    }
+    else
+    {
+        @* 中部：参考导航卡片组（快速定位） *@
+        <div class="reference-section">
+            <div class="ref-header">
+                <span class="ref-label">📚 快速导航</span>
+            </div>
+            <div class="reference-grid">
+                @foreach (var (index, result) in Results.Select((r, i) => (i, r)))
+                {
+                    var sectionId = $"result-{index}";
+                    <button class="ref-card" @onclick="() => ScrollToSection(sectionId)" title="@result.Title">
+                        <img src="@GetFavicon(result.Url)" class="ref-favicon" alt="favicon" onerror="this.style.display='none'" />
+                        <div class="ref-info">
+                            <span class="ref-title">@TruncateTitle(result.Title, 20)</span>
+                            <span class="ref-domain">@ExtractDomain(result.Url)</span>
+                        </div>
+                        <span class="ref-index">@(index + 1)</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @* 下部：完整网页内容（Markdown 渲染） *@
+        <div class="content-section">
+            <div class="content-header">
+                <span class="content-label">📄 完整内容</span>
+                <div class="content-actions">
+                    <button class="action-btn" @onclick="CopyAllContent" title="复制全部内容">
+                        <CopyIcon Size="14" />
+                        复制
+                    </button>
+                    <button class="action-btn" @onclick="ExportAsMarkdown" title="导出为 Markdown">
+                        <DownloadIcon Size="14" />
+                        导出
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(MergedContent))
+            {
+                <ThrottledMarkdownRenderer Content="@MergedContent" IsStreaming="false" />
+            }
+            else
+            {
+                <div class="empty-content">搜索结果未包含完整内容，请使用"读取网页"功能。</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// 搜索结果 Block 数据
+    /// </summary>
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    [Inject]
+    public IJSRuntime JSRuntime { get; set; } = default!;
+
+    [Inject]
+    public INotificationService NotificationService { get; set; } = default!;
+
+    // 状态管理
+    private List<SearchResult> Results { get; set; } = new();
+    private string MergedContent { get; set; } = string.Empty;
+    private string SearchQuery { get; set; } = string.Empty;
+    private string Engine { get; set; } = "Unknown";
+    private int ResultCount { get; set; } = 0;
+    private bool IsLoading { get; set; } = false;
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        ParseAdvancedSearchResults();
+    }
+
+    /// <summary>
+    /// 解析高级搜索结果
+    /// 优先从 Block.Content 解析（后端流式返回）
+    /// </summary>
+    private void ParseAdvancedSearchResults()
+    {
+        Results.Clear();
+        MergedContent = string.Empty;
+        ErrorMessage = string.Empty;
+        IsLoading = false;
+
+        if (Block.Metadata?.TryGetValue("status", out var statusObj) == true)
+        {
+            IsLoading = statusObj?.ToString()?.ToLowerInvariant() == "loading";
+            if (IsLoading)
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Block.Content))
+            {
+                ErrorMessage = "搜索结果为空";
+                return;
+            }
+
+            // 解析 AdvancedSearchAsync 返回的 JSON 格式
+            using var doc = JsonDocument.Parse(Block.Content);
+            var root = doc.RootElement;
+
+            // 检查成功状态
+            if (!root.TryGetProperty("success", out var successElement) || !successElement.GetBoolean())
+            {
+                if (root.TryGetProperty("error", out var errorElement))
+                {
+                    ErrorMessage = errorElement.GetString() ?? "未知错误";
+                }
+                return;
+            }
+
+            // 获取查询词和搜索引擎
+            if (root.TryGetProperty("query", out var queryProp))
+            {
+                SearchQuery = queryProp.GetString() ?? string.Empty;
+            }
+
+            if (root.TryGetProperty("engine", out var engineProp))
+            {
+                Engine = engineProp.GetString() ?? "Unknown";
+            }
+
+            // 获取 resultCount
+            if (root.TryGetProperty("resultCount", out var countProp))
+            {
+                ResultCount = countProp.GetInt32();
+            }
+
+            // 获取 results 数组
+            if (root.TryGetProperty("results", out var resultsArray))
+            {
+                var parsedResults = JsonSerializer.Deserialize<List<SearchResult>>(
+                    resultsArray.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                );
+
+                if (parsedResults != null)
+                {
+                    Results = parsedResults;
+                }
+            }
+
+            // 获取完整内容（Markdown）
+            if (root.TryGetProperty("content", out var contentProp))
+            {
+                MergedContent = contentProp.GetString() ?? string.Empty;
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"解析搜索结果失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 滚动到指定结果部分
+    /// </summary>
+    private async Task ScrollToSection(string sectionId)
+    {
+        // TODO: 实现平滑滚动到对应的 Markdown 标题
+        // 使用 IntersectionObserver 跟踪标题位置
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 复制所有内容
+    /// </summary>
+    private async Task CopyAllContent()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(MergedContent))
+            {
+                await NotificationService.ShowAsync("复制失败", "暂无可复制内容");
+                return;
+            }
+
+            await JSRuntime.InvokeVoidAsync("devnexusSearchInterop.copyText", MergedContent);
+            await NotificationService.ShowAsync("复制成功", "已复制高级搜索内容");
+        }
+        catch (Exception ex)
+        {
+            await NotificationService.ShowAsync("复制失败", $"复制内容失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 导出为 Markdown 文件
+    /// </summary>
+    private async Task ExportAsMarkdown()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(MergedContent))
+            {
+                await NotificationService.ShowAsync("导出失败", "暂无可导出内容");
+                return;
+            }
+
+            var content = $"# {SearchQuery}\n\n{MergedContent}";
+            var safeQuery = string.IsNullOrWhiteSpace(SearchQuery) ? "search" : SearchQuery;
+            var fileName = $"advanced-search-{safeQuery}-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+            await JSRuntime.InvokeVoidAsync("devnexusSearchInterop.downloadTextFile", fileName, content, "text/markdown");
+            await NotificationService.ShowAsync("导出成功", $"已导出为 {fileName}");
+        }
+        catch (Exception ex)
+        {
+            await NotificationService.ShowAsync("导出失败", $"导出失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 获取网站 Favicon
+    /// </summary>
+    private string GetFavicon(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            return $"https://www.google.com/s2/favicons?domain={uri.Host}&sz=24";
+        }
+        catch
+        {
+            return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23999'><circle cx='8' cy='8' r='7'/></svg>";
+        }
+    }
+
+    /// <summary>
+    /// 提取域名
+    /// </summary>
+    private string ExtractDomain(string url)
+    {
+        try
+        {
+            return new Uri(url).Host;
+        }
+        catch
+        {
+            return url;
+        }
+    }
+
+    /// <summary>
+    /// 截断标题
+    /// </summary>
+    private string TruncateTitle(string title, int maxLength)
+    {
+        if (string.IsNullOrEmpty(title)) return "未命名";
+        return title.Length > maxLength ? title.Substring(0, maxLength) + "..." : title;
+    }
+
+    /// <summary>
+    /// 搜索结果模型
+    /// </summary>
+    private class SearchResult
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string? Snippet { get; set; }
+        public string? Description { get; set; }
+    }
+
+}

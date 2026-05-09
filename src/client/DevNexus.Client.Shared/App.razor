@@ -1,0 +1,29 @@
+<CascadingAuthenticationState>
+    <ErrorBoundary>
+        <ChildContent>
+            <Router AppAssembly="typeof(App).Assembly">
+                <Found Context="routeData">
+                    <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(DevNexus.Client.Shared.Components.Layout.MainLayout)">
+                        <NotAuthorized>
+                            <DevNexus.Client.Shared.Components.Auth.RedirectToLogin />
+                        </NotAuthorized>
+                        <Authorizing>
+                            <DevNexus.Client.Shared.Components.Shared.UI.LoadingScreen
+                                Text="正在验证身份..."
+                                DetailText="正在恢复登录态、会话状态与工作区上下文"
+                                ActiveStageIndex="0" />
+                        </Authorizing>
+                    </AuthorizeRouteView>
+                </Found>
+                <NotFound>
+                    <LayoutView Layout="typeof(DevNexus.Client.Shared.Components.Layout.MainLayout)">
+                        <DevNexus.Client.Shared.Components.Pages.NotFound />
+                    </LayoutView>
+                </NotFound>
+            </Router>
+        </ChildContent>
+        <ErrorContent Context="exception">
+            <DevNexus.Client.Shared.Components.Shared.UI.AppErrorView Exception="exception" />
+        </ErrorContent>
+    </ErrorBoundary>
+</CascadingAuthenticationState>

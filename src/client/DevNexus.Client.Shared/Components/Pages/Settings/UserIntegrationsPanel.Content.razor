@@ -1,0 +1,49 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (IsAdmin)
+{
+    <UserIntegrationsPanel_AdminView
+        Integrations="@AllIntegrations"
+        OnEdit="@OnEditDetailed"
+        OnDelete="@OnDeleteDetailed"
+        OnAddClick="@OnAddClick" />
+}
+else
+{
+    <UserIntegrationsPanel_UserView
+        Integrations="@UserIntegrations"
+        OnSetDefault="@OnSetDefaultUser"
+        OnEdit="@OnEditUser"
+        OnDelete="@OnDeleteUser"
+        OnAddClick="@OnAddClick" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public bool IsAdmin { get; set; }
+
+    [Parameter]
+    public List<UserIntegrationResponse> UserIntegrations { get; set; } = new();
+
+    [Parameter]
+    public List<UserIntegrationDetailedResponse> AllIntegrations { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<UserIntegrationDetailedResponse> OnEditDetailed { get; set; }
+
+    [Parameter]
+    public EventCallback<UserIntegrationDetailedResponse> OnDeleteDetailed { get; set; }
+
+    [Parameter]
+    public EventCallback<UserIntegrationResponse> OnSetDefaultUser { get; set; }
+
+    [Parameter]
+    public EventCallback<UserIntegrationResponse> OnEditUser { get; set; }
+
+    [Parameter]
+    public EventCallback<UserIntegrationResponse> OnDeleteUser { get; set; }
+
+    [Parameter]
+    public EventCallback OnAddClick { get; set; }
+}

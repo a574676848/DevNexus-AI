@@ -1,0 +1,80 @@
+@using System.Text.Json
+@using DevNexus.Shared.Enums
+
+<div class="rag-references-card @(IsExpanded ? "expanded" : "collapsed")">
+    <div class="rag-header" @onclick="ToggleExpand">
+        <div class="rag-icon">
+            <i class="fa-solid fa-book-open"></i>
+        </div>
+        <span class="rag-title">参考来源 (@References.Count)</span>
+        <i class="fa-solid @(IsExpanded ? "fa-chevron-up" : "fa-chevron-down") expand-icon"></i>
+    </div>
+    
+    @if (IsExpanded)
+    {
+        <div class="rag-content">
+            @foreach (var reference in References)
+            {
+                <div class="rag-item" @onclick="() => OpenReference(reference)">
+                    <div class="ref-index">[引用@reference.Index]</div>
+                    <div class="ref-body">
+                        <div class="ref-filename">@reference.FileName</div>
+                        <div class="ref-snippet">@reference.Content</div>
+                    </div>
+                    <div class="ref-score">@((reference.Score * 100).ToString("F0"))%</div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public List<RagReference> References { get; set; } = new();
+    [Parameter] public EventCallback<RagReference> OnReferenceClick { get; set; }
+    
+    private bool IsExpanded { get; set; } = false;
+    
+    private void ToggleExpand()
+    {
+        IsExpanded = !IsExpanded;
+    }
+    
+    private async Task OpenReference(RagReference reference)
+    {
+        if (OnReferenceClick.HasDelegate)
+        {
+            await OnReferenceClick.InvokeAsync(reference);
+        }
+    }
+    
+    /// <summary>
+    /// RAG 引用数据模型
+    /// </summary>
+    public class RagReference
+    {
+        public int Index { get; set; }
+        public string FileName { get; set; } = "Unknown";
+        public string Content { get; set; } = "";
+        public double Score { get; set; }
+    }
+    
+    /// <summary>
+    /// 从 BlockDto 解析 RAG 引用列表
+    /// </summary>
+    public static List<RagReference> ParseFromContent(string? content)
+    {
+        if (string.IsNullOrEmpty(content)) return new();
+        
+        try
+        {
+            return JsonSerializer.Deserialize<List<RagReference>>(content, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? new();
+        }
+        catch
+        {
+            return new();
+        }
+    }
+}

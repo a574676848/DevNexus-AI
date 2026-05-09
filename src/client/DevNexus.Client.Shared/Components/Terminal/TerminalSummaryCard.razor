@@ -1,0 +1,53 @@
+@namespace DevNexus.Client.Shared.Components.Terminal
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Client.Shared.Models
+
+@if (Presentation != null)
+{
+    <button type="button"
+            class="terminal-summary-card @GetToneClass()"
+            title="@GetCardTitle()"
+            aria-label="@GetCardTitle()"
+            @onclick="OpenDetailAsync">
+        <span class="terminal-summary-card__icon" aria-hidden="true">
+            <ActivityIcon Size="15" Stroke="currentColor" />
+        </span>
+        <span class="terminal-summary-card__body">
+            <span class="terminal-summary-card__headline-row">
+                <strong class="terminal-summary-card__headline">终端</strong>
+                <span class="terminal-summary-card__status">
+                    <span class="terminal-summary-card__status-dot"></span>
+                    <span>@GetStatusLabel()</span>
+                </span>
+                @if (RecordCount > 1)
+                {
+                    <span class="terminal-summary-card__count">@RecordCount</span>
+                }
+            </span>
+            <span class="terminal-summary-card__meta">@GetMetaLine()</span>
+        </span>
+        <span class="terminal-summary-card__action" aria-hidden="true">
+            <EyeIcon Size="15" Stroke="currentColor" />
+        </span>
+    </button>
+}
+else if (RecordCount > 0)
+{
+    <button type="button"
+            class="terminal-summary-card terminal-summary-card--neutral"
+            title="查看终端详情"
+            aria-label="查看终端详情"
+            @onclick="OpenDetailAsync">
+        <span class="terminal-summary-card__icon" aria-hidden="true">
+            <ActivityIcon Size="15" Stroke="currentColor" />
+        </span>
+        <span class="terminal-summary-card__body">
+            <span class="terminal-summary-card__headline-row">
+                <strong class="terminal-summary-card__headline">终端</strong>
+                <span class="terminal-summary-card__count">@RecordCount</span>
+            </span>
+            <span class="terminal-summary-card__meta">查看终端详情</span>
+        </span>
+    </button>
+}

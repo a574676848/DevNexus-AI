@@ -1,0 +1,107 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (Show && Integration != null)
+{
+    <div class="dialog-overlay" @onclick="OnClose">
+        <div class="dialog-container" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>编辑集成</h3>
+                <button class="btn-close" @onclick="OnClose" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <div class="form-section">
+                    <label class="form-label">集成类型</label>
+                    <input type="text" class="form-input" value="@Integration.IntegrationTypeName" disabled />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">显示名称 <span class="required">*</span></label>
+                    <input type="text" class="form-input" @bind="EditIntegration.DisplayName"
+                           placeholder="例如: 我的笔记" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">端点地址</label>
+                    <input type="text" class="form-input" @bind="EditIntegration.Endpoint"
+                           placeholder="留空使用供应商默认端点" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">凭证</label>
+                    <input type="password" class="form-input" @bind="EditIntegration.Credential"
+                           placeholder="留空则不修改" />
+                    <span class="form-hint">留空保持原有凭证不变</span>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="EditIntegration.IsActive" />
+                        <span>启用此集成</span>
+                    </label>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="EditIntegration.IsDefault" />
+                        <span>设为默认集成</span>
+                    </label>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="OnClose">取消</button>
+                <button class="btn-primary" @onclick="OnUpdateIntegration" disabled="@IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>保存中..</span>
+                    }
+                    else
+                    {
+                        <span>保存</span>
+                    }
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(EditDialogMessage))
+            {
+                <div class="dialog-message @(EditDialogSuccess ? "success" : "error")">
+                    @if (EditDialogSuccess)
+                    {
+                        <CheckCircleIcon Size="16" />
+                    }
+                    else
+                    {
+                        <AlertCircleIcon Size="16" />
+                    }
+                    <span>@EditDialogMessage</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+
+    [Parameter]
+    public UserIntegrationResponse? Integration { get; set; }
+
+    [Parameter]
+    public UpdateUserIntegrationRequest EditIntegration { get; set; } = new();
+
+    [Parameter]
+    public string? EditDialogMessage { get; set; }
+
+    [Parameter]
+    public bool EditDialogSuccess { get; set; }
+
+    [Parameter]
+    public bool IsSubmitting { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnUpdateIntegration { get; set; }
+}

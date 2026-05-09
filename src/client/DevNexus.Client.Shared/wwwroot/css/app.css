@@ -1,0 +1,283 @@
+/* DevNexus AI - App Styles */
+@import 'design-tokens.css';
+@import 'components/chat/inputbox-cli-session.css';
+@import 'components/swarm/swarm-monitor-panels.css';
+
+/* ========================================= */
+/* 基础重置 */
+/* ========================================= */
+html,
+body,
+#app {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    font-size: var(--font-base);
+    line-height: var(--leading-normal);
+    color: var(--text-primary);
+    background: var(--bg-primary);
+    /* Use primary bg token */
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 允许文本选择的区域 */
+.selectable,
+.message-content,
+input,
+textarea,
+.monaco-editor {
+    user-select: text;
+}
+
+/* ========================================= */
+/* 按钮基础样式 */
+/* ========================================= */
+button {
+    font-family: inherit;
+    font-size: inherit;
+    border: none;
+    cursor: pointer;
+    background: transparent;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+    transition: all var(--transition-fast);
+}
+
+button:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* ========================================= */
+/* 输入框基础样式 */
+/* ========================================= */
+input,
+textarea {
+    font-family: inherit;
+    font-size: inherit;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    outline: none;
+    -webkit-app-region: no-drag;
+    transition: all var(--transition-normal);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+input:focus,
+textarea:focus {
+    background: #ffffff;
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 4px var(--brand-green-light), inset 0 1px 2px rgba(0, 0, 0, 0.01);
+}
+
+/* ========================================= */
+/* 链接样式 */
+/* ========================================= */
+a {
+    color: var(--brand-info);
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    transition: opacity var(--transition-fast);
+}
+
+a:hover {
+    opacity: 0.8;
+}
+
+/* ========================================= */
+/* 动画 */
+/* ========================================= */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* ===== 左侧导航栏全局样式 (确保覆盖) ===== */
+.region-nav,
+.nav-sidebar {
+    background: var(--sidebar-bg) !important;
+    border-right: 1px solid var(--border-subtle) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+/* NavLink 选中状态 */
+.nav-sidebar .nav-item.active,
+.nav-sidebar a.active {
+    color: var(--brand-green) !important;
+    background: var(--sidebar-active-bg) !important;
+    box-shadow: var(--shadow-sm), inset 0 1px 1px #ffffff;
+}
+
+.nav-sidebar .nav-item.active::before,
+.nav-sidebar a.active::before {
+    display: none;
+    /* Removed the square side bar in favor of pill shape highlight */
+}
+
+/* NavLink 基础样式 */
+.nav-sidebar .nav-item,
+.nav-sidebar a {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    /* Changed to use primary dark text color */
+    border-radius: var(--radius-md);
+    /* More rounded edges */
+    transition: all var(--transition-normal);
+    text-decoration: none;
+}
+
+.nav-sidebar .nav-item:hover,
+.nav-sidebar a:hover {
+    color: #1d1d1f;
+    background: var(--sidebar-hover-bg);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.nav-sidebar .nav-item:active,
+.nav-sidebar a:active {
+    transform: scale(0.92);
+}
+
+/* ===== 代码块全局样式 (极简浅色风格) ===== */
+/* 代码块容器 */
+.code-block-wrapper {
+    margin: 12px 0;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+/* 代码块头部 */
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: rgba(0, 0, 0, 0.02);
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: system-ui, -apple-system, sans-serif;
+    user-select: none;
+}
+
+/* 语言标签 */
+.code-language {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* 按钮容器 */
+.code-block-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 通用操作按钮 */
+.code-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.1s;
+}
+
+.code-action-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* 展开按钮悬停效果 */
+.expand-code-btn:hover {
+    color: var(--brand-green) !important;
+}
+
+/* Mermaid 图表容器 (极简浅色风格) */
+.mermaid-container {
+    margin: 12px 0;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+    text-align: center;
+    border: 1px solid var(--border-subtle);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.mermaid-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* ===== 内联图表工具栏样式 (极简浅色风格) ===== */
+.inline-chart-wrapper .chart-toolbar button:hover {
+    background: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.inline-chart-wrapper .chart-sidekick-btn:hover,
+.chart-sidekick-btn:hover {
+    color: var(--brand-green) !important;
+}
+
+/* 代码块内容区域 (浅色背景需要深色代码) */
+.code-block-wrapper pre {
+    margin: 0;
+    padding: 16px;
+    background: transparent;
+    overflow-x: auto;
+}
+
+.code-block-wrapper pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-primary);
+    background: transparent;
+}
+
+/* 折叠状态样式 */
+.code-block-wrapper.collapsed .code-block-header {
+    border-bottom: none;
+}

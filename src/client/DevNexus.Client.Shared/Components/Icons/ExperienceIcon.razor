@@ -1,0 +1,16 @@
+@* ExperienceIcon.razor - 经验/知识沉淀图标 *@
+@namespace DevNexus.Client.Shared.Components.Icons
+@inherits IconBase
+
+<svg width="@Size" height="@Size" viewBox="0 0 24 24" fill="@Fill" stroke="@Stroke"
+     stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round"
+     class="@CssClass" style="@Style">
+    <!-- 外层方框 -->
+    <rect x="3" y="5" width="18" height="14" rx="2" ry="2"></rect>
+    <!-- 内层递进条纹 - 代表知识沉淀 -->
+    <line x1="6" y1="10" x2="18" y2="10"></line>
+    <line x1="6" y1="14" x2="18" y2="14"></line>
+    <line x1="6" y1="18" x2="18" y2="18"></line>
+    <!-- 左上角闪光点 - 代表智慧洞察 -->
+    <circle cx="7" cy="7" r="1.5"></circle>
+</svg>

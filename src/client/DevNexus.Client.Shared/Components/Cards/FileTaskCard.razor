@@ -1,0 +1,389 @@
+@namespace DevNexus.Client.Shared.Components.Cards
+
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Client.Shared.Models
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.Enums
+@using System.Text.Json
+
+@implements IDisposable
+
+<div class="file-task-card card">
+    <div class="file-task-header">
+        <div class="file-task-title-wrap">
+            <div class="file-task-icon-shell">
+                <ActivityIcon Size="18" />
+            </div>
+            <div>
+                <div class="file-task-eyebrow">文件准备</div>
+                <div class="file-task-title">@CardTitle</div>
+            </div>
+        </div>
+        <span class="file-task-status @GetStatusClass()">@GetStatusText()</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(CurrentInstructions))
+    {
+        <div class="file-task-instructions">@CurrentInstructions</div>
+    }
+
+    <div class="file-task-summary-row">
+        <div class="summary-pill">
+            <span class="summary-label">处理类型</span>
+            <span class="summary-value">@GetTaskTypeText()</span>
+        </div>
+        <div class="summary-pill">
+            <span class="summary-label">当前阶段</span>
+            <span class="summary-value">@GetStageText()</span>
+        </div>
+        <div class="summary-pill">
+            <span class="summary-label">输入文件</span>
+            <span class="summary-value">@InputFiles.Count</span>
+        </div>
+        <div class="summary-pill">
+            <span class="summary-label">输出资产</span>
+            <span class="summary-value">@GetOutputCount()</span>
+        </div>
+    </div>
+
+    <div class="file-task-stage-strip" aria-label="处理阶段">
+        @foreach (var stageItem in GetStageItems())
+        {
+            <div class="file-task-stage-chip @GetStageChipClass(stageItem.Stage)">@stageItem.Label</div>
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(GetStageSummary()))
+    {
+        <div class="file-task-stage-summary">@GetStageSummary()</div>
+    }
+
+    @if (InputFiles.Any())
+    {
+        <div class="file-task-section">
+            <div class="file-task-section-title">待处理文件</div>
+            <div class="file-task-file-list">
+                @foreach (var file in InputFiles)
+                {
+                    <div class="file-task-file-item">
+                        <div class="file-task-file-main">
+                            <FileTextIcon Size="14" />
+                            <span class="file-task-file-name">@file.FileName</span>
+                        </div>
+                        <div class="file-task-file-badges">
+                            @if (!string.IsNullOrWhiteSpace(file.CapabilityTag))
+                            {
+                                <span class="file-task-file-badge capability">@file.CapabilityTag</span>
+                            }
+                            <span class="file-task-file-badge readiness @(file.IsExecutableReady ? "ready" : "reference")">
+                                @(file.IsExecutableReady ? "可执行" : "仅引用")
+                            </span>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (GetCurrentStatus() == FileTaskStatus.Completed && GetOutputCount() > 0)
+    {
+        <div class="file-task-result-hint">生成文件已就绪，见下方结果卡片。</div>
+    }
+
+    <div class="file-task-footer">
+        <span class="file-task-id">处理 ID: @GetShortTaskId()</span>
+        <span class="file-task-time">@GetTimeText()</span>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(CurrentErrorSummary))
+    {
+        <div class="file-task-error">@CurrentErrorSummary</div>
+    }
+</div>
+
+@code {
+    [Inject] private IApiService ApiService { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    private CancellationTokenSource? _pollingCts;
+    private Guid? _trackedTaskId;
+    private FileTaskDto? _liveTask;
+    private FileTaskArtifactPayload? Payload => TryParsePayload();
+
+    private IReadOnlyList<FileTaskArtifactItem> InputFiles =>
+        Payload?.InputFiles ?? new List<FileTaskArtifactItem>();
+
+    private string? CurrentInstructions => _liveTask?.Instructions ?? Payload?.Instructions;
+
+    private string? CurrentErrorSummary => _liveTask?.ErrorSummary;
+
+    private FileTaskStage CurrentStage => _liveTask?.Stage ?? Payload?.Stage ?? FileTaskStage.Queued;
+
+    private string CardTitle => MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Title, "已创建文件准备");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var taskId = GetTaskId();
+        if (taskId == _trackedTaskId)
+        {
+            return;
+        }
+
+        StopPolling();
+        _trackedTaskId = taskId;
+        _liveTask = null;
+        if (!taskId.HasValue)
+        {
+            return;
+        }
+
+        await RefreshTaskAsync(taskId.Value, CancellationToken.None);
+
+        if (ShouldPoll())
+        {
+            _pollingCts = new CancellationTokenSource();
+            _ = PollTaskAsync(taskId.Value, _pollingCts.Token);
+        }
+    }
+
+    private FileTaskArtifactPayload? TryParsePayload()
+    {
+        if (string.IsNullOrWhiteSpace(Block.Content))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<FileTaskArtifactPayload>(Block.Content);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string GetTaskTypeText()
+    {
+        var taskType = _liveTask?.TaskType ?? Payload?.TaskType;
+
+        return taskType switch
+        {
+            "chat-file-orchestration" => "聊天驱动编排",
+            "multi-file-preparation" => "多文件预处理",
+            "single-file-preparation" => "单文件预处理",
+            not null and not "" => taskType,
+            _ => MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.TaskType, "未命名任务")
+        };
+    }
+
+    private string GetStatusText()
+    {
+        return GetCurrentStatus() switch
+        {
+            FileTaskStatus.Pending => "待执行",
+            FileTaskStatus.Running => "执行中",
+            FileTaskStatus.Completed => "已完成",
+            FileTaskStatus.Failed => "失败",
+            FileTaskStatus.Cancelled => "已取消",
+            _ => MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Status, "未知状态")
+        };
+    }
+
+    private string GetStatusClass()
+    {
+        return GetCurrentStatus() switch
+        {
+            FileTaskStatus.Completed => "status-completed",
+            FileTaskStatus.Failed => "status-failed",
+            FileTaskStatus.Cancelled => "status-cancelled",
+            FileTaskStatus.Running => "status-running",
+            _ => "status-pending"
+        };
+    }
+
+    private string GetStageText()
+    {
+        return CurrentStage switch
+        {
+            FileTaskStage.Queued => "排队中",
+            FileTaskStage.PreparingTaskDirectory => "准备任务目录",
+            FileTaskStage.StagingAssets => "整理文件",
+            FileTaskStage.ExecutingScript => "执行处理",
+            FileTaskStage.ValidatingOutputs => "验证结果",
+            FileTaskStage.PublishingOutputs => "发布结果",
+            FileTaskStage.Completed => "已完成",
+            FileTaskStage.Failed => "失败",
+            FileTaskStage.Cancelled => "已取消",
+            _ => "未知阶段"
+        };
+    }
+
+    private string? GetStageSummary()
+    {
+        return _liveTask?.StageSummary
+            ?? Payload?.StageSummary
+            ?? MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.StageSummary);
+    }
+
+    private IReadOnlyList<(FileTaskStage Stage, string Label)> GetStageItems()
+    {
+        return new List<(FileTaskStage Stage, string Label)>
+        {
+            (FileTaskStage.PreparingTaskDirectory, "准备"),
+            (FileTaskStage.StagingAssets, "整理"),
+            (FileTaskStage.ExecutingScript, "执行"),
+            (FileTaskStage.ValidatingOutputs, "验证"),
+            (FileTaskStage.PublishingOutputs, "发布")
+        };
+    }
+
+    private string GetStageChipClass(FileTaskStage stage)
+    {
+        if (CurrentStage is FileTaskStage.Failed or FileTaskStage.Cancelled)
+        {
+            return stage == FileTaskStage.ExecutingScript ? "stage-chip-failed" : "stage-chip-pending";
+        }
+
+        if (CurrentStage == FileTaskStage.Completed)
+        {
+            return "stage-chip-completed";
+        }
+
+        var currentOrder = GetStageOrder(CurrentStage);
+        var stageOrder = GetStageOrder(stage);
+
+        if (stageOrder < currentOrder)
+        {
+            return "stage-chip-completed";
+        }
+
+        if (stageOrder == currentOrder)
+        {
+            return "stage-chip-current";
+        }
+
+        return "stage-chip-pending";
+    }
+
+    private static int GetStageOrder(FileTaskStage stage)
+    {
+        return stage switch
+        {
+            FileTaskStage.PreparingTaskDirectory => 1,
+            FileTaskStage.StagingAssets => 2,
+            FileTaskStage.ExecutingScript => 3,
+            FileTaskStage.ValidatingOutputs => 4,
+            FileTaskStage.PublishingOutputs => 5,
+            FileTaskStage.Completed => 6,
+            FileTaskStage.Failed => 6,
+            FileTaskStage.Cancelled => 6,
+            _ => 0
+        };
+    }
+
+    private string GetShortTaskId()
+    {
+        var taskId = _liveTask?.FileTaskId ?? Payload?.FileTaskId;
+        return taskId.HasValue ? taskId.Value.ToString("N")[..8] : "未分配";
+    }
+
+    private int GetOutputCount()
+    {
+        return _liveTask?.OutputAssetIds.Count ?? Payload?.OutputCount ?? MetadataHelper.GetInt(Block.Metadata, ToolBlockMetadataConstants.OutputCount) ?? 0;
+    }
+
+    private string GetTimeText()
+    {
+        var createdAt = _liveTask?.UpdatedAt ?? Payload?.UpdatedAt ?? Payload?.CreatedAt;
+        if (createdAt == null || createdAt == DateTime.MinValue)
+        {
+            return "刚刚创建";
+        }
+
+        var prefix = ShouldPoll() ? "更新于" : "完成于";
+        return $"{prefix} {createdAt.Value.ToLocalTime():HH:mm}";
+    }
+
+    private Guid? GetTaskId()
+    {
+        if (_liveTask?.FileTaskId != Guid.Empty)
+        {
+            return _liveTask?.FileTaskId;
+        }
+
+        if (Payload?.FileTaskId != Guid.Empty)
+        {
+            return Payload?.FileTaskId;
+        }
+
+        var metadataValue = MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.FileTaskId);
+        return Guid.TryParse(metadataValue, out var taskId) ? taskId : null;
+    }
+
+    private FileTaskStatus GetCurrentStatus()
+    {
+        return _liveTask?.Status ?? Payload?.Status ?? FileTaskStatus.Pending;
+    }
+
+    private bool ShouldPoll()
+    {
+        var status = GetCurrentStatus();
+        return status is FileTaskStatus.Pending or FileTaskStatus.Running;
+    }
+
+    private async Task PollTaskAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshTaskAsync(taskId, cancellationToken);
+
+                if (!ShouldPoll())
+                {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshTaskAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        var task = await ApiService.GetFileTaskAsync(taskId);
+        if (task == null)
+        {
+            return;
+        }
+
+        _liveTask = task;
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void StopPolling()
+    {
+        if (_pollingCts == null)
+        {
+            return;
+        }
+
+        _pollingCts.Cancel();
+        _pollingCts.Dispose();
+        _pollingCts = null;
+    }
+
+    public void Dispose()
+    {
+        StopPolling();
+    }
+}

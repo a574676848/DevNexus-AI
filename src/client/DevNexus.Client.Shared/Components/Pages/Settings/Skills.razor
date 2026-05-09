@@ -1,0 +1,689 @@
+@page "/settings/skills"
+@using DevNexus.Client.Shared.Services.Exceptions
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Components.Icons
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IErrorTranslationService ErrorTranslation
+@inject IJSRuntime JS
+@implements IDisposable
+
+<div class="skills-page">
+    @if (isLoading)
+    {
+        <LoadingSpinner Message="加载技能列表..." Size="md" />
+    }
+    else
+    {
+        @* 页面头部 *@
+        <div class="page-header">
+            <div class="header-icon">
+                <PluginIcon Size="24" Stroke="var(--brand-green)" />
+            </div>
+            <div class="header-info">
+                <h1>AI 技能管理 (Skills)</h1>
+                <p>管理专属提示词、工作流脚本和插件集</p>
+            </div>
+            <div class="header-actions">
+                <InputFile OnChange="UploadSkillFile" accept=".zip" style="display: none;" id="skillFileInput" />
+                <label for="skillFileInput" class="btn-secondary upload-btn @(IsDisabled(isUploading || isReloading) != null ? "disabled" : "")">
+                    @if (isUploading)
+                    {
+                        <span class="btn-spinner"></span>
+                        <span>上传中...</span>
+                    }
+                    else
+                    {
+                        <UploadIcon Size="14" Stroke="currentColor" />
+                        <span>安装外部 Skill (.zip)</span>
+                    }
+                </label>
+
+                <button class="btn-primary reload-btn" @onclick="ReloadSkills" disabled="@IsDisabled(isUploading || isReloading)">
+                    @if (isReloading)
+                    {
+                        <span class="btn-spinner"></span>
+                        <span>重载中...</span>
+                    }
+                    else
+                    {
+                        <RefreshIcon Size="14" Stroke="currentColor" />
+                        <span>热重载</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="message error">
+                <div class="message-main">
+                    <AlertCircleIcon Size="16" Stroke="currentColor" />
+                    <span>@errorMessage</span>
+                    @if (!string.IsNullOrEmpty(errorDetail))
+                    {
+                        <button class="btn-text-link" @onclick="() => showRawError = !showRawError">
+                            @(showRawError ? "隐藏详情" : "查看详情")
+                        </button>
+                    }
+                </div>
+                @if (showRawError && !string.IsNullOrEmpty(errorDetail))
+                {
+                    <div class="message-detail">
+                        <pre>@errorDetail</pre>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="message success">
+                <CheckCircleIcon Size="16" Stroke="currentColor" />
+                <span>@successMessage</span>
+            </div>
+        }
+
+        <div class="settings-container">
+            <div class="settings-group">
+                <div class="group-header">
+                    <LayersIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>全部可用技能 (@skills.Count)</span>
+                </div>
+
+                @if (skills.Count == 0)
+                {
+                    <div class="empty-state">
+                        <PluginIcon Size="48" Stroke="var(--text-muted)" />
+                        <p>暂无可用技能</p>
+                        <span class="hint">请先在服务器端配置 SKILL.md 文件</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="skills-grid">
+                        @foreach (var skill in pagedSkills)
+                        {
+                            <div class="skill-card @(skill.Enabled ? "" : "disabled")" @onclick="() => ShowDetail(skill)">
+                                <div class="skill-header">
+                                    <div class="skill-title-row">
+                                        <h3 class="skill-title">@skill.Name</h3>
+                                        <span class="type-badge @skill.Type.ToLower()">@FormatSkillType(skill.Type)</span>
+                                    </div>
+                                    <span class="scope-badge">@FormatSkillScope(skill.Scope)</span>
+                                </div>
+                                
+                                <div class="skill-desc">@skill.Description</div>
+                                
+                                <div class="skill-meta">
+                                    <div class="meta-row">
+                                        <span title="作者"><UserIcon Size="12" Stroke="currentColor" /> @(string.IsNullOrEmpty(skill.Author) ? "系统" : skill.Author)</span>
+                                        <span title="版本"><TagIcon Size="12" Stroke="currentColor" /> @skill.Version</span>
+                                    </div>
+                                    
+                                    @if (skill.Tags != null && skill.Tags.Count > 0)
+                                    {
+                                        <div class="skill-tags">
+                                            @foreach (var tag in skill.Tags.Take(3))
+                                            {
+                                                <span class="tag">@tag</span>
+                                            }
+                                            @if (skill.Tags.Count > 3)
+                                            {
+                                                <span class="tag">...</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @if (totalPages > 1)
+                    {
+                        <div class="pagination">
+                            <button class="btn-page" disabled="@IsDisabled(currentPage <= 1)" @onclick="() => ChangePage(currentPage - 1)">
+                                <ChevronLeftIcon Size="16" />
+                            </button>
+                            @for (int i = 1; i <= totalPages; i++)
+                            {
+                                var pageNum = i;
+                                <button class="btn-page @(currentPage == pageNum ? "active" : "")" @onclick="() => ChangePage(pageNum)">
+                                    @pageNum
+                                </button>
+                            }
+                            <button class="btn-page" disabled="@IsDisabled(currentPage >= totalPages)" @onclick="() => ChangePage(currentPage + 1)">
+                                <ChevronRightIcon Size="16" />
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+        
+        @* 技能详情弹窗 (Modal) *@
+        @if (showDetailModal && selectedSkill != null)
+        {
+            <div class="modal-overlay" @onclick="CloseDetail">
+                <div class="modal-container skill-detail-modal" @onclick:stopPropagation>
+                    <div class="modal-header">
+                        <div class="modal-title">
+                            <PluginIcon Size="20" Stroke="currentColor" />
+                            <span @ref="titleRef" @ondblclick="() => SelectAllText(titleRef)" title="双击全选">@selectedSkill.Name</span>
+                            <span class="type-badge large @selectedSkill.Type.ToLower()">@FormatSkillType(selectedSkill.Type)</span>
+                        </div>
+                        <button class="btn-close" @onclick="CloseDetail">
+                            <XIcon Size="20" Stroke="currentColor" />
+                        </button>
+                    </div>
+                    
+                    <div class="modal-body">
+                        <div class="detail-section">
+                            <h4>描述</h4>
+                            <p @ref="descRef" @ondblclick="() => SelectAllText(descRef)" title="双击全选">@selectedSkill.Description</p>
+                        </div>
+                        
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <span class="label">作用域</span>
+                                <span class="value">@FormatSkillScope(selectedSkill.Scope)</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">状态</span>
+                                <span class="value @(selectedSkill.Enabled ? "text-success" : "text-muted")">@(selectedSkill.Enabled ? "已启用" : "已禁用")</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">优先级</span>
+                                <span class="value">@selectedSkill.Priority</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">作者</span>
+                                <span class="value">@(string.IsNullOrEmpty(selectedSkill.Author) ? "系统" : selectedSkill.Author)</span>
+                            </div>
+                        </div>
+
+                        @if (selectedSkill.Plugins != null && selectedSkill.Plugins.Count > 0)
+                        {
+                            <div class="detail-section">
+                                <h4>绑定插件</h4>
+                                <div class="plugin-list">
+                                    @foreach (var p in selectedSkill.Plugins)
+                                    {
+                                        <span class="plugin-item"><BoxIcon Size="14" Stroke="currentColor" /> @p</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (selectedSkill.Scripts != null && selectedSkill.Scripts.Count > 0)
+                        {
+                            <div class="detail-section">
+                                <h4 @onclick='() => ToggleSection("scripts")' style="cursor: pointer; display: flex; align-items: center; gap: var(--spacing-xs);">
+                                    <ChevronDownIcon Size="14" Stroke="currentColor" CssClass=@("chevron-icon " + (expandedSections.Contains("scripts") ? "rotated" : "")) />
+                                    关联脚本 (Scripts) (@selectedSkill.Scripts.Count)
+                                </h4>
+                                @if (expandedSections.Contains("scripts"))
+                                {
+                                    <div class="script-list">
+                                        @foreach (var script in selectedSkill.Scripts)
+                                        {
+                                            <div class="script-item">
+                                                <span class="runtime-badge">@script.Runtime</span>
+                                                <span class="script-path">@script.Path</span>
+                                                @if (!string.IsNullOrEmpty(script.Description))
+                                                {
+                                                    <span class="script-desc">- @script.Description</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        @if (selectedSkill.References != null && selectedSkill.References.Count > 0)
+                        {
+                            <div class="detail-section">
+                                <h4>参考资料 (References)</h4>
+                                <div class="reference-list">
+                                    @foreach (var r in selectedSkill.References)
+                                    {
+                                        <div class="reference-item">
+                                            <TagIcon Size="14" Stroke="currentColor" />
+                                            <span>@r</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (selectedSkill.Metadata != null && selectedSkill.Metadata.Count > 0)
+                        {
+                            <div class="detail-section">
+                                <h4>扩展元数据 (Metadata)</h4>
+                                <div class="metadata-grid">
+                                    @foreach (var kv in selectedSkill.Metadata)
+                                    {
+                                        <div class="metadata-item">
+                                            <span class="label">@kv.Key</span>
+                                            <span class="value">@kv.Value</span>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="detail-section instruction-section">
+                            <h4 style="display: flex; align-items: center; justify-content: space-between;">
+                                <span>指令内容 <small>(系统提示词附加部分)</small></span>
+                                @if (!string.IsNullOrEmpty(selectedInstruction))
+                                {
+                                    <button class="icon-btn" title="放大查看" @onclick="OpenInstructionFullScreen">
+                                        <MaximizeIcon Size="16" Stroke="currentColor" />
+                                    </button>
+                                }
+                            </h4>
+                            @if (isLoadingDetail)
+                            {
+                                <div class="loading-instruction">
+                                    <LoadingSpinner Size="sm" /> 正在加载指令...
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(selectedInstruction))
+                            {
+                                <div class="instruction-box">
+                                    <pre @ref="instructionRef" @ondblclick="() => SelectAllText(instructionRef)" title="双击全选">@selectedInstruction</pre>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-instruction">此技能没有定义具体指令正文。</div>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="modal-footer">
+                        @if (selectedSkill.CanManage)
+                        {
+                            <button class="btn-danger-outline" @onclick="DeleteSelectedSkill" disabled="@isDeleting" title="删除该技能">
+                                @if (isDeleting)
+                                {
+                                    <span class="btn-spinner"></span>
+                                    <span>删除中...</span>
+                                }
+                                else
+                                {
+                                    <TrashIcon Size="14" Stroke="currentColor" />
+                                    <span>删除此技能</span>
+                                }
+                            </button>
+                        }
+                        <button class="btn-secondary" style="margin-left: auto;" @onclick="CloseDetail">关闭</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* 指令内容全屏查看弹窗 *@
+        @if (showInstructionFullScreen && !string.IsNullOrEmpty(selectedInstruction))
+        {
+            <div class="modal-overlay instruction-fullscreen-overlay" @onclick="CloseInstructionFullScreen">
+                <div class="instruction-fullscreen-container" @onclick:stopPropagation>
+                    <div class="instruction-fullscreen-header">
+                        <div class="instruction-fullscreen-title">
+                            <MaximizeIcon Size="16" Stroke="currentColor" />
+                            <span>指令内容</span>
+                            @if (selectedSkill != null)
+                            {
+                                <span class="inst-skill-name">@selectedSkill.Name</span>
+                            }
+                        </div>
+                        <button class="btn-close" @onclick="CloseInstructionFullScreen" title="关闭">
+                            <XIcon Size="20" Stroke="currentColor" />
+                        </button>
+                    </div>
+                    <div class="instruction-fullscreen-body">
+                        <pre>@selectedInstruction</pre>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private CancellationTokenSource? _successMessageCts;
+
+    private bool isLoading = true;
+    private bool isReloading = false;
+    private string? errorMessage;
+    private string? errorDetail;
+    private bool showRawError;
+    private string? successMessage;
+    
+    private List<SkillDto> skills = new();
+
+    // 分页相关
+    private int currentPage = 1;
+    private int pageSize = 6;
+    private int totalPages => (int)Math.Ceiling((double)skills.Count / pageSize);
+    private IEnumerable<SkillDto> pagedSkills => skills
+        .OrderByDescending(s => s.Priority)
+        .ThenByDescending(s => s.UpdatedAt)
+        .Skip((currentPage - 1) * pageSize)
+        .Take(pageSize);
+
+    // 辅助方法：处理 HTML 验证器映射错误
+    private string? IsDisabled(bool condition) => condition ? "disabled" : null;
+
+    // 弹窗相关
+    private bool showDetailModal = false;
+    private SkillDto? selectedSkill;
+    private string? selectedInstruction;
+    private bool isLoadingDetail = false;
+    private HashSet<string> expandedSections = new();
+
+    private ElementReference titleRef;
+    private ElementReference descRef;
+    private ElementReference instructionRef;
+
+    private async Task SelectAllText(ElementReference element)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("nexusSkills.selectAllText", element);
+        }
+        catch { /* 忽略 JS 错误 */ }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSkillsAsync();
+    }
+
+    private async Task LoadSkillsAsync()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+            errorDetail = null;
+            skills = await ApiService.GetAvailableSkillsAsync();
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            errorDetail = ex.RawErrorData;
+            await RemoteLog.LogErrorAsync(ex, "Failed to load skills (API)");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            errorDetail = ex.ToString();
+            await RemoteLog.LogErrorAsync(ex, "Failed to load skills");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadSkills()
+    {
+        try
+        {
+            isReloading = true;
+            errorMessage = null;
+            successMessage = null;
+            CancelAndDispose(ref _successMessageCts);
+            
+            var result = await ApiService.ReloadSkillsAsync();
+            successMessage = $"热重载成功，当前共加载 {result.Count} 个技能";
+            ScheduleClearSuccessMessage();
+            
+            // 重新加载列表
+            skills = await ApiService.GetAvailableSkillsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Failed to reload skills");
+        }
+        finally
+        {
+            isReloading = false;
+        }
+    }
+
+    private bool isUploading = false;
+
+    private async Task UploadSkillFile(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // 限制文件大小（如 10MB）
+        long maxFileSize = 10 * 1024 * 1024;
+        if (file.Size > maxFileSize)
+        {
+            errorMessage = "Skill 压缩包过大，最大支持 10MB";
+            return;
+        }
+
+        if (!file.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+        {
+            errorMessage = "仅支持上传 .zip 格式的文件";
+            return;
+        }
+
+        try
+        {
+            isUploading = true;
+            errorMessage = null;
+            errorDetail = null;
+            successMessage = null;
+            CancelAndDispose(ref _successMessageCts);
+            
+            using var stream = file.OpenReadStream(maxFileSize);
+            var results = await ApiService.UploadSkillAsync(stream, file.Name);
+            
+            if (results.Count > 1)
+                successMessage = $"成功安装并加载了 {results.Count} 个 Skill：{string.Join(", ", results.Select(r => r.Name))}";
+            else if (results.Count == 1)
+                successMessage = $"成功安装并加载 Skill：{results[0].Name}";
+            else
+                successMessage = "上传成功，但未发现有效的 Skill 目录";
+
+            ScheduleClearSuccessMessage();
+            
+            // 重新加载列表并重置页码
+            skills = await ApiService.GetAvailableSkillsAsync();
+            currentPage = 1;
+        }
+        catch (ApiException ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            errorDetail = ex.RawErrorData;
+            await RemoteLog.LogErrorAsync(ex, "Failed to upload skill (API)");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            errorDetail = ex.ToString();
+            await RemoteLog.LogErrorAsync(ex, "Failed to upload skill");
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private void ChangePage(int page)
+    {
+        currentPage = page;
+        StateHasChanged();
+    }
+
+    private async Task ShowDetail(SkillDto skill)
+    {
+        selectedSkill = skill;
+        showDetailModal = true;
+        selectedInstruction = null;
+        
+        if (skill.HasInstruction)
+        {
+            try
+            {
+                isLoadingDetail = true;
+                var detail = await ApiService.GetSkillDetailAsync(skill.Name);
+                if (detail != null)
+                {
+                    selectedInstruction = detail.Instruction;
+                }
+            }
+            catch (Exception ex)
+            {
+                selectedInstruction = "无法加载指令内容：" + ErrorTranslation.Translate(ex);
+            }
+            finally
+            {
+                isLoadingDetail = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void CloseDetail()
+    {
+        showDetailModal = false;
+        selectedSkill = null;
+        expandedSections.Clear(); // 清空展开状态
+    }
+
+    private void ToggleSection(string section)
+    {
+        if (expandedSections.Contains(section))
+        {
+            expandedSections.Remove(section);
+        }
+        else
+        {
+            expandedSections.Add(section);
+        }
+        StateHasChanged();
+    }
+
+    private bool showInstructionFullScreen = false;
+
+    private void OpenInstructionFullScreen()
+    {
+        showInstructionFullScreen = true;
+        StateHasChanged();
+    }
+
+    private void CloseInstructionFullScreen()
+    {
+        showInstructionFullScreen = false;
+        StateHasChanged();
+    }
+
+    private bool isDeleting = false;
+
+    private async Task DeleteSelectedSkill()
+    {
+        if (selectedSkill == null) return;
+
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", $"确定要删除技能 '{selectedSkill.Name}' 吗？\n这是不可逆的操作。");
+        if (!confirmed) return;
+
+        try
+        {
+            isDeleting = true;
+            errorMessage = null;
+            successMessage = null;
+            CancelAndDispose(ref _successMessageCts);
+
+            await ApiService.DeleteSkillAsync(selectedSkill.Name);
+            
+            successMessage = $"成功删除技能：{selectedSkill.Name}";
+            ScheduleClearSuccessMessage();
+            CloseDetail(); // 关闭弹窗
+
+            // 重新加载列表
+            skills = await ApiService.GetAvailableSkillsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Failed to delete skill");
+        }
+        finally
+        {
+            isDeleting = false;
+        }
+    }
+
+    private void ScheduleClearSuccessMessage()
+    {
+        if (successMessage == null)
+        {
+            return;
+        }
+
+        CancelAndDispose(ref _successMessageCts);
+        _successMessageCts = new CancellationTokenSource();
+        _ = ClearSuccessMessageAfterDelayAsync(_successMessageCts.Token);
+    }
+
+    private async Task ClearSuccessMessageAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(3000, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            successMessage = null;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static void CancelAndDispose(ref CancellationTokenSource? cts)
+    {
+        if (cts == null) return;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
+        cts = null;
+    }
+
+    public void Dispose()
+    {
+        CancelAndDispose(ref _successMessageCts);
+    }
+
+    private string FormatSkillType(string type) => type.ToLower() switch
+    {
+        "promptonly" => "提示词",
+        "script" => "工作流脚本",
+        "pluginbound" => "插件绑定",
+        "hybrid" => "混合",
+        _ => type
+    };
+
+    private string FormatSkillScope(string scope) => scope.ToLower() switch
+    {
+        "builtin" => "内置",
+        "shared" => "共享",
+        "user" => "个人",
+        _ => scope
+    };
+}

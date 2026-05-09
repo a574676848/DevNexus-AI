@@ -1,0 +1,29 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+<div class="chat-header">
+    <div class="header-content">
+        <div class="header-title-group">
+            <span class="session-title">@Title</span>
+            <span class="session-subtitle">@ContextSummary</span>
+
+            @if (ContextHighlights.Count > 0)
+            {
+                <div class="header-context-highlights" aria-label="当前开发上下文摘要">
+                    @foreach (var item in ContextHighlights)
+                    {
+                        <span class="header-context-chip">@item</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="header-actions"></div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "新会话";
+    [Parameter] public string ContextSummary { get; set; } = "普通聊天会话";
+    [Parameter] public IReadOnlyList<string> ContextHighlights { get; set; } = Array.Empty<string>();
+}
+

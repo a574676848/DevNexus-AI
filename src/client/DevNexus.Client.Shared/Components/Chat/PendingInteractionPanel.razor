@@ -1,0 +1,329 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+
+@if (Interactions.Any())
+{
+    <section class="pending-interaction-panel" role="status" aria-live="polite" data-ui-scope="pending-interaction-panel">
+        @foreach (var interaction in Interactions)
+        {
+            <article class="pending-interaction-panel__card">
+                <div class="pending-interaction-panel__header">
+                    <div class="pending-interaction-panel__title-wrap">
+                        <span class="pending-interaction-panel__eyebrow">@ResolveEyebrow(interaction.Kind)</span>
+                        <div class="pending-interaction-panel__headline-row">
+                            <strong class="pending-interaction-panel__title">@interaction.Title</strong>
+                            <span class="pending-interaction-panel__status">@ResolveStatusLabel(interaction.Status)</span>
+                        </div>
+                    </div>
+                    @if (interaction.ExpiresAt.HasValue)
+                    {
+                        <span class="pending-interaction-panel__expires">有效期至 @interaction.ExpiresAt.Value.ToLocalTime():MM-dd HH:mm</span>
+                    }
+                </div>
+
+                <p class="pending-interaction-panel__description">@interaction.Description</p>
+
+                @if (!string.IsNullOrWhiteSpace(interaction.SourceTool) || !string.IsNullOrWhiteSpace(interaction.SuggestedAction))
+                {
+                    <div class="pending-interaction-panel__chips">
+                        @if (!string.IsNullOrWhiteSpace(interaction.SourceTool))
+                        {
+                            <span class="pending-interaction-panel__chip">来源 · @interaction.SourceTool</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(interaction.SuggestedAction))
+                        {
+                            <span class="pending-interaction-panel__chip pending-interaction-panel__chip--accent">建议动作 · @ResolveSuggestedAction(interaction.SuggestedAction)</span>
+                        }
+                    </div>
+                }
+
+                @if (interaction.RequestedFields.Any())
+                {
+                    <div class="pending-interaction-panel__fields">
+                        <span class="pending-interaction-panel__fields-label">当前需要你补充：</span>
+                        @foreach (var field in interaction.RequestedFields)
+                        {
+                            <div class="pending-interaction-panel__field">
+                                <span class="pending-interaction-panel__field-name">@field.Label</span>
+                                <input class="pending-interaction-panel__input"
+                                       type="@ResolveInputType(field)"
+                                       value="@GetFieldValue(interaction.Id, field.Key)"
+                                       placeholder="@field.Placeholder"
+                                       @oninput="args => HandleFieldChanged(interaction.Id, field.Key, args.Value?.ToString())" />
+                                <span class="pending-interaction-panel__field-meta">@ResolveFieldMeta(field)</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="pending-interaction-panel__actions">
+                    @if (PendingInteractionKindExtensions.Parse(interaction.Kind) == PendingInteractionKind.Approval)
+                    {
+                        <button type="button"
+                                class="pending-interaction-panel__submit pending-interaction-panel__submit--secondary"
+                                @onclick="@(() => ResolveDenyAsync(interaction))"
+                                disabled="@(_resolvingInteractionIds.Contains(interaction.Id))">
+                            @(_resolvingInteractionIds.Contains(interaction.Id) ? "处理中..." : "拒绝")
+                        </button>
+                        <button type="button"
+                                class="pending-interaction-panel__submit pending-interaction-panel__submit--secondary"
+                                @onclick="@(() => ResolveApproveOnceAsync(interaction))"
+                                disabled="@(_resolvingInteractionIds.Contains(interaction.Id))">
+                            @(_resolvingInteractionIds.Contains(interaction.Id) ? "处理中..." : "仅本次允许")
+                        </button>
+                        <button type="button"
+                                class="pending-interaction-panel__submit"
+                                @onclick="@(() => ResolveApprovePatternAsync(interaction))"
+                                disabled="@(_resolvingInteractionIds.Contains(interaction.Id))">
+                            @(_resolvingInteractionIds.Contains(interaction.Id) ? "处理中..." : "允许同类命令")
+                        </button>
+                    }
+                    else
+                    {
+                        <button type="button"
+                                class="pending-interaction-panel__submit"
+                                @onclick="@(() => ResolveSubmitAsync(interaction))"
+                                disabled="@(_resolvingInteractionIds.Contains(interaction.Id))">
+                            @(_resolvingInteractionIds.Contains(interaction.Id) ? "提交中..." : "提交并继续")
+                        </button>
+                    }
+                </div>
+            </article>
+        }
+    </section>
+}
+else if (Runtime?.PendingInteractionCount > 0)
+{
+    <section class="pending-interaction-panel" role="status" aria-live="polite" data-ui-scope="pending-interaction-panel">
+        <article class="pending-interaction-panel__card">
+            <div class="pending-interaction-panel__header">
+                <div class="pending-interaction-panel__title-wrap">
+                    <span class="pending-interaction-panel__eyebrow">@ResolveEyebrow(Runtime.PrimaryPendingInteractionKind.ToWireValue())</span>
+                    <div class="pending-interaction-panel__headline-row">
+                        <strong class="pending-interaction-panel__title">@ResolveRuntimeTitle()</strong>
+                        <span class="pending-interaction-panel__status">等待中</span>
+                    </div>
+                </div>
+            </div>
+
+            <p class="pending-interaction-panel__description">@ResolveRuntimeDescription()</p>
+
+            <div class="pending-interaction-panel__chips">
+                <span class="pending-interaction-panel__chip">挂起交互 @Runtime.PendingInteractionCount 个</span>
+                @if (Runtime.PrimaryPendingInteractionKind != PendingInteractionKind.Unknown)
+                {
+                    <span class="pending-interaction-panel__chip pending-interaction-panel__chip--accent">主类型 · @ResolveEyebrow(Runtime.PrimaryPendingInteractionKind.ToWireValue())</span>
+                }
+            </div>
+
+            @if (Runtime.PrimaryPendingInteractionKind == PendingInteractionKind.Approval
+                && Runtime.PrimaryPendingInteractionId.HasValue)
+            {
+                <div class="pending-interaction-panel__actions">
+                    <button type="button"
+                            class="pending-interaction-panel__submit pending-interaction-panel__submit--secondary"
+                            @onclick="ResolveRuntimeDenyAsync"
+                            disabled="@(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value))">
+                        @(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value) ? "处理中..." : "拒绝")
+                    </button>
+                    <button type="button"
+                            class="pending-interaction-panel__submit pending-interaction-panel__submit--secondary"
+                            @onclick="ResolveRuntimeApproveOnceAsync"
+                            disabled="@(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value))">
+                        @(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value) ? "处理中..." : "仅本次允许")
+                    </button>
+                    <button type="button"
+                            class="pending-interaction-panel__submit"
+                            @onclick="ResolveRuntimeApprovePatternAsync"
+                            disabled="@(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value))">
+                        @(_resolvingInteractionIds.Contains(Runtime.PrimaryPendingInteractionId.Value) ? "处理中..." : "允许同类命令")
+                    </button>
+                </div>
+            }
+        </article>
+    </section>
+}
+
+@code {
+    /// <summary>
+    /// 挂起交互列表。
+    /// </summary>
+    [Parameter] public IReadOnlyList<PendingInteractionDto> Interactions { get; set; } = Array.Empty<PendingInteractionDto>();
+
+    /// <summary>
+    /// 会话统一运行时快照。
+    /// </summary>
+    [Parameter] public ChatSessionRuntimeDto? Runtime { get; set; }
+
+    /// <summary>
+    /// 解决挂起交互回调。
+    /// </summary>
+    [Parameter] public EventCallback<PendingInteractionResolveSubmission> OnResolve { get; set; }
+
+    private readonly Dictionary<Guid, Dictionary<string, string?>> _fieldValues = new();
+    private readonly HashSet<Guid> _resolvingInteractionIds = new();
+
+    private static string ResolveEyebrow(string? kind)
+    {
+        return PendingInteractionKindExtensions.Parse(kind) switch
+        {
+            PendingInteractionKind.Approval => "等待审批",
+            PendingInteractionKind.Credential => "等待补充凭证",
+            PendingInteractionKind.OAuthCallback => "等待授权完成",
+            PendingInteractionKind.Confirmation => "等待确认",
+            _ => "等待补充信息"
+        };
+    }
+
+    private static string ResolveStatusLabel(string? status)
+    {
+        return PendingInteractionStatusExtensions.Parse(status) switch
+        {
+            PendingInteractionStatus.Resolved => "已解决",
+            PendingInteractionStatus.Expired => "已过期",
+            PendingInteractionStatus.Cancelled => "已取消",
+            _ => "等待中"
+        };
+    }
+
+    private static string ResolveSuggestedAction(string? action)
+    {
+        return ToolSuggestedActionExtensions.Parse(action) switch
+        {
+            ToolSuggestedAction.RefreshCredential => "刷新凭证",
+            ToolSuggestedAction.PromptUserInput => "补充输入",
+            ToolSuggestedAction.RequestApproval => "等待审批",
+            ToolSuggestedAction.Fallback => "切换方案",
+            ToolSuggestedAction.Retry => "稍后重试",
+            ToolSuggestedAction.Abort => "终止自动执行",
+            _ => "等待处理"
+        };
+    }
+
+    private static string ResolveFieldMeta(PendingInteractionFieldDto field)
+    {
+        var typeText = string.IsNullOrWhiteSpace(field.Type) ? "文本" : field.Type;
+        return field.Required ? $"{typeText} · 必填" : $"{typeText} · 选填";
+    }
+
+    private static string ResolveInputType(PendingInteractionFieldDto field)
+    {
+        return field.Type?.ToLowerInvariant() switch
+        {
+            "password" => "password",
+            "number" => "number",
+            _ => "text"
+        };
+    }
+
+    private string GetFieldValue(Guid interactionId, string key)
+    {
+        return _fieldValues.TryGetValue(interactionId, out var values)
+               && values.TryGetValue(key, out var value)
+            ? value ?? string.Empty
+            : string.Empty;
+    }
+
+    private void HandleFieldChanged(Guid interactionId, string key, string? value)
+    {
+        if (!_fieldValues.TryGetValue(interactionId, out var values))
+        {
+            values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            _fieldValues[interactionId] = values;
+        }
+
+        values[key] = value;
+    }
+
+    private async Task ResolveAsync(PendingInteractionDto interaction, string action)
+    {
+        if (_resolvingInteractionIds.Contains(interaction.Id))
+        {
+            return;
+        }
+
+        _resolvingInteractionIds.Add(interaction.Id);
+        try
+        {
+            var values = _fieldValues.TryGetValue(interaction.Id, out var submitted)
+                ? new Dictionary<string, string?>(submitted, StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+            await OnResolve.InvokeAsync(new PendingInteractionResolveSubmission
+            {
+                InteractionId = interaction.Id,
+                Action = action,
+                Values = values
+            });
+        }
+        finally
+        {
+            _resolvingInteractionIds.Remove(interaction.Id);
+        }
+    }
+
+    private Task ResolveApproveOnceAsync(PendingInteractionDto interaction) => ResolveAsync(interaction, "approve-once");
+
+    private Task ResolveApprovePatternAsync(PendingInteractionDto interaction) => ResolveAsync(interaction, "approve-pattern");
+
+    private Task ResolveDenyAsync(PendingInteractionDto interaction) => ResolveAsync(interaction, "deny");
+
+    private Task ResolveSubmitAsync(PendingInteractionDto interaction) => ResolveAsync(interaction, "submit");
+
+    private Task ResolveRuntimeApproveOnceAsync() => ResolveRuntimeAsync("approve-once");
+
+    private Task ResolveRuntimeApprovePatternAsync() => ResolveRuntimeAsync("approve-pattern");
+
+    private Task ResolveRuntimeDenyAsync() => ResolveRuntimeAsync("deny");
+
+    private string ResolveRuntimeTitle()
+    {
+        if (!string.IsNullOrWhiteSpace(Runtime?.PrimaryPendingInteractionTitle))
+        {
+            return Runtime.PrimaryPendingInteractionTitle!;
+        }
+
+        return Runtime?.PrimaryPendingInteractionKind switch
+        {
+            PendingInteractionKind.Approval => "等待执行审批",
+            PendingInteractionKind.Credential => "等待补充凭证",
+            PendingInteractionKind.Confirmation => "等待确认",
+            PendingInteractionKind.OAuthCallback => "等待授权完成",
+            _ => "等待补充信息"
+        };
+    }
+
+    private string ResolveRuntimeDescription()
+    {
+        if (!string.IsNullOrWhiteSpace(Runtime?.PrimaryPendingInteractionDescription))
+        {
+            return Runtime.PrimaryPendingInteractionDescription!;
+        }
+
+        return "正在同步挂起交互详情，请稍候。";
+    }
+
+    private async Task ResolveRuntimeAsync(string action)
+    {
+        if (Runtime?.PrimaryPendingInteractionId is not Guid interactionId
+            || _resolvingInteractionIds.Contains(interactionId))
+        {
+            return;
+        }
+
+        _resolvingInteractionIds.Add(interactionId);
+        try
+        {
+            await OnResolve.InvokeAsync(new PendingInteractionResolveSubmission
+            {
+                InteractionId = interactionId,
+                Action = action,
+                Values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+            });
+        }
+        finally
+        {
+            _resolvingInteractionIds.Remove(interactionId);
+        }
+    }
+}

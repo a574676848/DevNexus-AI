@@ -1,0 +1,227 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Client.Shared.Components.Cards
+
+@foreach (var block in RenderedBlocks)
+{
+    @switch (block.BlockType)
+    {
+        case BlockType.Thinking:
+            <ThoughtChainPanel Thoughts="@ParseThoughts(block.Content ?? "")" />
+            break;
+
+        case BlockType.TextDelta:
+            @if (!string.IsNullOrEmpty(block.Content))
+            {
+                <ThrottledMarkdownRenderer Content="@block.Content" IsStreaming="true" />
+            }
+            break;
+
+        case BlockType.InteractiveCard:
+            <InteractiveBlockRenderer Block="@block" />
+            break;
+
+        case BlockType.Chart:
+            <ChartBlockRenderer Block="@block" />
+            break;
+
+        case BlockType.RagContext:
+            <RagReferencesCard References="@RagReferencesCard.ParseFromContent(block.Content)" />
+            break;
+
+        case BlockType.Warning:
+            <WarningBlock Block="@block" />
+            break;
+
+        case BlockType.ToolResult:
+            <ToolResultBlock Block="@block" />
+            break;
+
+        case BlockType.Reference:
+            <ReferenceBlock Block="@block" />
+            break;
+
+        case BlockType.ArtifactStart:
+        case BlockType.ArtifactDelta:
+        case BlockType.ArtifactEnd:
+            <ThrottledMarkdownRenderer Content="@FormatArtifactAsMarkdown(block)" IsStreaming="true" />
+            break;
+
+        case BlockType.Truncated:
+            <div class="truncated-notice">
+                <div class="truncated-content">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span>@block.Content</span>
+                </div>
+                @if (CanContinue(block))
+                {
+                    <button class="continue-btn" @onclick="() => OnContinue.InvokeAsync(block)">
+                        <i class="fa-solid fa-forward"></i> 继续生成
+                    </button>
+                }
+            </div>
+            break;
+    }
+}
+
+@code {
+    [Parameter] public List<BlockDto> Blocks { get; set; } = new();
+    [Parameter] public EventCallback<BlockDto> OnContinue { get; set; }
+
+    private List<BlockDto> RenderedBlocks => GetMergedBlocks(Blocks);
+
+    private static bool CanContinue(BlockDto block)
+    {
+        return MetadataHelper.GetBool(block.Metadata, TruncatedBlockMetadataConstants.CanContinue) ?? true;
+    }
+
+    /// <summary>
+    /// 解析思维链内容
+    /// </summary>
+    private List<string> ParseThoughts(string content) => MetadataHelper.ParseThoughts(content);
+
+    /// <summary>
+    /// 将 Artifact Block 格式化为可渲染的 Markdown
+    /// </summary>
+    private string FormatArtifactAsMarkdown(BlockDto block)
+    {
+        var artifactType = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Type, ArtifactBlockMetadataConstants.TypeCode);
+
+        return artifactType switch
+        {
+            ArtifactBlockMetadataConstants.TypeCode => FormatCodeArtifact(block),
+            ArtifactBlockMetadataConstants.TypeHtml => FormatHtmlArtifact(block),
+            _ => FormatCodeArtifact(block)
+        };
+    }
+
+    private string FormatCodeArtifact(BlockDto block)
+    {
+        var lang = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Language, "text");
+        return $"```{lang}\n{block.Content}\n```";
+    }
+
+    private string FormatHtmlArtifact(BlockDto block)
+    {
+        return $"```html\n{block.Content}\n```";
+    }
+
+    private string FormatDiffArtifact(BlockDto block)
+    {
+        var lang = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Language, "text");
+        var original = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.OriginalCode, string.Empty);
+        var modified = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.ModifiedCode, string.Empty);
+        var title = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Title, ArtifactBlockMetadataConstants.DefaultDiffTitle);
+
+        return $"**{title}**\n\n**原始代码：**\n```{lang}\n{original}\n```\n\n**修改后：**\n```{lang}\n{modified}\n```";
+    }
+
+    /// <summary>
+    /// 智能合并 Block 列表（业界主流做法）
+    /// 连续的 TextDelta 合并为一个，Thinking 统一合并到开头，其他类型保持独立
+    /// </summary>
+    private List<BlockDto> GetMergedBlocks(List<BlockDto> blocks)
+    {
+        if (blocks == null || blocks.Count == 0) return new List<BlockDto>();
+
+        // 使用锁和数组创建安全快照，避免并发修改错误
+        BlockDto[] blocksSnapshot;
+        try
+        {
+            lock (blocks)
+            {
+                blocksSnapshot = new BlockDto[blocks.Count];
+                blocks.CopyTo(blocksSnapshot, 0);
+            }
+        }
+        catch
+        {
+            return new List<BlockDto>();
+        }
+
+        var merged = new List<BlockDto>();
+        var allThoughts = new System.Text.StringBuilder();
+        BlockDto? firstThoughtBlock = null;
+        BlockDto? currentTextBlock = null;
+
+        // 第一阶段：收集所有 Thinking 内容
+        foreach (var block in blocksSnapshot)
+        {
+            if (block.BlockType == BlockType.Thinking)
+            {
+                if (firstThoughtBlock == null)
+                {
+                    firstThoughtBlock = new BlockDto
+                    {
+                        BlockType = BlockType.Thinking,
+                        Content = block.Content,
+                        BlockId = block.BlockId,
+                        SessionId = block.SessionId,
+                        MessageId = block.MessageId,
+                        Metadata = block.Metadata
+                    };
+                }
+                allThoughts.Append(block.Content);
+            }
+        }
+
+        // 如果有思考内容，添加合并后的思考块到开头
+        if (firstThoughtBlock != null && allThoughts.Length > 0)
+        {
+            firstThoughtBlock.Content = allThoughts.ToString();
+            merged.Add(firstThoughtBlock);
+        }
+
+        // 第二阶段：处理其他类型的 Block
+        foreach (var block in blocksSnapshot)
+        {
+            switch (block.BlockType)
+            {
+                case BlockType.Thinking:
+                    // 已在第一阶段处理，跳过
+                    break;
+
+                case BlockType.TextDelta:
+                    if (currentTextBlock == null)
+                    {
+                        currentTextBlock = new BlockDto
+                        {
+                            BlockType = BlockType.TextDelta,
+                            Content = block.Content,
+                            BlockId = block.BlockId,
+                            SessionId = block.SessionId,
+                            MessageId = block.MessageId,
+                            IsLast = block.IsLast,
+                            Metadata = block.Metadata
+                        };
+                    }
+                    else
+                    {
+                        currentTextBlock.Content += block.Content;
+                        currentTextBlock.IsLast = block.IsLast;
+                    }
+                    break;
+
+                default:
+                    // 遇到其他类型，先保存之前的文本块
+                    if (currentTextBlock != null)
+                    {
+                        merged.Add(currentTextBlock);
+                        currentTextBlock = null;
+                    }
+                    merged.Add(block);
+                    break;
+            }
+        }
+
+        // 添加最后剩余的文本块
+        if (currentTextBlock != null)
+        {
+            merged.Add(currentTextBlock);
+        }
+
+        return merged;
+    }
+}

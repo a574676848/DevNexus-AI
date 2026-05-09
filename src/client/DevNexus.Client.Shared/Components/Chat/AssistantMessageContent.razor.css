@@ -1,0 +1,207 @@
+.assistant-block-stage {
+    display: block;
+    position: relative;
+    transform-origin: left top;
+}
+
+.assistant-block-stage--live {
+    animation: assistant-block-reveal 0.26s ease-out both;
+    animation-delay: var(--assistant-block-delay, 0ms);
+}
+
+.assistant-block-stage + .assistant-block-stage {
+    margin-top: 10px;
+}
+
+.assistant-block-stage--thinking {
+    padding-left: 2px;
+}
+
+.assistant-block-stage--artifact,
+.assistant-block-stage--tool,
+.assistant-block-stage--terminal {
+    border-radius: 16px;
+}
+
+.assistant-block-stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(135deg, rgba(7, 193, 96, 0.06), transparent 60%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.assistant-block-stage--live::before {
+    animation: assistant-block-glow 0.7s ease-out both;
+    animation-delay: calc(var(--assistant-block-delay, 0ms) + 40ms);
+}
+
+.assistant-block-stage > * {
+    position: relative;
+    z-index: 1;
+}
+
+.collapsed-block-btn .block-icon {
+    font-size: 16px;
+}
+
+.collapsed-block-btn .block-label {
+    font-weight: 500;
+}
+
+.collapsed-block-btn .expand-hint {
+    font-size: 10px;
+    color: var(--brand-green, #07c160);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.collapsed-block-btn:hover .expand-hint {
+    opacity: 1;
+}
+
+/* 流式生成中指示器 - 优化版 Gemini 风格 */
+.streaming-indicator {
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg,
+            rgba(7, 193, 96, 0.08) 0%,
+            rgba(7, 193, 96, 0.12) 50%,
+            rgba(7, 193, 96, 0.08) 100%);
+    overflow: hidden;
+    margin-top: 16px;
+    position: relative;
+    box-shadow: var(--shadow-sm);
+}
+
+.streaming-indicator .gradient-flow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(7, 193, 96, 0.3) 15%,
+            var(--brand-green, #07c160) 35%,
+            rgba(34, 197, 94, 1) 50%,
+            var(--brand-green, #07c160) 65%,
+            rgba(7, 193, 96, 0.3) 85%,
+            transparent 100%);
+    background-size: 200% 100%;
+    animation: gradient-slide 2s ease-in-out infinite;
+    filter: blur(0.5px);
+}
+
+@keyframes gradient-slide {
+    0% {
+        background-position: 100% 0;
+    }
+
+    100% {
+        background-position: -100% 0;
+    }
+}
+
+/* ===== 截断通知 (Gemini 风格) ===== */
+.truncated-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    margin-top: 12px;
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.08) 0%, rgba(255, 193, 7, 0.06) 100%);
+    border: 1px solid rgba(255, 152, 0, 0.25);
+    border-radius: var(--radius-xl);
+    animation: fadeIn 0.3s ease;
+}
+
+.truncated-notice .truncated-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--brand-warning, #ff9800);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.truncated-notice .truncated-content i {
+    font-size: 16px;
+    color: var(--brand-warning, #ff9800);
+}
+
+.truncated-notice.history {
+    justify-content: flex-start;
+    opacity: 0.7;
+    padding: 8px 14px;
+    font-size: 12px;
+}
+
+.continue-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    background: linear-gradient(135deg, var(--brand-green, #07c160) 0%, #05a650 100%);
+    color: var(--text-inverse, #fff);
+    border: none;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+.continue-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(7, 193, 96, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.continue-btn:active {
+    transform: translateY(0);
+}
+
+.continue-btn i {
+    font-size: 12px;
+}
+
+@keyframes assistant-block-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+        filter: blur(1px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+    }
+}
+
+@keyframes assistant-block-glow {
+    0% {
+        opacity: 0;
+    }
+
+    35% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assistant-block-stage,
+    .assistant-block-stage::before,
+    .assistant-block-stage--live {
+        animation: none !important;
+    }
+}

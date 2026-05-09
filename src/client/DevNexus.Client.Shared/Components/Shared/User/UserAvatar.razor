@@ -1,0 +1,94 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Services.State
+@inject IUserStateService UserState
+
+@* 用户头像组件 - 支持图片或用户名首字显示 *@
+<div class="user-avatar @SizeClass" style="@CustomStyle" title="@Title">
+    @if (!string.IsNullOrEmpty(FullAvatarUrl))
+    {
+        <img src="@FullAvatarUrl" alt="@Title" class="avatar-image" @onerror="HandleImageError" />
+    }
+    else
+    {
+        <span class="avatar-initial">@GetInitial(DisplayName)</span>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// 用户头像 URL（可选，如果没有则显示首字）
+    /// </summary>
+    [Parameter]
+    public string? AvatarUrl { get; set; }
+
+    /// <summary>
+    /// 显示名称（用于生成首字和 title）
+    /// </summary>
+    [Parameter]
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// 头像大小：sm (24px), md (34px), lg (52px)
+    /// </summary>
+    [Parameter]
+    public string Size { get; set; } = "md";
+
+    /// <summary>
+    /// 自定义样式
+    /// </summary>
+    [Parameter]
+    public string? CustomStyle { get; set; }
+
+    /// <summary>
+    /// 图片加载失败时的回调
+    /// </summary>
+    private bool imageLoadFailed = false;
+
+    /// <summary>
+    /// 完整头像 URL（处理相对路径）
+    /// </summary>
+    private string? FullAvatarUrl => imageLoadFailed ? null : UserState.GetAvatarUrl(AvatarUrl);
+
+    /// <summary>
+    /// 悬停提示文本
+    /// </summary>
+    private string Title => DisplayName ?? "用户";
+
+    /// <summary>
+    /// 尺寸 CSS 类名
+    /// </summary>
+    private string SizeClass => Size switch
+    {
+        "sm" => "avatar-sm",
+        "lg" => "avatar-lg",
+        _ => "avatar-md"
+    };
+
+    /// <summary>
+    /// 处理图片加载失败
+    /// </summary>
+    private void HandleImageError()
+    {
+        imageLoadFailed = true;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// 重置图片加载状态（当 URL 变化时）
+    /// </summary>
+    protected override void OnParametersSet()
+    {
+        // 当头像 URL 变化时，重置加载失败状态
+        imageLoadFailed = false;
+    }
+
+    /// <summary>
+    /// 获取用户名首字
+    /// </summary>
+    private static string GetInitial(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return "U";
+        return name[0].ToString().ToUpper();
+    }
+}
+

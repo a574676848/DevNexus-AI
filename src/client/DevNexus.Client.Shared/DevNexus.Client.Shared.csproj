@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DefaultLanguage>zh-cn</DefaultLanguage>
+    <NoWarn>$(NoWarn);PRI263;PRI249</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="DevNexus.Client.Shared.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared DTOs and Enums -->
+    <ProjectReference Include="..\..\common\DevNexus.Shared\DevNexus.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 彻底排除 Monaco Editor 的资源索引，防止被路径匹配工具误判为语种限定符 (如 st.js) -->
+    <Content Update="wwwroot\lib\monaco-editor\**\*">
+      <PathResource>false</PathResource>
+      <ExcludedFromPriLayout>true</ExcludedFromPriLayout>
+      <DeploymentContent>true</DeploymentContent>
+    </Content>
+  </ItemGroup>
+
+</Project>

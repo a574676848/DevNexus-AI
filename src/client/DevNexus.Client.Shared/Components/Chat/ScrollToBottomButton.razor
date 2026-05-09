@@ -1,0 +1,39 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IJSRuntime JS
+
+@if (_showScrollToBottom)
+{
+    <button class="scroll-to-bottom-btn" @onclick="ScrollToBottomAsync" title="滚动到底部">
+        <i class="fa-solid fa-arrow-down"></i>
+        @if (_unreadCount > 0)
+        {
+            <span class="unread-badge">@_unreadCount</span>
+        }
+    </button>
+}
+
+@code {
+    [Parameter] public EventCallback OnScrollToBottom { get; set; }
+    [Parameter] public int UnreadCount { get; set; }
+    
+    private bool _showScrollToBottom;
+    private int _unreadCount;
+    
+    protected override void OnParametersSet()
+    {
+        _unreadCount = UnreadCount;
+        _showScrollToBottom = UnreadCount > 0;
+    }
+    
+    private async Task ScrollToBottomAsync()
+    {
+        await OnScrollToBottom.InvokeAsync();
+    }
+    
+    public void UpdateScrollState(bool isAtBottom, int unreadCount)
+    {
+        _showScrollToBottom = !isAtBottom;
+        _unreadCount = unreadCount;
+        InvokeAsync(StateHasChanged);
+    }
+}

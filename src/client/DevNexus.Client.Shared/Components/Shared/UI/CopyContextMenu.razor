@@ -1,0 +1,81 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@inject IJSRuntime JS
+
+@* 可复用的右键上下文菜单组件 *@
+@if (IsVisible)
+{
+    <div class="context-menu-overlay" @onclick="Close">
+        <div class="context-menu" style="left: @(X)px; top: @(Y)px;" @onclick:stopPropagation="true">
+            <button class="context-menu-item" @onclick="CopyToClipboard">
+                <i class="fa-regular fa-copy"></i>
+                复制
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// 菜单是否可见
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// 可见状态变化回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// 菜单 X 坐标
+    /// </summary>
+    [Parameter]
+    public double X { get; set; }
+
+    /// <summary>
+    /// 菜单 Y 坐标
+    /// </summary>
+    [Parameter]
+    public double Y { get; set; }
+
+    /// <summary>
+    /// 要复制的文本
+    /// </summary>
+    [Parameter]
+    public string CopyText { get; set; } = "";
+
+    /// <summary>
+    /// 复制成功回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCopied { get; set; }
+
+    /// <summary>
+    /// 关闭菜单
+    /// </summary>
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    /// <summary>
+    /// 复制到剪切板
+    /// </summary>
+    private async Task CopyToClipboard()
+    {
+        if (!string.IsNullOrEmpty(CopyText))
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("navigator.clipboard.writeText", CopyText);
+                await OnCopied.InvokeAsync();
+            }
+            catch
+            {
+                // 静默处理复制失败
+            }
+        }
+        await Close();
+    }
+}

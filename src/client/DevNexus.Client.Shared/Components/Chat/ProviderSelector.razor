@@ -1,0 +1,215 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject ILogoService LogoService
+
+<div class="provider-selector">
+    <button class="toolbar-btn provider-trigger" @onclick="ToggleDropdown" title="选择模型">
+        @if (SelectedProviderId == null)
+        {
+            <AutoIcon Size="20" Stroke="currentColor" />
+        }
+        else
+        {
+            <img src="@GetSelectedProviderLogo()" class="trigger-provider-logo" alt="" />
+        }
+        <span class="provider-name">@GetSelectedProviderName()</span>
+        <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+    </button>
+</div>
+
+@if (_showDropdown)
+{
+    <div class="provider-modal-overlay" @onclick="CloseDropdown">
+        <div class="provider-modal" @onclick:stopPropagation>
+            <div class="provider-modal-header">
+                <h3>选择模型提供者</h3>
+                <button class="modal-close-btn" @onclick="CloseDropdown">×</button>
+            </div>
+            <div class="provider-modal-search">
+                <i class="fa-solid fa-search search-icon"></i>
+                <input type="text" 
+                       @bind="_searchQuery" 
+                       @bind:event="oninput"
+                       placeholder="搜索模型提供者..." 
+                       class="input input-search" />
+            </div>
+            <div class="provider-modal-list">
+                <div class="provider-option @(SelectedProviderId == null ? "selected" : "") " 
+                     @onclick="() => SelectProvider(null, null)">
+                    <div class="option-logo-wrapper auto-icon-wrapper">
+                        <AutoIcon Size="16" Stroke="currentColor" />
+                    </div>
+                    <span class="provider-option-name">自动（使用默认）</span>
+                    @if (SelectedProviderId == null)
+                    {
+                        <i class="fa-solid fa-check check-icon"></i>
+                    }
+                </div>
+                @foreach (var provider in FilteredProviders)
+                {
+                    <div class="provider-option @(SelectedProviderId == provider.Id ? "selected" : "")"
+                         @onclick="() => SelectProvider(provider.Id, provider.DisplayName)">
+                        <div class="option-logo-wrapper">
+                            <img src="@LogoService.GetLogoUrl(provider.LogoUrl, LogoService.GetDefaultLogo(provider.ProviderId))" 
+                                 class="provider-option-logo" alt="@provider.DisplayName" />
+                        </div>
+                        <span class="provider-option-name">@provider.DisplayName</span>
+                        @if (SelectedProviderId == provider.Id)
+                        {
+                            <i class="fa-solid fa-check check-icon"></i>
+                        }
+                    </div>
+                }
+                @if (!FilteredProviders.Any() && !string.IsNullOrEmpty(_searchQuery))
+                {
+                    <div class="provider-empty">
+                        <span>未找到匹配的模型提供者</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// 当前选中的供应商 ID
+    /// </summary>
+    [Parameter] public Guid? SelectedProviderId { get; set; }
+    
+    /// <summary>
+    /// 当前选中的供应商名称
+    /// </summary>
+    [Parameter] public string? SelectedProviderName { get; set; }
+
+    /// <summary>
+    /// 是否排除支持文生图能力的供应商
+    /// </summary>
+    [Parameter] public bool ExcludeTextToImage { get; set; } = false;
+    
+    /// <summary>
+    /// 供应商选择变更事件
+    /// </summary>
+    [Parameter] public EventCallback<(Guid? ProviderId, string? ProviderName)> OnProviderChanged { get; set; }
+
+    private bool _showDropdown = false;
+    private string _searchQuery = "";
+    private List<LLMProviderResponse> _availableProviders = new();
+
+    /// <summary>
+    /// 根据搜索关键字过滤供应商列表
+    /// </summary>
+    private IEnumerable<LLMProviderResponse> FilteredProviders
+    {
+        get
+        {
+            var providers = _availableProviders.AsEnumerable();
+
+            // 过滤掉支持文生图的供应商
+            if (ExcludeTextToImage)
+            {
+                providers = providers.Where(p => !HasCapability(p, "TextToImage"));
+            }
+
+            // 搜索过滤
+            if (!string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                providers = providers.Where(p =>
+                    (p.DisplayName?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (p.ProviderId?.Contains(_searchQuery, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            return providers;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProvidersAsync();
+    }
+
+    private async Task LoadProvidersAsync()
+    {
+        try
+        {
+            _availableProviders = await ApiService.GetLLMProvidersAsync(includeDisabled: false);
+        }
+        catch
+        {
+            _availableProviders = new();
+        }
+    }
+
+    private void ToggleDropdown()
+    {
+        _showDropdown = !_showDropdown;
+    }
+
+    private void CloseDropdown()
+    {
+        _showDropdown = false;
+        _searchQuery = "";
+    }
+
+    private async Task SelectProvider(Guid? providerId, string? providerName)
+    {
+        _showDropdown = false;
+        await OnProviderChanged.InvokeAsync((providerId, providerName));
+    }
+
+    private string GetSelectedProviderName()
+    {
+        return SelectedProviderName ?? "自动";
+    }
+
+    private string GetSelectedProviderLogo()
+    {
+        if (SelectedProviderId == null) return string.Empty;
+        var provider = _availableProviders.FirstOrDefault(p => p.Id == SelectedProviderId);
+        if (provider == null) return string.Empty;
+        return LogoService.GetLogoUrl(provider.LogoUrl, LogoService.GetDefaultLogo(provider.ProviderId));
+    }
+
+    /// <summary>
+    /// 检查 Provider 是否具备指能力
+    /// </summary>
+    private bool HasCapability(LLMProviderResponse provider, string capability)
+    {
+        if (provider.Configuration == null) return false;
+
+        if (provider.Configuration.TryGetValue("Capabilities", out var capsObj))
+        {
+            // 处理 JsonElement (Blazor WASM 常见)
+            if (capsObj is System.Text.Json.JsonElement jsonElement)
+            {
+                if (jsonElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var item in jsonElement.EnumerateArray())
+                    {
+                        if (item.GetString()?.Equals(capability, StringComparison.OrdinalIgnoreCase) == true)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                else if (jsonElement.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    var str = jsonElement.GetString();
+                    if (!string.IsNullOrEmpty(str))
+                    {
+                        return str.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                  .Any(s => s.Trim().Equals(capability, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+            }
+            // 处理 IEnumerable<string>
+            else if (capsObj is IEnumerable<string> list)
+            {
+                return list.Contains(capability, StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        return false;
+    }
+}
+

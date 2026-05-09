@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<!-- AUTO-GENERATED HOST PAGE. Edit src/client/DevNexus.Client.Shared/HostPageTemplates/index.template.html. -->
+<html lang="zh-CN">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>DevNexus AI</title>
+    <base href="/" />
+    __HOST_ICON_LINKS__
+    __HOST_HEAD_MARKUP__
+
+    <style id="loading-styles">
+        :root {
+            --loading-bg: #0a0a0a;
+            --loading-text: #ffffff;
+            --loading-text-secondary: rgba(255, 255, 255, 0.5);
+            --loading-brand: #07c160;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--loading-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .status-message {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--loading-bg);
+            z-index: 9999;
+            transition: opacity 0.4s ease-out;
+        }
+
+        .loading-logo svg {
+            width: 72px;
+            height: 72px;
+            filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
+            animation: breathe 3s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
+        }
+
+        .loading-brand {
+            margin-top: 24px;
+            font-size: 20px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            color: var(--loading-text);
+        }
+
+        .loading-spinner {
+            margin-top: 32px;
+            width: 24px;
+            height: 24px;
+            border: 2.5px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--loading-brand);
+            border-radius: 50%;
+            animation: spinner 0.8s linear infinite;
+        }
+
+        @keyframes spinner {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-version {
+            margin-top: 16px;
+            font-size: 13px;
+            color: var(--loading-text-secondary);
+        }
+    </style>
+
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/modern-minimalist-theme.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/variables.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/app.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/settings-memory.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/settings-skills.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/settings-model-pricing.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/components/buttons.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/components/inputs.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/components/cards.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/fluent/acrylic.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/fluent/depth.css" />
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/markdown.css" />
+    <link rel="stylesheet" href="_content/MudBlazor/MudBlazor.min.css" />
+    <link rel="stylesheet" href="__HOST_STYLESHEET__" />
+
+    <link rel="stylesheet" href="__ASSET_PREFIX__js/vendor/xterm/xterm.css" />
+
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/vendor/fontawesome/all.min.css"
+        onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'" />
+
+    <link rel="stylesheet" href="__ASSET_PREFIX__css/vendor/prism/prism-tomorrow.min.css"
+        onerror="this.onerror=null;this.href='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css'" />
+
+    <script>
+        window.storage = {
+            get: function (key) {
+                try {
+                    var value = localStorage.getItem(key);
+                    return value ? JSON.parse(value) : null;
+                } catch (e) {
+                    return localStorage.getItem(key);
+                }
+            },
+
+            set: function (key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    localStorage.setItem(key, value);
+                }
+            },
+
+            remove: function (key) {
+                localStorage.removeItem(key);
+            }
+        };
+        console.log('[DevNexus] window.storage 已初始化');
+    </script>
+</head>
+
+<body>
+    <div class="status-message" id="blazor-loading">
+        <div class="loading-logo">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="devnexusLoadingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#07c160" />
+                        <stop offset="100%" stop-color="#05a650" />
+                    </linearGradient>
+                    <filter id="devnexusLoadingGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+                        <feMerge>
+                            <feMergeNode in="coloredBlur" />
+                            <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                    </filter>
+                </defs>
+
+                <path d="M24 4L42 14V34L24 44L6 34V14L24 4Z" stroke="url(#devnexusLoadingGradient)" stroke-width="2"
+                    fill="none" opacity="0.6" />
+                <circle cx="24" cy="24" r="6" fill="url(#devnexusLoadingGradient)" filter="url(#devnexusLoadingGlow)" />
+                <circle cx="24" cy="24" r="3" fill="white" opacity="0.9" />
+                <path d="M14 20L8 24L14 28" stroke="url(#devnexusLoadingGradient)" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M34 20L40 24L34 28" stroke="url(#devnexusLoadingGradient)" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round" />
+                <line x1="18" y1="24" x2="30" y2="24" stroke="url(#devnexusLoadingGradient)" stroke-width="2" />
+                <line x1="24" y1="12" x2="24" y2="18" stroke="url(#devnexusLoadingGradient)" stroke-width="2"
+                    opacity="0.7" />
+                <line x1="24" y1="30" x2="24" y2="36" stroke="url(#devnexusLoadingGradient)" stroke-width="2"
+                    opacity="0.7" />
+                <circle cx="24" cy="10" r="2" fill="url(#devnexusLoadingGradient)" opacity="0.8" />
+                <circle cx="24" cy="38" r="2" fill="url(#devnexusLoadingGradient)" opacity="0.8" />
+            </svg>
+        </div>
+
+        <div class="loading-brand">DevNexus AI</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-version">初始化智能引擎...</div>
+    </div>
+
+    <div id="app"></div>
+
+    <script src="__ASSET_PREFIX__js/app.js?v=2.2"></script>
+    <script src="__ASSET_PREFIX__js/devnexus.core.js?v=1"></script>
+    <script src="__ASSET_PREFIX__js/devnexus.artifacts.js?v=1"></script>
+    <script src="__ASSET_PREFIX__js/devnexus.runtime.js?v=1"></script>
+    <script src="__ASSET_PREFIX__js/monaco-wrapper.js"></script>
+    <script src="__ASSET_PREFIX__js/plotly.min.js"></script>
+    <script src="__ASSET_PREFIX__js/plotly-wrapper.js"></script>
+    <script src="__ASSET_PREFIX__js/dragDrop.js"></script>
+    <script src="__ASSET_PREFIX__js/vendor/papaparse.min.js"></script>
+    <script src="__ASSET_PREFIX__js/vendor/xlsx.full.min.js"></script>
+    <script src="__ASSET_PREFIX__js/fileParser.js"></script>
+    <script src="__ASSET_PREFIX__js/searchInterop.js"></script>
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+
+    <script defer src="__ASSET_PREFIX__js/vendor/prism.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-csharp.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-csharp.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-sql.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-powershell.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-bash.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-python.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/vendor/prism-json.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js'"></script>
+
+    <script defer src="__ASSET_PREFIX__js/vendor/markdown-it.min.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js'"></script>
+
+    <script src="__ASSET_PREFIX__js/vendor/idiomorph.min.js"></script>
+    <script src="__ASSET_PREFIX__js/silkyMarkdown.shared.js"></script>
+    <script src="__ASSET_PREFIX__js/silkyMarkdown.renderer.js"></script>
+    <script src="__ASSET_PREFIX__js/silkyMarkdown.enhancements.js"></script>
+    <script src="__ASSET_PREFIX__js/silkyMarkdown.api.js"></script>
+    <script defer src="__ASSET_PREFIX__js/silkyMarkdown.js"></script>
+
+    <script defer src="__ASSET_PREFIX__js/vendor/chart.min.js"
+        onerror="this.onerror=null;this.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'"></script>
+    <script defer src="__ASSET_PREFIX__js/modern-charts.js"></script>
+
+    <script defer src="__ASSET_PREFIX__js/vendor/mermaid.min.js"
+        onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js'"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.mermaid) {
+                mermaid.initialize({
+                    startOnLoad: false,
+                    theme: 'dark',
+                    securityLevel: 'loose'
+                });
+            }
+        });
+    </script>
+
+    <script src="_framework/__BLAZOR_BOOT_SCRIPT__" autostart="false"></script>
+    <script>
+        if (!window._blazorStarted) {
+            window._blazorStarted = true;
+            Blazor.start({
+            }).then(() => {
+                const loading = document.getElementById('blazor-loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(() => {
+                        loading.remove();
+                        const loadingStyles = document.getElementById('loading-styles');
+                        if (loadingStyles) {
+                            loadingStyles.remove();
+                        }
+                    }, 400);
+                }
+            }).catch(err => {
+                console.warn('[Blazor] 启动警告:', err.message);
+            });
+        }
+    </script>
+    <script>
+        window.nexusSkills = {
+            selectAllText: function (element) {
+                if (!element) {
+                    return;
+                }
+
+                const range = document.createRange();
+                range.selectNodeContents(element);
+
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        };
+    </script>
+    __HOST_EXTRA_SCRIPTS__
+</body>
+
+</html>

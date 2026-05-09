@@ -1,0 +1,41 @@
+@using DevNexus.Client.Shared.Components.Icons
+
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+
+@* 警告/提示 Block 渲染器 *@
+
+<div class="warning-block @GetLevelClass()">
+    <div class="warning-header">
+        <span class="warning-icon">@GetIcon()</span>
+        <span class="warning-title">@GetTitle()</span>
+    </div>
+    <div class="warning-content">
+        @Block.Content
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    private string GetLevel() => FeedbackBlockMetadataConstants.NormalizeLevel(
+        MetadataHelper.GetString(Block.Metadata, FeedbackBlockMetadataConstants.Level, FeedbackBlockMetadataConstants.LevelWarning));
+
+    private string GetTitle() => MetadataHelper.GetString(Block.Metadata, FeedbackBlockMetadataConstants.Title, "提示");
+
+    private string GetLevelClass() => GetLevel() switch
+    {
+        FeedbackBlockMetadataConstants.LevelInfo => "warning-info",
+        FeedbackBlockMetadataConstants.LevelError => "warning-error",
+        _ => "warning-warning"
+    };
+
+    private RenderFragment GetIcon() => GetLevel() switch
+    {
+        FeedbackBlockMetadataConstants.LevelInfo => @<InfoIcon Size="16" />,
+        FeedbackBlockMetadataConstants.LevelError => @<AlertCircleIcon Size="16" />,
+        _ => @<AlertCircleIcon Size="16" />
+    };
+}

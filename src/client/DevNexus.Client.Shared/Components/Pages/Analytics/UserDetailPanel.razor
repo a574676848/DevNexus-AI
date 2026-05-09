@@ -1,0 +1,239 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IJSRuntime JS
+@inject IWindowService WindowService
+
+@if (IsVisible && UserId.HasValue)
+{
+    <div class="detail-panel-overlay" @onclick="Close"></div>
+    <div class="detail-panel" @onclick:stopPropagation="true">
+        <div class="detail-panel-header">
+            <h3 class="detail-panel-title">用户详情 - @UserDisplayName</h3>
+            <button class="detail-panel-close" @onclick="Close">
+                <span>✕</span>
+            </button>
+        </div>
+        <div class="detail-panel-body">
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <LoadingSpinner Size="sm" Message="加载中..." />
+                </div>
+            }
+            else
+            {
+                <!-- 统计概览 -->
+                <div class="detail-stats">
+                    <div class="detail-stat-item">
+                        <div class="detail-stat-label">总消耗</div>
+                        <div class="detail-stat-value">@FormatNumber(stats.TotalTokens)</div>
+                    </div>
+                    <div class="detail-stat-item">
+                        <div class="detail-stat-label">请求数</div>
+                        <div class="detail-stat-value">@FormatNumber(stats.TotalRequests)</div>
+                    </div>
+                    <div class="detail-stat-item">
+                        <div class="detail-stat-label">预估成本</div>
+                        <div class="detail-stat-value cost">$@stats.TotalCost.ToString("F4")</div>
+                    </div>
+                </div>
+
+                <!-- 趋势图表 -->
+                <div class="detail-chart">
+                    <h4>最近消耗趋势</h4>
+                    <div class="canvas-wrapper">
+                        @if (stats.DailyStats == null || !stats.DailyStats.Any())
+                        {
+                            <div class="chart-empty-state">
+                                <BarChartIcon Size="20" />
+                                <span class="chart-empty-text">暂无趋势数据</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <canvas id="userDetailTrendChart"></canvas>
+                        }
+                    </div>
+                </div>
+
+                <!-- 使用明细 -->
+                <div class="detail-records">
+                    <h4>最近 10 条记录</h4>
+                    @if (records.Items.Count == 0)
+                    {
+                        <div class="empty-state">
+                            <p>暂无使用记录</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="detail-records-list">
+                            @foreach (var record in records.Items)
+                            {
+                                <div class="detail-record-item">
+                                    <div class="detail-record-time">@record.CreatedAt.ToString("MM-dd HH:mm")</div>
+                                    <div class="detail-record-info">
+                                        <div class="detail-record-model">@record.ModelId</div>
+                                        <div class="detail-record-tokens">
+                                            In: @FormatNumber(record.InputTokens ?? 0) | Out: @FormatNumber(record.OutputTokens ?? 0)
+                                        </div>
+                                    </div>
+                                    <div class="detail-record-cost">$@((record.Cost ?? 0).ToString("F4"))</div>
+                                </div>
+                            }
+                        </div>
+
+                        @if (records.TotalCount > 10)
+                        {
+                            <div class="view-more-container">
+                                <button class="view-more-btn" @onclick="HandleViewMore">
+                                    查看完整明细 (共 @records.TotalCount 条)
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 18l6-6-6-6" />
+                                    </svg>
+                                </button>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public Guid? UserId { get; set; }
+    [Parameter] public string UserDisplayName { get; set; } = "用户";
+    [Parameter] public DateTime? StartDate { get; set; }
+    [Parameter] public DateTime? EndDate { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private bool isLoading = true;
+    private bool shouldRenderChart = false;  // 标记是否需要渲染图表
+    private TokenUsageStatsDto stats = new();
+    private PagedResult<TokenUsageDetailedDto> records = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && UserId.HasValue)
+        {
+            await LoadDataAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 当需要渲染图表时，在 DOM 更新后执行
+        if (shouldRenderChart)
+        {
+            shouldRenderChart = false;
+            try
+            {
+                await RenderChartAsync();
+            }
+            catch (Exception)
+            {
+                // 图表渲染失败，忽略
+            }
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        shouldRenderChart = false;
+        StateHasChanged();
+
+        try
+        {
+            var statsTask = ApiService.GetUserTokenStatsAsync(UserId!.Value, StartDate, EndDate);
+            var recordsTask = ApiService.GetDetailedUsageRecordsAsync(
+                userId: UserId,
+                startDate: StartDate,
+                endDate: EndDate,
+                pageNumber: 1,
+                pageSize: 10);
+
+            await Task.WhenAll(statsTask, recordsTask);
+
+            stats = await statsTask;
+            records = await recordsTask;
+
+            // 标记需要在下次渲染后绘制图表
+            if (stats.DailyStats != null && stats.DailyStats.Any())
+            {
+                shouldRenderChart = true;
+            }
+        }
+        catch (Exception)
+        {
+            stats = new();
+            records = new();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderChartAsync()
+    {
+        try
+        {
+            var labels = stats.DailyStats.OrderBy(d => d.Date).Select(d => d.Date.ToString("MM-dd")).ToArray();
+            var data = stats.DailyStats.OrderBy(d => d.Date).Select(d => d.TotalCost).ToArray();
+
+            var chartData = new
+            {
+                labels = labels,
+                datasets = new[]
+                {
+                    new
+                    {
+                        label = "每日成本 ($)",
+                        data = data,
+                        borderColor = "#07c160",
+                        backgroundColor = "rgba(7, 193, 96, 0.1)",
+                        fill = true,
+                        tension = 0.4
+                    }
+                }
+            };
+
+            await JS.InvokeVoidAsync("devnexus.charts.renderChart", "userDetailTrendChart", chartData, "line");
+        }
+        catch (Exception)
+        {
+            // 图表渲染失败，忽略
+        }
+    }
+
+    private async Task HandleViewMore()
+    {
+        if (UserId.HasValue)
+        {
+            WindowService.OpenAuditWindow(UserId.Value, UserDisplayName);
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private static string FormatNumber(long number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString("N0")
+        };
+    }
+
+    private static string FormatNumber(int number) => FormatNumber((long)number);
+}
+

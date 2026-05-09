@@ -1,0 +1,131 @@
+@using DevNexus.Shared.DTOs.Swarm
+@page "/swarm/sessions"
+
+<div class="session-page">
+    <div class="page-header">
+        <h1>Swarm 执行历史</h1>
+        <p>查看和管理所有多智能体协作会话。</p>
+    </div>
+
+    <div class="session-filters">
+        <input type="text" placeholder="搜索会话..." class="search-box" />
+        <select class="filter-select">
+            <option>全部领域</option>
+            <option>代码开发</option>
+            <option>通用任务</option>
+        </select>
+    </div>
+
+    <div class="session-list">
+        @if (Sessions.Any())
+        {
+            @foreach (var session in Sessions)
+            {
+                <div class="session-card">
+                    <div class="card-status @session.Status.ToLower()"></div>
+                    <div class="card-body">
+                        <h3>@session.SessionId</h3>
+                        <p class="desc">@session.Description</p>
+                        <div class="meta">
+                            <span><i class="icon-clock"></i> @session.StartedAt.ToLocalTime()</span>
+                            <span><i class="icon-task"></i> @session.TaskCount 个任务</span>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="view-btn">查看日志</button>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="empty-list">
+                <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1">
+                    <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <p>未找到活跃或历史会话。</p>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .session-page {
+        padding: 24px;
+        background: var(--white-bg);
+        min-height: 100vh;
+        color: var(--text-primary);
+
+    .page-header h1 { font-size: 24px; margin-bottom: 8px; }
+    .page-header p { color: rgba(255,255,255,0.5); }
+
+    .session-filters {
+        display: flex;
+        gap: 12px;
+        margin: 24px 0;
+    }
+
+    .search-box, .filter-select {
+        background: var(--stage-bg);
+        border: 1px solid var(--border-subtle);
+        padding: 8px 16px;
+        border-radius: 8px;
+        color: var(--text-primary);
+
+    .session-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 16px;
+    }
+
+    .session-card {
+        background: var(--white-bg);
+        border-radius: 12px;
+        border: 1px solid var(--border-default);
+        display: flex;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    .session-card:hover { transform: translateY(-4px); border-color: rgba(59, 130, 246, 0.3); }
+
+    .card-status { width: 4px; }
+    .card-status.completed { background: var(--color-success); }
+    .card-status.running { background: var(--brand-info); }
+    .card-status.failed { background: var(--brand-red); }
+
+    .card-body { padding: 16px; flex: 1; }
+    .card-body h3 { font-size: 16px; margin-bottom: 4px; }
+    .card-body .desc { font-size: 13px; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+    .card-body .meta { font-size: 11px; display: flex; gap: 12px; color: rgba(255,255,255,0.4); }
+
+    .card-actions { padding: 16px; display: flex; align-items: center; }
+    .view-btn {
+        background: rgba(59, 130, 246, 0.1);
+        color: var(--brand-info);
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+
+    .empty-list {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 60px;
+        color: rgba(255,255,255,0.2);
+    }
+</style>
+
+@code {
+    private List<SessionRecord> Sessions { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        // 待对接后端会话持久化 API，目前显示空列表
+        Sessions = new List<SessionRecord>();
+    }
+
+    private record SessionRecord(string SessionId, string Description, string Status, DateTime StartedAt, int TaskCount);
+}

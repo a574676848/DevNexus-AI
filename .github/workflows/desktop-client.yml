@@ -1,0 +1,296 @@
+name: Desktop Client CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - "v*"
+    paths:
+      - ".github/workflows/desktop-client.yml"
+      - "src/client/DevNexus.Client/**"
+      - "src/client/DevNexus.Client.Shared/**"
+      - "src/client/DevNexus.Client.Updater/**"
+      - "src/common/DevNexus.Shared/**"
+      - "src/Directory.Build.props"
+      - "src/Directory.Build.targets"
+      - "src/Directory.Packages.props"
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-client.yml"
+      - "src/client/DevNexus.Client/**"
+      - "src/client/DevNexus.Client.Shared/**"
+      - "src/client/DevNexus.Client.Updater/**"
+      - "src/common/DevNexus.Shared/**"
+      - "src/Directory.Build.props"
+      - "src/Directory.Build.targets"
+      - "src/Directory.Packages.props"
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Prepare Build Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version_label: ${{ steps.meta.outputs.version_label }}
+      artifact_suffix: ${{ steps.meta.outputs.artifact_suffix }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+
+    steps:
+      - name: Compute version metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG_NAME: ${{ github.event.release.tag_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "release" ] && [ -n "$RELEASE_TAG_NAME" ]; then
+            VERSION_LABEL="$RELEASE_TAG_NAME"
+          elif [ "$REF_TYPE" = "tag" ] && [ -n "$REF_NAME" ]; then
+            VERSION_LABEL="$REF_NAME"
+          elif [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_NUMBER" ]; then
+            VERSION_LABEL="pr-$PR_NUMBER-${SHA::7}"
+          else
+            SAFE_REF="${REF_NAME//\//-}"
+            VERSION_LABEL="$SAFE_REF-${SHA::7}"
+          fi
+
+          ARTIFACT_SUFFIX=$(printf "%s" "$VERSION_LABEL" | tr -c '[:alnum:]._-' '-')
+
+          if [ "$VERSION_LABEL" = "${VERSION_LABEL#v}" ]; then
+            RELEASE_TAG="v$VERSION_LABEL"
+          else
+            RELEASE_TAG="$VERSION_LABEL"
+          fi
+
+          RELEASE_NAME="Desktop Client $RELEASE_TAG"
+
+          echo "version_label=$VERSION_LABEL" >> "$GITHUB_OUTPUT"
+          echo "artifact_suffix=$ARTIFACT_SUFFIX" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "release_name=$RELEASE_NAME" >> "$GITHUB_OUTPUT"
+
+  windows-client:
+    name: Windows Desktop Client
+    needs: prepare
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install MAUI Windows workload
+        run: dotnet workload install maui-windows
+
+      - name: Publish Windows updater
+        run: dotnet publish src/client/DevNexus.Client.Updater/DevNexus.Client.Updater.csproj -c Release -r win-x64 --self-contained false
+
+      - name: Publish Windows desktop client
+        run: dotnet publish src/client/DevNexus.Client/DevNexus.Client.csproj -f net10.0-windows10.0.19041.0 -c Release -p:RuntimeIdentifierOverride=win-x64 -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=true
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          ASSET_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+          VERSION_LABEL: ${{ needs.prepare.outputs.version_label }}
+        run: |
+          $publishDir = Resolve-Path "src/client/DevNexus.Client/bin/Release/net10.0-windows10.0.19041.0/win-x64/publish"
+          $outputDir = Join-Path $pwd "release-bundle"
+          New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+          $env:DNX_PUBLISH_DIR = $publishDir
+          $env:DNX_OUTPUT_DIR = $outputDir
+          $env:DNX_OUTPUT_BASENAME = "DevNexus.Setup.$env:ASSET_SUFFIX"
+          $env:DNX_VERSION = $env:VERSION_LABEL.TrimStart('v')
+          iscc ".github/packaging/windows-client.iss"
+
+      - name: Upload Windows desktop client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-client-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-bundle/DevNexus.Setup.${{ needs.prepare.outputs.artifact_suffix }}.exe
+          if-no-files-found: error
+
+      - name: Upload Windows updater artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-desktop-updater-${{ needs.prepare.outputs.artifact_suffix }}
+          path: src/client/DevNexus.Client.Updater/bin/Release/net10.0-windows10.0.19041.0/win-x64/publish/**
+          if-no-files-found: error
+
+  macos-client:
+    name: macOS Desktop Client
+    needs: prepare
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Show active Xcode
+        run: xcodebuild -version
+
+      - name: Install MAUI Mac Catalyst workload
+        run: dotnet workload install maui-maccatalyst
+
+      - name: Publish macOS desktop client
+        run: dotnet publish src/client/DevNexus.Client/DevNexus.Client.csproj -f net10.0-maccatalyst -c Release -p:CreatePackage=false
+
+      - name: Build macOS installer package
+        shell: bash
+        env:
+          ASSET_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+          VERSION_LABEL: ${{ needs.prepare.outputs.version_label }}
+        run: |
+          set -euo pipefail
+          PUBLISH_ROOT=$(find src/client/DevNexus.Client/bin/Release/net10.0-maccatalyst -mindepth 1 -maxdepth 1 -type d | tail -n 1)
+          mkdir -p release-bundle
+          bash .github/packaging/package-macos.sh "$PUBLISH_ROOT" "$ASSET_SUFFIX" "$PWD/release-bundle"
+
+      - name: Upload macOS desktop client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-desktop-client-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-bundle/devnexus-macos-${{ needs.prepare.outputs.artifact_suffix }}.pkg
+          if-no-files-found: error
+
+  publish-release-assets:
+    name: Publish GitHub Release Assets
+    needs:
+      - prepare
+      - windows-client
+      - macos-client
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Windows desktop artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-desktop-client-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-assets/windows-client
+
+      - name: Download Windows updater artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-desktop-updater-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-assets/windows-updater
+
+      - name: Download macOS desktop artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-desktop-client-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-assets/macos-client
+
+      - name: Organize release assets
+        shell: bash
+        env:
+          ASSET_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-bundle
+          cp release-assets/windows-client/DevNexus.Setup.${ASSET_SUFFIX}.exe release-bundle/
+          (cd release-assets/windows-updater && zip -r "../../release-bundle/devnexus-windows-updater-${ASSET_SUFFIX}.zip" .)
+          cp release-assets/macos-client/devnexus-macos-${ASSET_SUFFIX}.pkg release-bundle/
+
+      - name: Generate release metadata JSON
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          RELEASE_NAME: ${{ needs.prepare.outputs.release_name }}
+          REPOSITORY: ${{ github.repository }}
+          ASSET_SUFFIX: ${{ needs.prepare.outputs.artifact_suffix }}
+        run: |
+          set -euo pipefail
+          WINDOWS_INSTALLER="DevNexus.Setup.${ASSET_SUFFIX}.exe"
+          MACOS_PKG="devnexus-macos-${ASSET_SUFFIX}.pkg"
+
+          WINDOWS_SIZE=$(stat -c%s "release-bundle/${WINDOWS_INSTALLER}")
+          MACOS_SIZE=$(stat -c%s "release-bundle/${MACOS_PKG}")
+          WINDOWS_SHA=$(sha256sum "release-bundle/${WINDOWS_INSTALLER}" | awk '{print $1}')
+          MACOS_SHA=$(sha256sum "release-bundle/${MACOS_PKG}" | awk '{print $1}')
+
+          cat > "release-bundle/release-metadata.json" <<EOF
+          {
+            "version": "${RELEASE_TAG#v}",
+            "channel": "stable",
+            "title": "${RELEASE_NAME}",
+            "releaseNotes": "请补充本次版本说明。",
+            "artifacts": [
+              {
+                "platform": "desktop-windows",
+                "architecture": "x64",
+                "packageType": "installer",
+                "fileName": "${WINDOWS_INSTALLER}",
+                "fileSize": ${WINDOWS_SIZE},
+                "checksum": "sha256:${WINDOWS_SHA}",
+                "downloadUrl": "https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/${WINDOWS_INSTALLER}"
+              },
+              {
+                "platform": "desktop-macos",
+                "architecture": "x64",
+                "packageType": "pkg",
+                "fileName": "${MACOS_PKG}",
+                "fileSize": ${MACOS_SIZE},
+                "checksum": "sha256:${MACOS_SHA}",
+                "downloadUrl": "https://github.com/${REPOSITORY}/releases/download/${RELEASE_TAG}/${MACOS_PKG}"
+              }
+            ],
+            "rolloutTemplate": {
+              "platform": "desktop-windows",
+              "architecture": "x64",
+              "channel": "stable",
+              "minimumSupportedVersion": "1.0.0",
+              "rolloutPercent": 100,
+              "audienceRule": "all",
+              "forceUpdate": false,
+              "enabled": true
+            },
+            "publishRelease": true,
+            "createRollout": true
+          }
+          EOF
+
+      - name: Upload release metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata-${{ needs.prepare.outputs.artifact_suffix }}
+          path: release-bundle/release-metadata.json
+          if-no-files-found: error
+
+      - name: Publish assets to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.release_tag }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          generate_release_notes: true
+          files: |
+            release-bundle/DevNexus.Setup.${{ needs.prepare.outputs.artifact_suffix }}.exe
+            release-bundle/devnexus-windows-updater-${{ needs.prepare.outputs.artifact_suffix }}.zip
+            release-bundle/devnexus-macos-${{ needs.prepare.outputs.artifact_suffix }}.pkg
+            release-bundle/release-metadata.json

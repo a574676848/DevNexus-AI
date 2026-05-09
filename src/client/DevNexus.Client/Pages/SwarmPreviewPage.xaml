@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="DevNexus.Client.Pages.SwarmPreviewPage"
+             BackgroundColor="#f5f7fa">
+
+    <Grid RowDefinitions="52,*">
+        <!-- 自定义标题栏 - 精美版 -->
+        <Grid Grid.Row="0"
+              x:Name="TitleBar"
+              Padding="20,0">
+            <Grid.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#ffffff" Offset="0.0" />
+                    <GradientStop Color="#fafafa" Offset="1.0" />
+                </LinearGradientBrush>
+            </Grid.Background>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 底部边框阴影效果 -->
+            <BoxView Grid.ColumnSpan="3"
+                     Color="#e5e5e5"
+                     HeightRequest="1"
+                     VerticalOptions="End"/>
+
+            <!-- 图标和标题 -->
+            <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
+                <!-- 图标容器 -->
+                <Border x:Name="IconBorder"
+                        BackgroundColor="#f0f9ff"
+                        StrokeThickness="0"
+                        WidthRequest="36"
+                        HeightRequest="36"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="9"/>
+                    </Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="#10000000" Offset="0,1" Radius="2" Opacity="0.5"/>
+                    </Border.Shadow>
+                    <Label x:Name="TitleIcon"
+                           Text="🤖"
+                           FontSize="20"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+                </Border>
+
+                <Label x:Name="TitleLabel"
+                       Text="Swarm Cluster"
+                       FontSize="14"
+                       FontAttributes="Bold"
+                       TextColor="#1a1a1a"
+                       VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+
+            <!-- 窗口控制按钮 -->
+            <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                <Border x:Name="MinimizeBorder"
+                        BackgroundColor="#f5f5f5"
+                        StrokeThickness="0"
+                        WidthRequest="34"
+                        HeightRequest="34"
+                        Padding="0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="8"/>
+                    </Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="#10000000" Offset="0,1" Radius="2" Opacity="0.5"/>
+                    </Border.Shadow>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMinimizeClicked"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="—"
+                           TextColor="#666666"
+                           FontSize="14"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"
+                           Margin="0,-4,0,0"/>
+                </Border>
+
+                <Border x:Name="MaximizeBorder"
+                        BackgroundColor="#f5f5f5"
+                        StrokeThickness="0"
+                        WidthRequest="34"
+                        HeightRequest="34"
+                        Padding="0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="8"/>
+                    </Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="#10000000" Offset="0,1" Radius="2" Opacity="0.5"/>
+                    </Border.Shadow>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnMaximizeClicked"/>
+                    </Border.GestureRecognizers>
+                    <Label x:Name="MaximizeButton"
+                           Text="☐"
+                           TextColor="#666666"
+                           FontSize="14"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+                </Border>
+
+                <Border x:Name="CloseBorder"
+                        BackgroundColor="#f5f5f5"
+                        StrokeThickness="0"
+                        WidthRequest="34"
+                        HeightRequest="34"
+                        Padding="0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="8"/>
+                    </Border.StrokeShape>
+                    <Border.Shadow>
+                        <Shadow Brush="#10000000" Offset="0,1" Radius="2" Opacity="0.5"/>
+                    </Border.Shadow>
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCloseClicked"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="✕"
+                           TextColor="#666666"
+                           FontSize="14"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- Swarm 内容容器 -->
+        <Grid Grid.Row="1" x:Name="ContentContainer">
+            <!-- 这里将通过代码动态加载 SwarmMonitorHost 组件 -->
+        </Grid>
+    </Grid>
+</ContentPage>

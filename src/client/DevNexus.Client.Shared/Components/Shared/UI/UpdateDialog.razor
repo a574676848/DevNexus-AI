@@ -1,0 +1,166 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@using DevNexus.Client.Shared.Components.Icons
+@using MudBlazor
+@inject IUpdateService UpdateService
+@inject NavigationManager NavigationManager
+
+<MudDialog>
+    <DialogContent>
+        @if (UpdateInfo != null)
+        {
+            <div class="update-dialog">
+                <div class="update-header">
+                    <div class="update-icon" aria-hidden="true">
+                        <DownloadIcon Size="22" />
+                    </div>
+                    <div class="update-title-group">
+                        <h3 class="update-title">新版本可用</h3>
+                        <span class="update-badge @(UpdateInfo.IsCritical ? "danger" : "info")">
+                            @(UpdateInfo.IsCritical ? "必须更新" : "推荐更新")
+                        </span>
+                    </div>
+                </div>
+
+                <div class="update-version">
+                    <span class="version-label">当前版本 → 新版本：</span>
+                    <MudText Typo="Typo.subtitle1">@UpdateInfo.Version</MudText>
+                </div>
+
+                <div class="update-release-notes">
+                    <MudText Typo="Typo.body2">更新内容：</MudText>
+                    <MudText Typo="Typo.body1" Class="release-notes-text">
+                        @UpdateInfo.ReleaseNotes
+                    </MudText>
+                </div>
+
+                @if (_downloading)
+                {
+                    <div class="download-progress">
+                        <MudProgressLinear Value="@_downloadProgress" Color="Color.Primary" />
+                        <MudText Typo="Typo.caption">@_downloadStatus</MudText>
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (!_downloading)
+        {
+            @if (UpdateService.PresentationMode == UpdatePresentationMode.RefreshOnly)
+            {
+                <MudButton OnClick="RefreshPageAsync" Color="Color.Primary">刷新页面</MudButton>
+                @if (!(UpdateInfo?.IsCritical ?? false))
+                {
+                    <MudButton OnClick="Cancel" Color="Color.Default">关闭</MudButton>
+                }
+            }
+            else
+            {
+                @if (!(UpdateInfo?.IsCritical ?? false))
+                {
+                    <MudButton OnClick="RemindLaterAsync">稍后提醒</MudButton>
+                    <MudCheckBox T="bool" @bind-Value="_doNotRemindAgain" Label="不再提醒此版本" />
+                    <MudButton OnClick="Cancel" Color="Color.Default">取消</MudButton>
+                }
+                <MudButton OnClick="DownloadAndInstallAsync" Color="@(UpdateInfo?.IsCritical ?? false ? Color.Error : Color.Primary)">
+                    @GetPrimaryActionText()
+                </MudButton>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.caption">@GetProgressHintText()</MudText>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public UpdateInfo? UpdateInfo { get; set; }
+
+    private bool _downloading = false;
+    private int _downloadProgress = 0;
+    private string _downloadStatus = string.Empty;
+    private bool _doNotRemindAgain = false;
+
+    private async Task DownloadAndInstallAsync()
+    {
+        if (UpdateInfo == null) return;
+
+        if (UpdateService.PresentationMode == UpdatePresentationMode.RefreshOnly)
+        {
+            await RefreshPageAsync();
+            return;
+        }
+
+        if (_doNotRemindAgain)
+        {
+            await UpdateService.IgnoreVersionAsync(UpdateInfo.Version);
+        }
+
+        _downloading = true;
+        StateHasChanged();
+
+        try
+        {
+            await UpdateService.DownloadAndInstallAsync(
+                UpdateInfo,
+                progress =>
+                {
+                    _downloadProgress = progress;
+                    _downloadStatus = $"下载进度：{progress}%";
+                    InvokeAsync(StateHasChanged);
+                });
+
+            if (UpdateService.PresentationMode == UpdatePresentationMode.ManualDownload)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        catch (Exception ex)
+        {
+            _downloadStatus = $"下载失败：{ex.Message}";
+            _downloading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task RemindLaterAsync()
+    {
+        if (UpdateInfo != null)
+        {
+            await UpdateService.SnoozeVersionAsync(UpdateInfo.Version, TimeSpan.FromHours(1));
+        }
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private Task RefreshPageAsync()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+        NavigationManager.NavigateTo(NavigationManager.Uri, forceLoad: true);
+        return Task.CompletedTask;
+    }
+
+    private string GetPrimaryActionText()
+    {
+        return UpdateService.PresentationMode switch
+        {
+            UpdatePresentationMode.ManualDownload => "下载并打开安装包",
+            UpdatePresentationMode.RefreshOnly => "刷新页面",
+            _ => "立即下载并安装"
+        };
+    }
+
+    private string GetProgressHintText()
+    {
+        return UpdateService.PresentationMode == UpdatePresentationMode.ManualDownload
+            ? "正在下载更新包，完成后会自动打开安装包。"
+            : "正在下载更新，请稍候。";
+    }
+}

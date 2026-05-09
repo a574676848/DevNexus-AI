@@ -1,0 +1,85 @@
+@namespace DevNexus.Client.Shared.Components.Cards
+
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@* 💡 WBS-003：笔记创建失败卡片 *@
+@* 显示笔记创建失败的错误信息 *@
+
+<div class="note-error-card card">
+    <div class="card-header error-header">
+        <AlertCircleIcon Size="18" />
+        <span class="card-title">@MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Title, "笔记创建失败")</span>
+    </div>
+    
+    @if (!string.IsNullOrEmpty(MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Message)))
+    {
+        <div class="card-message error-message">
+            @MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Message)
+        </div>
+    }
+
+    <div class="card-footer error-footer">
+        <span class="help-text">💡 提示：请检查 Memos 连接配置或重试</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+}
+
+<style>
+.note-error-card {
+    border-left: 4px solid var(--brand-red);
+    background: linear-gradient(135deg, var(--brand-red-lighter) 0%, var(--brand-red-light) 100%);
+    padding: 16px;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+
+.note-error-card .error-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.note-error-card .card-icon {
+    font-size: 20px;
+    display: inline-block;
+}
+
+.note-error-card .card-title {
+    font-weight: 600;
+    color: var(--brand-red);
+    font-size: 16px;
+}
+
+.note-error-card .card-message {
+    color: var(--brand-red);
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background-color: rgba(220, 38, 38, 0.05);
+    border-radius: 4px;
+    line-height: 1.5;
+}
+
+.note-error-card .card-message.error-message {
+    border-left: 2px solid var(--brand-red);
+}
+
+.note-error-card .error-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.note-error-card .help-text {
+    font-size: 13px;
+    color: var(--brand-red);
+}
+</style>

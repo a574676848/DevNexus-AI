@@ -1,0 +1,354 @@
+@page "/settings/experiences"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Shared
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IErrorTranslationService ErrorTranslation
+@inject IJSRuntime JS
+
+<div class="memory-page experience-page">
+    @if (isInitialLoading)
+    {
+        <LoadingSpinner Message="加载经验库..." Size="md" />
+    }
+    else
+    {
+        <div class="page-header">
+            <div class="header-icon">
+                <ExperienceIcon Size="24" Stroke="var(--brand-green)" />
+            </div>
+            <div class="header-info">
+                <h1>智能体经验库</h1>
+                <p>沉淀可复用的处理经验，辅助后续对话和任务决策</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" @onclick="RefreshAsync" disabled="@isRefreshing">
+                    <RefreshIcon Size="16" Stroke="currentColor" />
+                    <span>@(isRefreshing ? "刷新中..." : "刷新")</span>
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="message error" role="alert">
+                <AlertCircleIcon Size="16" Stroke="currentColor" />
+                <span>@errorMessage</span>
+            </div>
+        }
+
+        <div class="settings-container">
+            <div class="settings-group">
+                <div class="group-header">
+                    <ExperienceIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>全部经验 (@experiences.Count)</span>
+                </div>
+
+                @if (!experiences.Any())
+                {
+                    <div class="settings-card empty-state">
+                        <ExperienceIcon Size="48" Stroke="var(--text-secondary)" />
+                        <p>暂无经验数据</p>
+                        <span class="hint">对话结束后会自动积累可复用经验</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="experience-grid">
+                        @foreach (var experience in experiences)
+                        {
+                            var contextTags = GetContextTags(experience);
+
+                            <article class="experience-card @(experience.IsPinned ? "pinned" : string.Empty)">
+                                <div class="card-body">
+                                    <h2 class="intent-text" title="@experience.Intent">@experience.Intent</h2>
+
+                                    <div class="experience-labels">
+                                        <span class="meta-badge @GetTypeClass(experience.Type)">
+                                            <span class="meta-badge__type">@GetTypeName(experience.Type)</span>
+                                            <span class="meta-badge__divider">·</span>
+                                            <span class="meta-badge__score">@experience.UtilityScore.ToString("F2")</span>
+                                        </span>
+
+                                        @if (contextTags.Count > 0)
+                                        {
+                                            <div class="tags-container">
+                                                @foreach (var tag in contextTags)
+                                                {
+                                                    <span class="tag">#@tag</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <div class="stats">
+                                        <span class="stats-line">复用 @experience.UsageCount 次 / @GetLastMatchedText(experience.LastMatchedAt)</span>
+                                    </div>
+                                </div>
+
+                                <div class="card-footer">
+                                    <button class="btn-secondary btn-icon btn-compact" @onclick="() => ViewDetails(experience)" disabled="@isRefreshing" title="查看详情" aria-label="查看详情">
+                                        <EyeIcon Size="14" Stroke="currentColor" />
+                                        <span>查看</span>
+                                    </button>
+
+                                    <button class="btn-secondary btn-icon btn-compact @(experience.IsPinned ? "is-active" : string.Empty)" @onclick="() => TogglePin(experience)" disabled="@isRefreshing" title="@(experience.IsPinned ? "取消置顶" : "置顶")" aria-label="@(experience.IsPinned ? "取消置顶" : "置顶")">
+                                        @if (experience.IsPinned)
+                                        {
+                                            <PinFilledIcon Size="14" Stroke="currentColor" />
+                                        }
+                                        else
+                                        {
+                                            <PinIcon Size="14" Stroke="currentColor" />
+                                        }
+
+                                        <span>@(experience.IsPinned ? "取消置顶" : "置顶")</span>
+                                    </button>
+
+                                    <button class="btn-danger btn-icon btn-compact" @onclick="() => DeleteExperience(experience)" disabled="@isRefreshing" title="删除经验" aria-label="删除经验">
+                                        <TrashIcon Size="14" Stroke="currentColor" />
+                                        <span>删除</span>
+                                    </button>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@if (selectedExperience != null)
+{
+    var selectedTags = GetContextTags(selectedExperience);
+
+    <div class="modal-overlay" @onclick="CloseDetails">
+        <div class="modal-container experience-modal" @onclick:stopPropagation>
+            <div class="modal-header">
+                <div class="modal-title">
+                    <ExperienceIcon Size="18" Stroke="var(--brand-green)" />
+                    <span>经验详情</span>
+                </div>
+                <button class="btn-close" @onclick="CloseDetails" aria-label="关闭详情">
+                    <XIcon Size="18" Stroke="currentColor" />
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <span class="label">类型</span>
+                        <span class="value">@GetTypeName(selectedExperience.Type)</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">评分</span>
+                        <span class="value">@selectedExperience.UtilityScore.ToString("F2")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">复用次数</span>
+                        <span class="value">@selectedExperience.UsageCount 次</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="label">最近匹配</span>
+                        <span class="value">@GetLastMatchedText(selectedExperience.LastMatchedAt)</span>
+                    </div>
+                </div>
+
+                @if (selectedTags.Count > 0)
+                {
+                    <div class="detail-section">
+                        <h4>关联标签</h4>
+                        <div class="tags-container detail-tags">
+                            @foreach (var tag in selectedTags)
+                            {
+                                <span class="tag">#@tag</span>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="detail-section">
+                    <h4>匹配场景</h4>
+                    <div class="content-box">@selectedExperience.Intent</div>
+                </div>
+
+                <div class="detail-section">
+                    <h4>解决方案</h4>
+                    <div class="code-box">
+                        <pre>@selectedExperience.SolutionSop</pre>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(selectedExperience.ReasoningSummary))
+                {
+                    <div class="detail-section">
+                        <h4>分析思路</h4>
+                        <div class="content-box subtle">@selectedExperience.ReasoningSummary</div>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn-secondary" @onclick="CloseDetails">关闭</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SystemExperienceDto> experiences = new();
+    private bool isInitialLoading = true;
+    private bool isRefreshing;
+    private string? errorMessage;
+    private SystemExperienceDto? selectedExperience;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshCoreAsync(true);
+    }
+
+    private Task RefreshAsync()
+    {
+        return RefreshCoreAsync();
+    }
+
+    private async Task RefreshCoreAsync(bool showPageLoading = false)
+    {
+        if (showPageLoading)
+        {
+            isInitialLoading = true;
+        }
+
+        isRefreshing = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await ApiService.GetSystemExperiencesAsync(null, null);
+            experiences = result.Items.ToList();
+            SyncSelectedExperience();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "ExperienceMemoryPanel.RefreshAsync");
+        }
+        finally
+        {
+            isRefreshing = false;
+            isInitialLoading = false;
+        }
+    }
+
+    private string GetTypeName(ExperienceType type) => type switch
+    {
+        ExperienceType.QA => "对话提纯",
+        ExperienceType.SwarmDag => "Swarm 编排",
+        ExperienceType.CodeFix => "代码修复",
+        _ => "通用经验"
+    };
+
+    private static string GetTypeClass(ExperienceType type) => type switch
+    {
+        ExperienceType.QA => "qa",
+        ExperienceType.SwarmDag => "swarm",
+        ExperienceType.CodeFix => "fix",
+        _ => "default"
+    };
+
+    private static List<string> GetContextTags(SystemExperienceDto experience)
+    {
+        if (string.IsNullOrWhiteSpace(experience.ContextTags))
+        {
+            return new List<string>();
+        }
+
+        return experience.ContextTags
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .ToList();
+    }
+
+    private static string GetLastMatchedText(DateTime? lastMatchedAt)
+    {
+        return lastMatchedAt.HasValue
+            ? $"最近匹配 {lastMatchedAt.Value:yyyy-MM-dd HH:mm}"
+            : "尚未匹配";
+    }
+
+    private void SyncSelectedExperience()
+    {
+        if (selectedExperience == null)
+        {
+            return;
+        }
+
+        selectedExperience = experiences.FirstOrDefault(item => item.Id == selectedExperience.Id);
+    }
+
+    private void ViewDetails(SystemExperienceDto experience)
+    {
+        selectedExperience = experience;
+    }
+
+    private void CloseDetails()
+    {
+        selectedExperience = null;
+    }
+
+    private async Task TogglePin(SystemExperienceDto experience)
+    {
+        if (isRefreshing)
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            await ApiService.TogglePinSystemExperienceAsync(experience.Id);
+            await RefreshCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "ExperienceMemoryPanel.TogglePin");
+        }
+    }
+
+    private async Task DeleteExperience(SystemExperienceDto experience)
+    {
+        if (isRefreshing)
+        {
+            return;
+        }
+
+        if (!await JS.InvokeAsync<bool>("confirm", "确定要删除这条经验吗？删除后无法恢复。"))
+        {
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+
+            if (selectedExperience?.Id == experience.Id)
+            {
+                CloseDetails();
+            }
+
+            await ApiService.DeleteSystemExperienceAsync(experience.Id);
+            await RefreshCoreAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "ExperienceMemoryPanel.DeleteExperience");
+        }
+    }
+}

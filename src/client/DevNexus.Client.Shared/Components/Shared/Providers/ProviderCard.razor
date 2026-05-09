@@ -1,0 +1,208 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Components.Icons
+@inject ILogoService LogoService
+
+@* 供应商卡片组件 - 可在 LLM/Embedding/Search/Storage 面板复用 *@
+<div class="provider-card @(IsDefault ? "default" : "") @GetTestResultClass()">
+    <div class="provider-card-header">
+        <div class="provider-info">
+            <div class="provider-logo-wrapper">
+                <img class="provider-logo" src="@GetFullLogoUrl()" 
+                     alt="@DisplayName" 
+                     @onerror="HandleLogoError" />
+            </div>
+            <div class="provider-details">
+                <div class="provider-name">@DisplayName</div>
+                <div class="provider-type">@ProviderTypeName</div>
+            </div>
+        </div>
+        <div class="provider-status">
+            @if (IsDefault)
+            {
+                <span class="default-badge">默认</span>
+            }
+            <span class="status-dot @(IsEnabled ? "enabled" : "disabled")"
+                  title="@(IsEnabled ? "已启用" : "已禁用")"></span>
+        </div>
+    </div>
+
+    @if (BodyContent != null)
+    {
+        <div class="provider-card-body">
+            @BodyContent
+        </div>
+    }
+
+    @* 测试结果显示区域 - 集成在卡片内部 *@
+    @if (ShowTestResult)
+    {
+        @if (TestResultSuccess && string.IsNullOrEmpty(TestResultMessage))
+        {
+            <div class="test-result-inline success">
+                <CheckCircleIcon Size="14" />
+                <span>连接成功</span>
+                <button class="test-result-close" @onclick="DismissTestResult" title="关闭">×</button>
+            </div>
+        }
+        else if (TestResultSuccess && !string.IsNullOrEmpty(TestResultMessage))
+        {
+            @* Key 有效但有提示（如余额不足）- 显示黄色警告 *@
+            <div class="test-result-inline warning">
+                <AlertCircleIcon Size="14" />
+                <span>@TestResultMessage</span>
+                <button class="test-result-close" @onclick="DismissTestResult" title="关闭">×</button>
+            </div>
+        }
+        else
+        {
+            <div class="test-result-inline error">
+                <AlertCircleIcon Size="14" />
+                <span>@(string.IsNullOrEmpty(TestResultMessage) ? "连接失败" : TestResultMessage)</span>
+                <button class="test-result-close" @onclick="DismissTestResult" title="关闭">×</button>
+            </div>
+        }
+    }
+
+    @if (FooterContent != null)
+    {
+        <div class="provider-card-footer">
+            @FooterContent
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// Logo URL（可为相对路径或完整 URL）
+    /// </summary>
+    [Parameter]
+    public string? LogoUrl { get; set; }
+
+    /// <summary>
+    /// 默认 Logo（当 LogoUrl 为空或加载失败时使用）
+    /// </summary>
+    [Parameter]
+    public string DefaultLogo { get; set; } = "/images/providers/default.svg";
+
+    /// <summary>
+    /// 显示名称
+    /// </summary>
+    [Parameter]
+    public string DisplayName { get; set; } = "";
+
+    /// <summary>
+    /// 供应商类型名称（如 "OpenAI Compatible"）
+    /// </summary>
+    [Parameter]
+    public string ProviderTypeName { get; set; } = "";
+
+    /// <summary>
+    /// 是否启用
+    /// </summary>
+    [Parameter]
+    public bool IsEnabled { get; set; }
+
+    /// <summary>
+    /// 是否为默认供应商
+    /// </summary>
+    [Parameter]
+    public bool IsDefault { get; set; }
+
+    /// <summary>
+    /// 卡片主体内容（可选）
+    /// </summary>
+    [Parameter]
+    public RenderFragment? BodyContent { get; set; }
+
+    /// <summary>
+    /// 卡片底部内容（按钮区域）
+    /// </summary>
+    [Parameter]
+    public RenderFragment? FooterContent { get; set; }
+
+    /// <summary>
+    /// Logo 加载失败时的回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnLogoError { get; set; }
+
+    /// <summary>
+    /// 是否显示测试结果
+    /// </summary>
+    [Parameter]
+    public bool ShowTestResult { get; set; }
+
+    /// <summary>
+    /// 测试结果是否成功
+    /// </summary>
+    [Parameter]
+    public bool TestResultSuccess { get; set; }
+
+    /// <summary>
+    /// 测试结果消息（失败时显示）
+    /// </summary>
+    [Parameter]
+    public string? TestResultMessage { get; set; }
+
+    /// <summary>
+    /// 关闭测试结果的回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDismissTestResult { get; set; }
+
+    private bool logoFailed = false;
+
+    /// <summary>
+    /// 获取完整的 Logo URL（使用统一的 LogoService）
+    /// </summary>
+    private string GetFullLogoUrl()
+    {
+        // 如果 logo 加载失败，使用默认 logo
+        if (logoFailed)
+        {
+            return DefaultLogo;
+        }
+
+        // 使用统一的 LogoService 处理 Logo URL
+        return LogoService.GetLogoUrl(LogoUrl, DefaultLogo);
+    }
+
+    private async Task HandleLogoError()
+    {
+        logoFailed = true;
+        StateHasChanged();
+        await OnLogoError.InvokeAsync();
+    }
+
+    /// <summary>
+    /// 根据测试结果获取卡片的额外样式类
+    /// </summary>
+    private string GetTestResultClass()
+    {
+        if (!ShowTestResult) return "";
+        if (!TestResultSuccess) return "test-error";
+        // Key 有效但有额外提示（如余额不足）显示黄色警告框
+        return string.IsNullOrEmpty(TestResultMessage) ? "test-success" : "test-warning";
+    }
+
+    /// <summary>
+    /// 关闭测试结果显示
+    /// </summary>
+    private async Task DismissTestResult()
+    {
+        await OnDismissTestResult.InvokeAsync();
+    }
+
+    private string? _prevLogoUrl;
+
+    protected override void OnParametersSet()
+    {
+        // 当 LogoUrl 变化时，重置失败状态
+        if (LogoUrl != _prevLogoUrl)
+        {
+            logoFailed = false;
+            _prevLogoUrl = LogoUrl;
+        }
+    }
+}
+

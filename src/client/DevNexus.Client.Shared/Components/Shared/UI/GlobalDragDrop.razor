@@ -1,0 +1,55 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@inject IJSRuntime JS
+
+@if (_isDragOver)
+{
+    <div class="drag-overlay">
+        <div class="drag-indicator">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span class="drag-title">松开以上传文件</span>
+            <span class="drag-hint">支持图片、文档、代码文件</span>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isDragOver;
+    
+    [Parameter] public EventCallback<string[]> OnFilesDropped { get; set; }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("setupGlobalDrag", DotNetObjectReference.Create(this));
+        }
+    }
+    
+    [JSInvokable]
+    public void OnDragEnter()
+    {
+        _isDragOver = true;
+        InvokeAsync(StateHasChanged);
+    }
+    
+    [JSInvokable]
+    public void OnDragLeave()
+    {
+        _isDragOver = false;
+        InvokeAsync(StateHasChanged);
+    }
+    
+    [JSInvokable]
+    public async Task OnDrop(string[] files)
+    {
+        _isDragOver = false;
+        await OnFilesDropped.InvokeAsync(files);
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    public void Dispose()
+    {
+        // 清理 JS 事件监听
+        JS.InvokeVoidAsync("cleanupGlobalDrag");
+    }
+}

@@ -1,0 +1,281 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Models
+@using DevNexus.Client.Shared.Components.Shared
+@using static DevNexus.Client.Shared.Components.Shared.ResizablePanel
+@namespace DevNexus.Client.Shared.Components.Chat
+
+<div class="input-box-shell">
+<ResizablePanel @ref="_resizablePanel"
+                Direction="ResizeDirection.Vertical"
+                ContainerId="input-box-container"
+                ContainerClass="@($"input-box {(IsDisabled ? "disabled" : "")} {(_isFocused ? "focused" : "")}")" 
+                InitialSize="300"
+                MinSize="100"
+                MaxSize="500"
+                AllowContentOverflow="true"
+                SizeChanged="OnHeightChanged">
+    <!-- Pasted Documents Area -->
+    @if (_pastedDocuments.Any())
+    {
+        <div class="pasted-documents">
+            @foreach (var doc in _pastedDocuments)
+            {
+                <PastedDocumentChip Document="doc"
+                                    OnRemove="RemovePastedDocument"
+                                    OnRetryParse="RetryPastedDocumentParseAsync"
+                                    OnContextModeChanged="HandleDocumentContextModeChangedAsync" />
+            }
+        </div>
+
+    }
+
+    <!-- Toolbar -->
+    <InputToolbar EnableRag="@_enableRag"
+                  SelectedProviderId="@_selectedProviderId"
+                  SelectedProviderName="@_selectedProviderName"
+                  IsUploading="@_isUploading"
+                  IsSidekickVisible="@ChatState.IsSidekickVisible"
+                  CanToggleSidekick="@CanToggleSidekick"
+                  SelectedToolName="@_selectedQuickTool?.Name"
+                  SelectedToolDescription="@_selectedQuickTool?.Description"
+                  SelectedToolIcon="@SelectedToolbarToolIcon"
+                  SelectedSkillName="@_selectedSlashSkill?.Name"
+                  SelectedSkillDescription="@_selectedSlashSkill?.Description"
+                  EnableRagChanged="OnEnableRagChanged"
+                  OnProviderChanged="HandleProviderChanged"
+                  OnOpenQuickCommand="() => _showQuickCommandModal = true"
+                  OnClearSelectedTool="ClearSelectedQuickTool"
+                  OnClearSelectedSkill="ClearSelectedSlashSkill"
+                  OnToggleSidekick="ToggleSidekickAsync"
+                  OnFileSelected="HandleFileUploadAsync" />
+
+    @if (_isUploading || _isSending || _pendingSendRequest != null)
+    {
+        <div class="input-operation-status @(_isUploading ? "uploading" : _isSending ? "sending" : "queued")"
+             role="status"
+             aria-live="polite">
+            @if (_isUploading)
+            {
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>文件已接收，正在解析并准备上下文。</span>
+            }
+            else if (_isSending)
+            {
+                <i class="fa-solid fa-paper-plane"></i>
+                <span>消息正在提交，请稍候。</span>
+            }
+            else
+            {
+                <i class="fa-solid fa-clock"></i>
+                <span>@CurrentPendingOperationStatus</span>
+            }
+        </div>
+    }
+
+    @if (ShouldShowQueueStrip)
+    {
+        <div class="composer-queue-strip" role="status" aria-live="polite">
+            <div class="composer-queue-strip__summary">
+                <span class="composer-queue-strip__label">等待队列</span>
+                <strong class="composer-queue-strip__count">@CurrentQueuedPendingCount 条待发送</strong>
+                @if (!ShouldCollapseQueueStrip)
+                {
+                    <button type="button"
+                            class="composer-queue-strip__toggle"
+                            @onclick="() => _isQueueExpanded = !_isQueueExpanded"
+                            aria-expanded="@_isQueueExpanded"
+                            aria-label="@(_isQueueExpanded ? "收起等待队列" : "展开等待队列")"
+                            title="@(_isQueueExpanded ? "收起等待队列" : "展开等待队列")">
+                        <ChevronDownIcon Size="14"
+                                         CssClass="@($"composer-queue-strip__toggle-icon {(_isQueueExpanded ? "expanded" : string.Empty)}")" />
+                    </button>
+                }
+            </div>
+
+            @if (!ShouldCollapseQueueStrip && _isQueueExpanded)
+            {
+                <div class="composer-queue-strip__panel">
+                    <div class="composer-queue-strip__panel-list">
+                        @foreach (var queuedMessage in QueuedMessages.Take(5))
+                        {
+                            <div class="composer-queue-strip__item" title="@queuedMessage.Content">
+                                <span class="composer-queue-strip__item-index">#@queuedMessage.SequenceNumber</span>
+                                <span class="composer-queue-strip__item-text">@queuedMessage.Content</span>
+                                <button type="button"
+                                        class="composer-queue-strip__item-remove"
+                                        @onclick="() => OnCancelQueuedMessage.InvokeAsync(queuedMessage.Id)"
+                                        aria-label="取消排队消息"
+                                        title="取消排队消息">
+                                    <XIcon Size="12" CssClass="composer-queue-strip__icon" />
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="composer-queue-strip__panel-actions">
+                        <span class="composer-queue-strip__hint">长作业结束后自动继续</span>
+                        <button type="button"
+                                class="composer-queue-strip__clear"
+                                @onclick="() => OnClearQueuedMessages.InvokeAsync()"
+                                aria-label="清空等待队列"
+                                title="清空等待队列">
+                            <TrashIcon Size="12" CssClass="composer-queue-strip__icon" />
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (IsTerminalWaitingForInput)
+    {
+        <div class="terminal-input-hint @(_terminalWaitingPulseActive ? "terminal-input-hint--emphasized" : string.Empty)"
+             role="status"
+             aria-live="polite">
+            <span class="terminal-input-hint__badge">等待输入</span>
+            <span class="terminal-input-hint__text">终端等待输入，当前输入会直接发送到终端。</span>
+        </div>
+    }
+
+    <!-- Text Area -->
+    <div class="input-wrapper">
+        <button type="button"
+                class="input-expand-btn"
+                title="放大输入框"
+                aria-label="放大输入框"
+                @onclick="() => _showExpandedInputModal = true"
+                disabled="@IsDisabled">
+            <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+        </button>
+
+        <textarea @ref="_textareaRef"
+                  value="@_content"
+                  @oninput="HandleInputChanged"
+                  @onkeydown="HandleKeyDownAsync"
+                  @oncompositionstart="HandleCompositionStart"
+                  @oncompositionend="HandleCompositionEnd"
+                  @onpaste="HandlePasteAsync"
+                  @onfocus="HandleTextareaFocus"
+                  @onblur="HandleTextareaBlur"
+                  placeholder="@CurrentInputPlaceholder"
+                  disabled="@IsDisabled"
+                  class="input textarea @(IsTerminalWaitingForInput ? "cli-input-active" : string.Empty)"></textarea>
+    </div>
+
+    <!-- Attachment Preview (Mock) -->
+    @if (_attachments.Any())
+    {
+        <div class="input-attachments">
+            @foreach (var file in _attachments)
+            {
+                <div class="attachment-item">
+                    <FileTextIcon Size="14" />
+                    <span class="file-name">@file</span>
+                    <button class="btn-remove" @onclick="() => RemoveAttachment(file)">×</button>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- Actions -->
+    <div class="input-actions-anchor">
+        <InputActions IsBusy="@IsBusyWithoutCancel"
+                      CanCancel="@CanCancelCurrentRun"
+                      IsBlocked="@IsInteractionBlockingSend"
+                      IsDisabled="IsDisabled"
+                      HasContent="!string.IsNullOrWhiteSpace(_content)"
+                      HasPastedDocuments="_pastedDocuments.Any()"
+                      HasPendingUploads="HasPendingUploads"
+                      IsSending="_isSending"
+                      EnterToSend="_enterToSend"
+                      SendLabel="@CurrentSendLabel"
+                      CancelLabel="@(HasActiveTerminalSession ? "终止 CLI" : "停止")"
+                      BusyLabel="@CurrentBusyLabel"
+                      EnterToSendChanged="OnEnterToSendChanged"
+                      OnSend="HandleSendAsync"
+                      OnCancel="HandleCancelAsync" />
+
+        @if (_isEscCancelArmed && CanCancelCurrentRun)
+        {
+            <div class="esc-cancel-hint-bubble" role="status" aria-live="polite">
+                再按一次 Esc 取消生成
+            </div>
+        }
+    </div>
+</ResizablePanel>
+
+    @if (_showSlashSkillPicker)
+    {
+        <div class="slash-skill-floating-panel" role="listbox" aria-label="技能列表">
+            <div class="slash-skill-picker-header">
+                <span class="slash-skill-picker-title">可用技能</span>
+                <div class="slash-skill-picker-actions">
+                    <span class="slash-skill-picker-meta">输入 / 后按名称、描述、标签模糊检索</span>
+                    @if (!string.IsNullOrWhiteSpace(_slashSkillQuery))
+                    {
+                        <span class="slash-skill-picker-query">关键词：@_slashSkillQuery</span>
+                    }
+                    <button type="button" class="slash-skill-picker-close" @onclick="CloseSlashSkillPickerAsync" aria-label="关闭技能列表">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            @if (_isLoadingSkills)
+            {
+                <div class="slash-skill-picker-empty">正在加载技能列表...</div>
+            }
+            else if (FilteredSlashSkills.Any())
+            {
+                <div class="slash-skill-picker-list" @ref="_slashSkillPickerListRef">
+                    @foreach (var skill in FilteredSlashSkills)
+                    {
+                        <button type="button"
+                                class="slash-skill-item @(IsActiveSlashSkill(skill) ? "active" : string.Empty)"
+                                role="option"
+                                aria-selected="@IsActiveSlashSkill(skill)"
+                                @key="skill.Name"
+                                @onclick="() => SelectSlashSkillAsync(skill)">
+                            <span class="slash-skill-item-main">
+                                <span class="slash-skill-item-title">/@skill.Name</span>
+                                <span class="slash-skill-item-description">@skill.Description</span>
+                            </span>
+                            <span class="slash-skill-item-tags">@BuildSkillTagLine(skill)</span>
+                        </button>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="slash-skill-picker-empty">没有匹配的技能，仅展示当前用户有权限使用的技能。</div>
+            }
+        </div>
+    }
+</div>
+
+@* Modals *@
+@if (_showQuickCommandModal)
+{
+    <QuickCommandModal OnSelect="HandleQuickCommandSelect"
+                       OnClose="() => _showQuickCommandModal = false" />
+}
+
+<ExpandedInputModal IsVisible="_showExpandedInputModal"
+                    Content="@_content"
+                    ContentChanged="UpdateContent"
+                    PastedDocuments="_pastedDocuments"
+                    IsDisabled="IsDisabled"
+                    IsBusy="@IsBusyWithoutCancel"
+                    CanCancel="@CanCancelCurrentRun"
+                    IsBlocked="@IsInteractionBlockingSend"
+                    BusyLabel="@CurrentBusyLabel"
+                    IsUploading="_isUploading"
+                    IsSending="_isSending"
+                    OnSend="HandleSendAsync"
+                    OnCancel="HandleCancelAsync"
+                    OnClose="() => _showExpandedInputModal = false"
+                    OnRemoveDocument="RemovePastedDocument"
+                    OnRetryParseDocument="RetryPastedDocumentParseAsync"
+                    OnContextModeChanged="HandleDocumentContextModeChangedAsync"
+                    OnPaste="HandlePasteAsync"
+                    EnterToSendMessage="_enterToSend" />

@@ -1,0 +1,375 @@
+/* AuditDashboard.razor.css - 审计页父组件样式 */
+
+.audit-dashboard-page {
+    --audit-radius-pill: 999px;
+    --audit-transition: 180ms ease;
+    --audit-surface: var(--dnx-bg-surface);
+    --audit-surface-muted: var(--dnx-bg-surface-muted);
+    --audit-surface-hover: var(--dnx-bg-surface-hover);
+    --audit-border: var(--dnx-border-subtle);
+    --audit-border-strong: var(--dnx-border-default);
+    --audit-text-primary: var(--dnx-text-primary);
+    --audit-text-secondary: var(--dnx-text-secondary);
+    --audit-text-tertiary: var(--dnx-text-tertiary);
+    --audit-shadow: var(--dnx-shadow-sm);
+    --audit-shadow-strong: var(--dnx-shadow-md);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 24px;
+    background: var(--dnx-bg-canvas);
+    overflow: auto;
+}
+
+/* ========================================
+   页面头部
+   ======================================== */
+/* ========================================
+   页面头部
+   ======================================== */
+.page-header {
+    margin-bottom: 20px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.page-header h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--audit-text-primary);
+    margin: 0 0 8px 0;
+    letter-spacing: -0.3px;
+}
+
+.page-header h1 svg {
+    color: var(--dnx-brand-green);
+    width: 24px;
+    height: 24px;
+}
+
+.page-header .subtitle {
+    color: var(--audit-text-secondary);
+    font-size: 13px;
+    margin: 0;
+    opacity: 0.9;
+    padding-left: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.viewing-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    background: var(--dnx-bg-accent-soft);
+    color: var(--dnx-brand-green);
+    border-radius: var(--audit-radius-pill);
+    font-weight: 600;
+    font-size: 11px;
+    border: 1px solid rgba(7, 193, 96, 0.2);
+    box-shadow: none;
+}
+
+.audit-view-switch {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    margin-bottom: 16px;
+    background: var(--dnx-bg-surface);
+    border: 1px solid var(--dnx-border-subtle);
+    border-radius: var(--dnx-radius-md);
+    box-shadow: var(--audit-shadow);
+}
+
+.audit-view-tab {
+    height: 34px;
+    padding: 0 14px;
+    border: none;
+    border-radius: var(--dnx-radius-sm);
+    background: transparent;
+    color: var(--dnx-text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+}
+
+.audit-view-tab:hover {
+    background: var(--dnx-bg-surface-hover);
+    color: var(--dnx-text-primary);
+}
+
+.audit-view-tab.active {
+    background: var(--dnx-bg-accent-soft);
+    color: var(--dnx-brand-green);
+}
+
+/* ========================================
+   筛选工具栏
+   ======================================== */
+.filter-toolbar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: var(--dnx-radius-md);
+    box-shadow: var(--audit-shadow);
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-size: 13px;
+    color: var(--audit-text-secondary);
+    white-space: nowrap;
+}
+
+.filter-group select,
+.filter-group input {
+    padding: 8px 14px;
+    border: 1px solid var(--audit-border-strong);
+    background: var(--audit-surface);
+    color: var(--audit-text-primary);
+    border-radius: var(--dnx-radius-sm);
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--audit-transition), box-shadow var(--audit-transition), background var(--audit-transition);
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+    background: var(--audit-surface);
+    border-color: var(--dnx-brand-green);
+    box-shadow: var(--dnx-focus-ring);
+}
+
+/* ========================================
+   日期筛选
+   ======================================== */
+/* ========================================
+   日期筛选
+   ======================================== */
+.date-filter {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: var(--dnx-radius-md);
+    flex-wrap: wrap;
+    transition: border-color var(--audit-transition), box-shadow var(--audit-transition);
+}
+
+.date-filter .filter-group {
+    min-width: 0;
+}
+
+.date-filter:hover {
+    border-color: var(--audit-border-strong);
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.filter-group label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--audit-text-secondary);
+    white-space: nowrap;
+    min-width: 48px;
+}
+
+.filter-group select,
+.filter-group input {
+    height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--audit-border-strong);
+    background: var(--audit-surface-muted);
+    color: var(--audit-text-primary);
+    border-radius: 6px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color var(--audit-transition), background var(--audit-transition), box-shadow var(--audit-transition);
+    min-width: 120px;
+}
+
+.date-filter .filter-group:last-child select,
+.date-filter .filter-group:nth-last-child(2) select,
+.date-filter .filter-group:nth-last-child(3) select {
+    min-width: 132px;
+}
+
+.filter-group select:focus,
+.filter-group input:focus {
+    border-color: var(--dnx-brand-green);
+    background: var(--audit-surface);
+    box-shadow: var(--dnx-focus-ring);
+}
+
+.filter-group select:hover,
+.filter-group input:hover {
+    border-color: var(--audit-border-strong);
+}
+
+/* ========================================
+   加载状态
+   ======================================== */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 60px;
+    color: var(--audit-text-secondary);
+}
+
+/* ========================================
+   错误状态样式
+   ======================================== */
+.error-state-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    padding: 40px;
+}
+
+.error-state-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 48px;
+    background: var(--audit-surface);
+    border: 1px solid var(--audit-border);
+    border-radius: 14px;
+    max-width: 420px;
+    box-shadow: var(--audit-shadow-strong);
+    animation: fadeIn 0.24s ease-out;
+}
+
+.error-state-icon {
+    color: #fa5151;
+    margin-bottom: 20px;
+    opacity: 0.8;
+}
+
+.error-state-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--audit-text-primary);
+    margin: 0 0 12px 0;
+}
+
+.error-state-message {
+    font-size: 14px;
+    color: var(--audit-text-secondary);
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+}
+
+.retry-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    background: var(--dnx-brand-green);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--audit-radius-pill);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform var(--audit-transition), background var(--audit-transition), box-shadow var(--audit-transition);
+    box-shadow: var(--audit-shadow);
+}
+
+.retry-button:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--audit-shadow-strong);
+    background: var(--dnx-brand-green-hover);
+}
+
+.retry-button:active {
+    transform: scale(0.96);
+}
+
+.audit-view-tab:focus-visible,
+.retry-button:focus-visible,
+.filter-group select:focus-visible,
+.filter-group input:focus-visible {
+    outline: none;
+    box-shadow: var(--dnx-focus-ring);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* ========================================
+   响应式优化
+   ======================================== */
+@media (max-width: 768px) {
+    .audit-dashboard-page {
+        padding: 16px;
+    }
+
+    .page-header h1 {
+        font-size: 18px;
+    }
+
+    .filter-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filter-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .date-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .audit-view-switch {
+        display: flex;
+        width: 100%;
+    }
+
+    .audit-view-tab {
+        flex: 1;
+    }
+
+    .date-filter .filter-group:last-child select,
+    .date-filter .filter-group:nth-last-child(2) select,
+    .date-filter .filter-group:nth-last-child(3) select,
+    .filter-group select,
+    .filter-group input {
+        min-width: 0;
+        width: 100%;
+    }
+}

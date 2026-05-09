@@ -1,0 +1,33 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+
+@* 图表块渲染器 - 共用组件 *@
+@* 用于 MessageList (流式) 和 MessageItem (历史消息) 中渲染图表 *@
+
+<div class="chart-block-container" style="margin: 16px 0; width: 100%;">
+    <PlotlyChart 
+        Title="@GetTitle()"
+        Data="@Block.Content"
+        Layout="@GetLayout()" />
+</div>
+
+@code {
+    /// <summary>
+    /// 图表 Block 数据
+    /// </summary>
+    [Parameter, EditorRequired] 
+    public BlockDto Block { get; set; } = default!;
+
+    /// <summary>
+    /// 获取图表标题
+    /// </summary>
+    private string GetTitle() => MetadataHelper.GetString(Block.Metadata, ArtifactBlockMetadataConstants.Title, ArtifactBlockMetadataConstants.DefaultChartTitle);
+
+    /// <summary>
+    /// 获取图表布局配置
+    /// </summary>
+    private string GetLayout() => MetadataHelper.GetString(Block.Metadata, ArtifactBlockMetadataConstants.Layout, "{}");
+}

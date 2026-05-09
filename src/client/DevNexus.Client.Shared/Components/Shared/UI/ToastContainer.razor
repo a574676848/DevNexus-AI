@@ -1,0 +1,124 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@inject ToastService ToastService
+@using DevNexus.Client.Shared.Services.UI
+@implements IDisposable
+
+<div class="toast-container">
+    @foreach (var toast in _toasts)
+    {
+        <div class="toast toast-@toast.Type.ToString().ToLower() @(toast.IsClosing ? "closing" : "")"
+             @onclick="() => HandleToastClick(toast)">
+            @if (!string.IsNullOrEmpty(toast.Title))
+            {
+                <div class="toast-title">@toast.Title</div>
+            }
+            
+            <div class="toast-body">
+                <i class="toast-icon @GetIconClass(toast.Type)"></i>
+                <span class="toast-message">@toast.Message</span>
+            </div>
+            
+            @if (toast.ShowClose)
+            {
+                <button class="toast-close" @onclick="() => CloseToast(toast.Id)" @onclick:stopPropagation="true">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ToastOptions> _toasts = new();
+    private CancellationTokenSource? _removeCts;
+    
+    protected override void OnInitialized()
+    {
+        ToastService.OnToastAdded += AddToast;
+        ToastService.OnToastRemoved += RemoveToast;
+        ToastService.OnToastsCleared += ClearToasts;
+    }
+    
+    private void AddToast(ToastOptions toast)
+    {
+        _toasts.Add(toast);
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private void RemoveToast(string toastId)
+    {
+        var toast = _toasts.FirstOrDefault(t => t.Id == toastId);
+        if (toast != null)
+        {
+            toast.IsClosing = true;
+            InvokeAsync(StateHasChanged);
+            
+            // 等待关闭动画完成后移除
+            CancelAndDispose(ref _removeCts);
+            _removeCts = new CancellationTokenSource();
+            _ = RemoveAfterDelayAsync(toastId, 200, _removeCts.Token);
+        }
+    }
+
+    private async Task RemoveAfterDelayAsync(string toastId, int delayMs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(delayMs, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            _toasts.RemoveAll(t => t.Id == toastId);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+    
+    private void ClearToasts()
+    {
+        _toasts.Clear();
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private void HandleToastClick(ToastOptions toast)
+    {
+        toast.OnClick?.Invoke();
+    }
+    
+    private void CloseToast(string toastId)
+    {
+        ToastService.Remove(toastId);
+    }
+    
+    private string GetIconClass(ToastType type)
+    {
+        return type switch
+        {
+            ToastType.Success => "fa-solid fa-circle-check text-success",
+            ToastType.Error => "fa-solid fa-circle-exclamation text-error",
+            ToastType.Warning => "fa-solid fa-triangle-exclamation text-warning",
+            _ => "fa-solid fa-circle-info text-info"
+        };
+    }
+    
+    public void Dispose()
+    {
+        ToastService.OnToastAdded -= AddToast;
+        ToastService.OnToastRemoved -= RemoveToast;
+        ToastService.OnToastsCleared -= ClearToasts;
+
+        CancelAndDispose(ref _removeCts);
+    }
+
+    private static void CancelAndDispose(ref CancellationTokenSource? cts)
+    {
+        if (cts == null) return;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
+        cts = null;
+    }
+}

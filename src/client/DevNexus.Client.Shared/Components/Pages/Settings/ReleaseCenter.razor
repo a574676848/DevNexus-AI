@@ -1,0 +1,671 @@
+@page "/settings/release-center"
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Editor
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IJSRuntime JS
+
+<div class="release-center-page" data-ui-scope="release-center">
+    <div class="release-center-shell">
+        <main class="release-center-main">
+            @if (isLoading)
+            {
+                <div class="content-state">
+                    <LoadingSpinner Message="正在加载发布中心..." Size="md" />
+                </div>
+            }
+            else if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="state-card state-card--error">
+                    <AlertCircleIcon Size="20" />
+                    <span>@errorMessage</span>
+                </div>
+            }
+            else
+            {
+                <header class="page-header">
+                    <div class="page-header__left">
+                        <div class="page-title-block">
+                            <h1>发布中心</h1>
+                        </div>
+                        <div class="view-switcher" aria-label="发布中心视图切换">
+                            <button class="view-switcher__tab @(activeView == WorkflowView ? "active" : null)" @onclick="@(() => SwitchView(WorkflowView))">发布流程</button>
+                            <button class="view-switcher__tab @(activeView == DashboardView ? "active" : null)" @onclick="@(() => SwitchView(DashboardView))">运行概览</button>
+                        </div>
+                    </div>
+                    <div class="page-header__actions">
+                        @if (activeView == WorkflowView)
+                        {
+                            <button class="primary-action" @onclick="OpenPublishWizard">发布向导</button>
+                        }
+                        <button class="ghost-action" @onclick="RefreshAsync" disabled="@isLoading">
+                            <RefreshIcon Size="14" />
+                            <span>刷新</span>
+                        </button>
+                    </div>
+                </header>
+
+                @if (activeView == WorkflowView)
+                {
+                    <section class="content-stack">
+                        <section class="workflow-summary-row">
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">版本总数</span>
+                                <strong class="summary-metric__value">@releases.Count</strong>
+                            </article>
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">已发布</span>
+                                <strong class="summary-metric__value">@ReadyReleaseCount</strong>
+                            </article>
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">投放策略</span>
+                                <strong class="summary-metric__value">@rollouts.Count</strong>
+                            </article>
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">生效投放</span>
+                                <strong class="summary-metric__value">@ActiveRolloutCount</strong>
+                            </article>
+                        </section>
+
+                        <section class="surface-card surface-card--workflow">
+                            <div class="section-head">
+                                <h3>构建元数据导入</h3>
+                                <button class="primary-action" @onclick="ImportMetadataAsync" disabled="@isSaving">导入元数据</button>
+                            </div>
+
+                            <div class="workflow-import-layout">
+                                <div class="workflow-import-main">
+                                    <div class="metadata-editor-area">
+                                        <div class="metadata-editor__wrapper">
+                                            <MonacoEditor @ref="_importMetadataEditor"
+                                                          Content="@importMetadataJson"
+                                                          Language="json"
+                                                          Theme="vs-light"
+                                                          FontSize="13"
+                                                          ShowMinimap="false"
+                                                          WordWrap="true"
+                                                          OnContentChanged="HandleImportMetadataChangedAsync" />
+                                            <div class="metadata-editor__toolbar">
+                                                <button class="metadata-editor__btn" type="button" title="格式化 JSON" @onclick="FormatImportMetadataJson">
+                                                    <ListIcon Size="14" />
+                                                </button>
+                                                <button class="metadata-editor__btn" type="button" title="放大查看" @onclick="OpenImportMetadataDialog">
+                                                    <MaximizeIcon Size="14" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="metadata-status @(HasImportMetadataJsonError ? "metadata-status--error" : "metadata-status--ok")">
+                                            @ImportMetadataJsonStatusText
+                                        </div>
+                                    </div>
+
+                                    <div class="checkbox-row">
+                                        <label class="checkbox-label"><input type="checkbox" @bind="importPublishRelease" /> <span>导入即发布</span></label>
+                                        <label class="checkbox-label"><input type="checkbox" @bind="importCreateRollout" /> <span>导入即创建投放</span></label>
+                                    </div>
+                                </div>
+
+                                <aside class="workflow-import-side">
+                                    <section class="workflow-side-panel">
+                                        <div class="workflow-side-panel__section">
+                                            <div class="workflow-side-panel__label">模板</div>
+                                            <div class="workflow-side-panel__actions">
+                                                <button class="ghost-action ghost-action--sm" @onclick="@(() => LoadImportMetadataTemplate("stable"))">稳定版</button>
+                                                <button class="ghost-action ghost-action--sm" @onclick="@(() => LoadImportMetadataTemplate("gray"))">灰度版</button>
+                                            </div>
+                                        </div>
+
+                                        <div class="workflow-side-panel__section">
+                                            <div class="workflow-side-panel__label">状态</div>
+                                            <div class="workflow-side-panel__value">@(HasImportMetadataJsonError ? "待修正" : "就绪")</div>
+                                            <div class="workflow-side-panel__hint">@(HasImportMetadataJsonError ? "JSON 格式错误" : "JSON 校验通过")</div>
+                                        </div>
+
+                                        <div class="workflow-side-panel__section">
+                                            <div class="workflow-side-panel__label">后续</div>
+                                            <div class="workflow-side-panel__value">运行概览</div>
+                                            <div class="workflow-side-panel__hint">版本、投放、异常</div>
+                                        </div>
+                                    </section>
+                                </aside>
+                            </div>
+                        </section>
+                    </section>
+                }
+
+                @if (activeView == DashboardView)
+                {
+                    <nav class="dashboard-tabs">
+                        <button class="dashboard-tabs__item @(activeTab == OverviewTab ? "active" : null)" @onclick="@(() => SwitchTab(OverviewTab))">总览</button>
+                        <button class="dashboard-tabs__item @(activeTab == ReleasesTab ? "active" : null)" @onclick="@(() => SwitchTab(ReleasesTab))">版本列表</button>
+                        <button class="dashboard-tabs__item @(activeTab == RolloutsTab ? "active" : null)" @onclick="@(() => SwitchTab(RolloutsTab))">投放策略</button>
+                        <button class="dashboard-tabs__item @(activeTab == ObservabilityTab ? "active" : null)" @onclick="@(() => SwitchTab(ObservabilityTab))">运行观测</button>
+                    </nav>
+                }
+
+                @if (activeView == DashboardView && activeTab == OverviewTab)
+                {
+                    <section class="content-stack">
+                        <div class="overview-row">
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">最近版本</span>
+                                <strong class="summary-metric__value">@(LatestRelease?.Version ?? "暂无")</strong>
+                                @if (LatestRelease != null)
+                                {
+                                    <span class="summary-metric__sub">@($"{LatestRelease.Channel} / {GetReleaseStatusText(LatestRelease.Status)}")</span>
+                                }
+                            </article>
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">最近投放记录</span>
+                                <strong class="summary-metric__value">@(LatestRollout?.ReleaseVersion ?? "暂无")</strong>
+                                @if (LatestRollout != null)
+                                {
+                                    <span class="summary-metric__sub">@($"{LatestRollout.Platform} / {GetRolloutStatusText(LatestRollout)}")</span>
+                                }
+                            </article>
+                            <article class="summary-metric summary-metric--danger">
+                                <span class="summary-metric__label">异常数</span>
+                                <strong class="summary-metric__value">@observability.FailedCount</strong>
+                            </article>
+                        </div>
+
+                        <section class="surface-card">
+                            <div class="section-head">
+                                <h3>最近异常</h3>
+                            </div>
+
+                            @if (observabilityDetails.RecentFailures.Count == 0)
+                            {
+                                <div class="empty-tip">最近没有失败事件。</div>
+                            }
+                            else
+                            {
+                                <div class="list-stack">
+                                    @foreach (var failure in observabilityDetails.RecentFailures.Take(5))
+                                    {
+                                        <article class="list-item list-item--stack">
+                                            <div class="title-row">
+                                                <strong>@GetEventTypeText(failure.EventType)</strong>
+                                                <span class="status-chip status-chip--archived">@GetResultText(failure.Result)</span>
+                                            </div>
+                                            <div class="meta-row">
+                                                <span>@failure.Platform / @failure.Architecture / @failure.Channel</span>
+                                                <span>@failure.CurrentVersion -> @failure.TargetVersion</span>
+                                                <span>@failure.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    </section>
+                }
+
+                @if (activeView == DashboardView && activeTab == ReleasesTab)
+                {
+                    <section class="content-stack">
+                        <section class="surface-card">
+                            <div class="section-head">
+                                <h3>版本列表</h3>
+                                <button class="primary-action" type="button" @onclick="OpenPublishWizard">发布向导</button>
+                            </div>
+                            @if (releases.Count == 0)
+                            {
+                                <div class="empty-tip empty-tip--action">
+                                    <span>暂无版本记录，先用发布向导导入或创建版本。</span>
+                                    <button class="primary-action" type="button" @onclick="OpenPublishWizard">发布向导</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="list-stack">
+                                    @foreach (var release in releases)
+                                    {
+                                        <article class="list-item list-item--panel">
+                                            <div class="list-item__main">
+                                                <div class="title-row">
+                                                    <strong>@release.Title</strong>
+                                                    <span class="status-chip status-chip--@release.Status">@GetReleaseStatusText(release.Status)</span>
+                                                </div>
+                                                <div class="meta-row meta-row--dense">
+                                                    <span class="meta-pill">版本 @release.Version</span>
+                                                    <span class="meta-pill">渠道 @release.Channel</span>
+                                                    <span class="meta-pill">@release.Artifacts.Count 个发布包</span>
+                                                    <span class="meta-pill">@GetReleaseRolloutCount(release.ReleaseId) 个投放</span>
+                                                </div>
+                                            </div>
+                                            <div class="list-actions">
+                                                <button class="ghost-action ghost-action--sm" type="button" title="编辑版本" @onclick="@(() => OpenReleaseEditor(release))">
+                                                    <EditPencilIcon Size="14" />
+                                                    <span>编辑</span>
+                                                </button>
+                                                @if (string.Equals(release.Status, "draft", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <button class="ghost-action ghost-action--sm" type="button" title="发布版本" @onclick="@(() => PublishReleaseAsync(release.ReleaseId))" disabled="@isSaving">
+                                                        <CheckIcon Size="14" />
+                                                        <span>发布</span>
+                                                    </button>
+                                                }
+                                                else if (string.Equals(release.Status, "published", StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <button class="ghost-action ghost-action--sm" type="button" title="归档版本" @onclick="@(() => ArchiveReleaseAsync(release.ReleaseId))" disabled="@isSaving">
+                                                        <StorageIcon Size="14" />
+                                                        <span>归档</span>
+                                                    </button>
+                                                }
+                                                <button class="danger-link" type="button" title="删除版本" @onclick="@(() => DeleteReleaseAsync(release.ReleaseId, release.Title))" disabled="@isSaving">
+                                                    <TrashIcon Size="14" />
+                                                    <span>删除</span>
+                                                </button>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    </section>
+                }
+
+                @if (activeView == DashboardView && activeTab == RolloutsTab)
+                {
+                    <section class="content-stack">
+                        <section class="workflow-summary-row">
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">生效投放</span>
+                                <strong class="summary-metric__value">@ActiveRolloutCount</strong>
+                            </article>
+                            <article class="summary-metric">
+                                <span class="summary-metric__label">最近投放版本</span>
+                                <strong class="summary-metric__value">@(LatestRollout?.ReleaseVersion ?? "暂无")</strong>
+                                <span class="summary-metric__sub">@(LatestRollout == null ? "" : $"{LatestRollout.Platform} / {LatestRollout.Channel}")</span>
+                            </article>
+                            <article class="summary-metric summary-metric--danger">
+                                <span class="summary-metric__label">熔断策略</span>
+                                <strong class="summary-metric__value">@rollouts.Count(item => item.KillSwitchEnabled)</strong>
+                                <span class="summary-metric__sub">已启用</span>
+                            </article>
+                        </section>
+
+                        <section class="surface-card">
+                            <div class="section-head">
+                                <h3>投放列表</h3>
+                                <button class="primary-action" type="button" @onclick="OpenPublishWizard">发布向导</button>
+                            </div>
+
+                            @if (rollouts.Count == 0)
+                            {
+                                <div class="empty-tip empty-tip--action">
+                                    <span>暂无投放规则，先发布版本后再创建投放。</span>
+                                    <button class="primary-action" type="button" @onclick="OpenPublishWizard">发布向导</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="list-stack">
+                                    @foreach (var rollout in rollouts)
+                                    {
+                                        <article class="list-item list-item--panel">
+                                            <div class="list-item__main">
+                                                <div class="title-row">
+                                                    <strong>@(string.IsNullOrWhiteSpace(rollout.ReleaseTitle) ? rollout.ReleaseVersion : rollout.ReleaseTitle)</strong>
+                                                    <span class="status-chip @GetRolloutStatusClass(rollout)">@GetRolloutStatusText(rollout)</span>
+                                                </div>
+                                                <div class="meta-row meta-row--dense">
+                                                    <span class="meta-pill">版本 @rollout.ReleaseVersion</span>
+                                                    <span class="meta-pill">@rollout.Platform / @rollout.Architecture</span>
+                                                    <span class="meta-pill">渠道 @rollout.Channel</span>
+                                                    <span class="meta-pill">灰度 @rollout.RolloutPercent%</span>
+                                                </div>
+                                            </div>
+                                            <div class="list-actions">
+                                                <button class="ghost-action ghost-action--sm" type="button" title="编辑投放" @onclick="@(() => OpenRolloutEditor(rollout))">
+                                                    <EditPencilIcon Size="14" />
+                                                    <span>编辑</span>
+                                                </button>
+                                                <button class="ghost-action ghost-action--sm" type="button" title="用于评估" @onclick="@(() => PreviewRolloutAsync(rollout))" disabled="@isSaving">
+                                                    <ActivityIcon Size="14" />
+                                                    <span>评估</span>
+                                                </button>
+                                                @if (rollout.Enabled && !rollout.KillSwitchEnabled)
+                                                {
+                                                    <button class="ghost-action ghost-action--sm" type="button" title="暂停投放" @onclick="@(() => PauseRolloutAsync(rollout.RolloutId))" disabled="@isSaving">
+                                                        <MinimizeIcon Size="14" />
+                                                        <span>暂停</span>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="ghost-action ghost-action--sm" type="button" title="恢复投放" @onclick="@(() => ResumeRolloutAsync(rollout.RolloutId))" disabled="@isSaving">
+                                                        <RefreshIcon Size="14" />
+                                                        <span>恢复</span>
+                                                    </button>
+                                                }
+                                                <button class="ghost-action ghost-action--sm" type="button" title="回滚投放" @onclick="@(() => RollbackRolloutAsync(rollout.RolloutId))" disabled="@isSaving">
+                                                    <ChevronLeftIcon Size="14" />
+                                                    <span>回滚</span>
+                                                </button>
+                                                <button class="danger-link" type="button" title="删除投放" @onclick="@(() => DeleteRolloutAsync(rollout.RolloutId, rollout.ReleaseVersion))" disabled="@isSaving">
+                                                    <TrashIcon Size="14" />
+                                                    <span>删除</span>
+                                                </button>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                        </section>
+
+                        <section class="surface-card">
+                            <div class="section-head">
+                                <h3>投放评估</h3>
+                                <button class="ghost-action" type="button" @onclick="PreviewManifestAsync" disabled="@(isSaving || (rollouts.Count == 0 && string.IsNullOrWhiteSpace(rolloutForm.ReleaseIdString)))">
+                                    <ActivityIcon Size="14" />
+                                    <span>模拟评估</span>
+                                </button>
+                            </div>
+
+                            @if (previewResult == null)
+                            {
+                                <div class="empty-tip">选择一条投放后即可模拟评估。</div>
+                            }
+                            else
+                            {
+                                <div class="preview-result">
+                                    <div class="title-row">
+                                        <strong>评估结论</strong>
+                                        <span class="status-chip">@GetPreviewDecisionText(previewResult.Decision)</span>
+                                    </div>
+                                    <div class="meta-row">
+                                        <span>原因：@previewResult.Reason</span>
+                                        <span>渠道：@previewResult.Channel</span>
+                                        <span>命中发布包：@previewResult.Artifacts.Count</span>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="hint-row">
+                                <div class="hint-item">
+                                    <span class="hint-item__label">目标版本</span>
+                                    <strong>@(GetPreviewRolloutSource()?.ReleaseVersion ?? "待选择")</strong>
+                                </div>
+                                <div class="hint-item">
+                                    <span class="hint-item__label">灰度比例</span>
+                                    <strong>@(GetPreviewRolloutSource() == null ? "待配置" : $"{GetPreviewRolloutSource()!.RolloutPercent}%")</strong>
+                                </div>
+                                <div class="hint-item">
+                                    <span class="hint-item__label">保护策略</span>
+                                    <strong>@(GetPreviewRolloutSource()?.KillSwitchEnabled == true ? "熔断优先" : "常规执行")</strong>
+                                </div>
+                            </div>
+                        </section>
+                    </section>
+                }
+
+                @if (activeView == DashboardView && activeTab == ObservabilityTab)
+                {
+                    <section class="content-stack">
+                        <div class="filter-bar">
+                            <div class="filter-bar__fields">
+                                <label class="filter-field">
+                                    <span>版本</span>
+                                    <select @bind="observabilityFilter.ReleaseId">
+                                        <option value="">全部版本</option>
+                                        @foreach (var release in releases)
+                                        {
+                                            <option value="@release.ReleaseId">@($"{release.Version} / {release.Channel}")</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>投放策略</span>
+                                    <select @bind="observabilityFilter.RolloutId">
+                                        <option value="">全部投放</option>
+                                        @foreach (var rollout in rollouts)
+                                        {
+                                            <option value="@rollout.RolloutId">@($"{rollout.ReleaseVersion} / {rollout.Platform}")</option>
+                                        }
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>天数</span>
+                                    <select @bind="observabilityFilter.Days">
+                                        <option value="7">7 天</option>
+                                        <option value="30">30 天</option>
+                                        <option value="90">90 天</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>事件</span>
+                                    <select @bind="observabilityFilter.EventType">
+                                        <option value="">全部事件</option>
+                                        <option value="check">检查更新</option>
+                                        <option value="update_available">发现新版本</option>
+                                        <option value="download_started">开始下载</option>
+                                        <option value="download_completed">下载完成</option>
+                                        <option value="verify_completed">校验完成</option>
+                                        <option value="updater_launched">启动安装器</option>
+                                        <option value="install_completed">安装完成</option>
+                                        <option value="install_failed">安装失败</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>结果</span>
+                                    <select @bind="observabilityFilter.Result">
+                                        <option value="">全部</option>
+                                        <option value="success">成功</option>
+                                        <option value="failed">失败</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <button class="primary-action" @onclick="ApplyObservabilityFiltersAsync" disabled="@isLoading">筛选</button>
+                        </div>
+
+                        <div class="metrics-grid">
+                            @foreach (var metric in GetObservabilityMetrics())
+                            {
+                                <article class="metric-card">
+                                    <span class="metric-card__label">@metric.Label</span>
+                                    <strong class="metric-card__value">@metric.Value</strong>
+                                </article>
+                            }
+                        </div>
+
+                        <div class="panel-grid">
+                            <section class="surface-card">
+                                <div class="section-head">
+                                    <div>
+                                    <h3>失败原因</h3>
+                                    </div>
+                                </div>
+
+                                @if (observabilityDetails.FailureReasons.Count == 0)
+                                {
+                                    <div class="empty-tip">最近没有失败事件。</div>
+                                }
+                                else
+                                {
+                                    <div class="list-stack">
+                                        @foreach (var reason in observabilityDetails.FailureReasons)
+                                        {
+                                            <article class="list-item">
+                                                <div class="list-item__main">
+                                                    <strong>@reason.ErrorCode</strong>
+                                                </div>
+                                                <div class="metric-inline">@reason.Count</div>
+                                            </article>
+                                        }
+                                    </div>
+                                }
+                            </section>
+
+                            <section class="surface-card">
+                                <div class="section-head">
+                                    <div>
+                                    <h3>事件漏斗</h3>
+                                    </div>
+                                </div>
+
+                                @if (observabilityDetails.EventMetrics.Count == 0)
+                                {
+                                    <div class="empty-tip">筛选范围内无事件数据。</div>
+                                }
+                                else
+                                {
+                                    <div class="list-stack">
+                                        @foreach (var metric in observabilityDetails.EventMetrics)
+                                        {
+                                            <article class="list-item">
+                                                <div class="list-item__main">
+                                                    <div class="title-row">
+                                                        <strong>@GetEventTypeText(metric.EventType)</strong>
+                                                        <span class="status-chip @(metric.Result == "failed" ? "status-chip--archived" : "status-chip--published")">@GetResultText(metric.Result)</span>
+                                                    </div>
+                                                </div>
+                                                <div class="metric-inline">@metric.Count</div>
+                                            </article>
+                                        }
+                                    </div>
+                                }
+                            </section>
+
+                            <section class="surface-card surface-card--wide">
+                                <div class="section-head">
+                                    <div>
+                                    <h3>时间趋势</h3>
+                                    </div>
+                                </div>
+
+                                @if (observabilityDetails.DailyTrends.Count == 0)
+                                {
+                                    <div class="empty-tip">筛选范围内无趋势数据。</div>
+                                }
+                                else
+                                {
+                                    <div class="trend-grid">
+                                        <div class="trend-card">
+                                            <div class="title-row">
+                                                <strong>检查更新</strong>
+                                                <span class="status-chip">@observabilityDetails.DailyTrends.Sum(item => item.CheckCount)</span>
+                                            </div>
+                                            <svg class="trend-chart" viewBox="0 0 100 44" preserveAspectRatio="none">
+                                                <polyline points="@checkTrendPolyline" />
+                                            </svg>
+                                        </div>
+                                        <div class="trend-card">
+                                            <div class="title-row">
+                                                <strong>发现新版本</strong>
+                                                <span class="status-chip">@observabilityDetails.DailyTrends.Sum(item => item.UpdateAvailableCount)</span>
+                                            </div>
+                                            <svg class="trend-chart" viewBox="0 0 100 44" preserveAspectRatio="none">
+                                                <polyline points="@updateAvailableTrendPolyline" />
+                                            </svg>
+                                        </div>
+                                        <div class="trend-card">
+                                            <div class="title-row">
+                                                <strong>安装完成</strong>
+                                                <span class="status-chip status-chip--published">@observabilityDetails.DailyTrends.Sum(item => item.InstallCompletedCount)</span>
+                                            </div>
+                                            <svg class="trend-chart" viewBox="0 0 100 44" preserveAspectRatio="none">
+                                                <polyline points="@installCompletedTrendPolyline" />
+                                            </svg>
+                                        </div>
+                                        <div class="trend-card">
+                                            <div class="title-row">
+                                                <strong>失败次数</strong>
+                                                <span class="status-chip status-chip--archived">@observabilityDetails.DailyTrends.Sum(item => item.FailedCount)</span>
+                                            </div>
+                                            <svg class="trend-chart trend-chart--danger" viewBox="0 0 100 44" preserveAspectRatio="none">
+                                                <polyline points="@failedTrendPolyline" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                }
+                            </section>
+
+                            <section class="surface-card surface-card--wide">
+                                <div class="section-head">
+                                    <div>
+                                    <h3>最近失败事件</h3>
+                                    </div>
+                                </div>
+
+                                @if (observabilityDetails.RecentFailures.Count == 0)
+                                {
+                                    <div class="empty-tip">最近没有失败事件。</div>
+                                }
+                                else
+                                {
+                                    <div class="list-stack">
+                                        @foreach (var failure in observabilityDetails.RecentFailures)
+                                        {
+                                            <article class="list-item list-item--stack">
+                                                <div class="title-row">
+                                                    <strong>@GetEventTypeText(failure.EventType)</strong>
+                                                    <span class="status-chip status-chip--archived">@GetResultText(failure.Result)</span>
+                                                </div>
+                                                <div class="meta-row">
+                                                    <span>@failure.Platform / @failure.Architecture / @failure.Channel</span>
+                                                    <span>@failure.CurrentVersion -> @failure.TargetVersion</span>
+                                                    <span>@failure.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(failure.ErrorMessage))
+                                                {
+                                                    <div class="failure-message">@failure.ErrorMessage</div>
+                                                }
+                                            </article>
+                                        }
+                                    </div>
+                                }
+                            </section>
+                        </div>
+                    </section>
+                }
+            }
+        </main>
+    </div>
+</div>
+
+@if (showImportMetadataExpanded)
+{
+    <div data-ui-scope="release-center">
+        <div class="editor-overlay" @onclick="CloseImportMetadataDialog">
+            <div class="editor-modal" @onclick:stopPropagation="true">
+                <div class="editor-modal__header">
+                    <h3>构建元数据</h3>
+                    <button class="icon-action" type="button" title="关闭" aria-label="关闭" @onclick="CloseImportMetadataDialog">
+                        <XIcon Size="16" />
+                    </button>
+                </div>
+                <div class="editor-modal__body">
+                    <div class="metadata-editor__wrapper metadata-editor__wrapper--expanded">
+                        <MonacoEditor @ref="_importMetadataEditor"
+                                      Content="@importMetadataJson"
+                                      Language="json"
+                                      Theme="vs-light"
+                                      FontSize="13"
+                                      ShowMinimap="false"
+                                      WordWrap="true"
+                                      OnContentChanged="HandleImportMetadataChangedAsync" />
+                        <div class="metadata-editor__toolbar">
+                            <button class="metadata-editor__btn" type="button" title="格式化 JSON" @onclick="FormatImportMetadataJson">
+                                <ListIcon Size="14" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="editor-modal__footer">
+                    <div class="metadata-status @(HasImportMetadataJsonError ? "metadata-status--error" : "metadata-status--ok")">
+                        @ImportMetadataJsonStatusText
+                    </div>
+                    <button class="primary-action" type="button" @onclick="CloseImportMetadataDialog">完成</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showPublishWizard)
+{
+    <ReleaseCenterPublishWizard Owner="this" />
+}

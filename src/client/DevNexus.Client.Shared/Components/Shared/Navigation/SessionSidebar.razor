@@ -1,0 +1,424 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Models
+@inject IJSRuntime JS
+
+<div class="session-sidebar">
+    <!-- Search & Add Header -->
+    <div class="sidebar-header">
+        <div class="search-box">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="搜索" @bind="searchKeyword" @bind:event="oninput" />
+        </div>
+        <button class="btn-collapse-sidebar"
+                @onclick="HandleCollapseSidebarAsync"
+                title="收起会话栏"
+                aria-label="收起会话栏">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6"></path>
+            </svg>
+        </button>
+        <button class="btn-add" @onclick="OnNewSessionClick" title="新建会话">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Session List -->
+    <div class="session-list">
+        @if (IsLoading && (Sessions == null || !Sessions.Any()))
+        {
+            @for (var i = 0; i < 5; i++)
+            {
+                <div class="session-item session-item--skeleton">
+                    <div class="session-avatar session-avatar--skeleton">
+                        <span class="skeleton-pulse"></span>
+                    </div>
+                    <div class="session-content session-content--skeleton">
+                        <div class="session-row-top">
+                            <div class="session-title-group">
+                                <span class="session-title skeleton-line skeleton-line--title"></span>
+                            </div>
+                            <span class="session-date skeleton-line skeleton-line--date"></span>
+                        </div>
+                        <div class="session-row-bottom">
+                            <span class="session-preview skeleton-line skeleton-line--preview"></span>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else if (FilteredSessions != null && FilteredSessions.Any())
+        {
+            @foreach (var session in FilteredSessions)
+            {
+                <div class="session-item @(session.Id == CurrentSessionId ? "active" : "") @(session.IsPinned ? "pinned" : "") @(_pendingSessionId == session.Id ? "loading" : "")"
+                     @onclick="() => OnSessionSelect(session.Id)"
+                     @oncontextmenu="(e) => ShowContextMenu(e, session)"
+                     @oncontextmenu:preventDefault="true">
+                    
+                    @* 固定图标 *@
+                    @if (session.IsPinned)
+                    {
+                        <div class="pin-indicator" title="已固定">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M16 4l4 4-1.5 1.5L20 11l-2 2-4-4-4 4-2-2 4-4-4-4 2-2 4 4L16 4z"/>
+                            </svg>
+                        </div>
+                    }
+                    
+                    <div class="session-avatar">
+                        @* 生成中动画指示器 *@
+                        @if (!session.RunPresentation.IsIdle)
+                        {
+                            <div class="session-run-indicator @GetRunIndicatorClass(session.Id)"
+                                 title="@GetRunStateText(session.Id)"></div>
+                        }
+                        @if (_pendingSessionId == session.Id)
+                        {
+                            <div class="loading-indicator" title="正在载入会话"></div>
+                        }
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                    </div>
+                    
+                    <div class="session-content">
+                        <div class="session-row-top">
+                            <div class="session-title-group">
+                                <span class="session-title">@session.Title</span>
+                                @if (!session.RunPresentation.IsIdle)
+                                {
+                                    <span class="session-run-badge">@GetRunStateText(session.Id)</span>
+                                }
+                            </div>
+                            <span class="session-date">@FormatTime(session.UpdatedAt)</span>
+                        </div>
+                        <div class="session-row-bottom">
+                            <span class="session-preview">@GetPreviewText(session)</span>
+                        </div>
+                    </div>
+                    
+                    @* 三点菜单按钮 *@
+                    <button class="session-menu-btn" 
+                            @onclick:stopPropagation="true"
+                            @onclick="(e) => ShowContextMenu(e, session)"
+                            title="更多操作">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="5" r="2"></circle>
+                            <circle cx="12" cy="12" r="2"></circle>
+                            <circle cx="12" cy="19" r="2"></circle>
+                        </svg>
+                    </button>
+                </div>
+            }
+        }
+        else if (Sessions != null && Sessions.Any())
+        {
+            <div class="empty-search">
+                <span>没有找到匹配的会话</span>
+            </div>
+        }
+        else
+        {
+            <div class="empty-list">
+                <span>暂无会话</span>
+                <button class="btn-create" @onclick="OnNewSessionClick">新建会话</button>
+            </div>
+        }
+    </div>
+</div>
+
+@* 上下文菜单弹窗 *@
+@if (_showContextMenu && _contextMenuSession != null)
+{
+    <div class="context-menu-overlay" @onclick="CloseContextMenu"></div>
+    <div class="context-menu" style="top: @(_contextMenuY)px; left: @(_contextMenuX)px;">
+        <button class="context-menu-item" @onclick="HandlePinSession">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L12 12M12 12L19 19M12 12L5 19"/>
+            </svg>
+            <span>@(_contextMenuSession.IsPinned ? "取消固定" : "固定")</span>
+        </button>
+        <button class="context-menu-item" @onclick="HandleRenameSession">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            <span>重命名</span>
+        </button>
+        <div class="context-menu-divider"></div>
+        <button class="context-menu-item danger" @onclick="HandleDeleteSession">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            <span>删除</span>
+        </button>
+    </div>
+}
+
+@* 重命名对话框 *@
+@if (_showRenameDialog && _renamingSession != null)
+{
+    <div class="dialog-overlay" @onclick="CloseRenameDialog"></div>
+    <div class="rename-dialog">
+        <div class="dialog-header">重命名会话</div>
+        <div class="dialog-body">
+            <input type="text" @bind="_newSessionTitle" @bind:event="oninput" 
+                   placeholder="输入新名称" class="rename-input" />
+        </div>
+        <div class="dialog-footer">
+            <button class="dialog-btn cancel" @onclick="CloseRenameDialog">取消</button>
+            <button class="dialog-btn confirm" @onclick="ConfirmRename" 
+                    disabled="@(string.IsNullOrWhiteSpace(_newSessionTitle))">确定</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public List<SessionItem>? Sessions { get; set; }
+    [Parameter] public Guid CurrentSessionId { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback<Guid> OnSessionSelected { get; set; }
+    [Parameter] public EventCallback OnNewSession { get; set; }
+    [Parameter] public EventCallback<Guid> OnSessionPin { get; set; }
+    [Parameter] public EventCallback<(Guid Id, string NewTitle)> OnSessionRename { get; set; }
+    [Parameter] public EventCallback<Guid> OnSessionDelete { get; set; }
+    [Parameter] public EventCallback OnCollapseSidebar { get; set; }
+
+    private string searchKeyword = "";
+    
+    // 上下文菜单状态
+    private bool _showContextMenu = false;
+    private SessionItem? _contextMenuSession;
+    private double _contextMenuX;
+    private double _contextMenuY;
+    private Guid? _pendingSessionId;
+    
+    // 重命名对话框状态
+    private bool _showRenameDialog = false;
+    private SessionItem? _renamingSession; // 新增：专门存储正在重命名的会话
+    private string _newSessionTitle = "";
+
+    /// <summary>
+    /// 过滤后的会话列表（固定的优先显示）
+    /// </summary>
+    private IEnumerable<SessionItem>? FilteredSessions
+    {
+        get
+        {
+            var filtered = string.IsNullOrWhiteSpace(searchKeyword)
+                ? Sessions
+                : Sessions?.Where(s => s.Title.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase) ||
+                                       (s.LastMessagePreview?.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase) ?? false));
+            
+            // 固定的会话排在前面
+            return filtered?.OrderByDescending(s => s.IsPinned).ThenByDescending(s => s.UpdatedAt);
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        // 当前会话真正切换完成后，清理本地载入态，避免加载标记残留。
+        if (_pendingSessionId.HasValue && _pendingSessionId.Value == CurrentSessionId)
+        {
+            _pendingSessionId = null;
+        }
+
+        if (_pendingSessionId.HasValue && Sessions?.Any(s => s.Id == _pendingSessionId.Value) != true)
+        {
+            _pendingSessionId = null;
+        }
+    }
+
+    private async Task OnSessionSelect(Guid sessionId)
+    {
+        if (sessionId == CurrentSessionId)
+        {
+            return;
+        }
+
+        CloseContextMenu();
+        _pendingSessionId = sessionId;
+        StateHasChanged();
+        await OnSessionSelected.InvokeAsync(sessionId);
+    }
+
+    private async Task OnNewSessionClick()
+    {
+        await OnNewSession.InvokeAsync();
+    }
+
+    /// <summary>
+    /// 收起整个会话侧栏。
+    /// </summary>
+    private async Task HandleCollapseSidebarAsync()
+    {
+        await OnCollapseSidebar.InvokeAsync();
+    }
+    
+    /// <summary>
+    /// 显示上下文菜单
+    /// </summary>
+    private async Task ShowContextMenu(MouseEventArgs e, SessionItem session)
+    {
+        // 阻止浏览器默认右键菜单
+        _contextMenuSession = session;
+        
+        // 菜单尺寸估算
+        const double menuWidth = 140;
+        const double menuHeight = 120; // 3个菜单项 + 分隔线的高度
+        
+        try
+        {
+            // 调用 JavaScript 函数来计算智能位置
+            var position = await JS.InvokeAsync<MenuPosition>("calculateContextMenuPosition", e.ClientX, e.ClientY, menuWidth, menuHeight);
+            
+            _contextMenuX = position.X;
+            _contextMenuY = position.Y;
+        }
+        catch (Exception ex)
+        {
+            // 降级方案：使用简单的定位逻辑
+            _contextMenuX = e.ClientX;
+            _contextMenuY = e.ClientY;
+            Console.WriteLine($"上下文菜单定位失败: {ex.Message}");
+        }
+        
+        _showContextMenu = true;
+        StateHasChanged();
+    }
+    
+    /// <summary>
+    /// 关闭上下文菜单
+    /// </summary>
+    private void CloseContextMenu()
+    {
+        _showContextMenu = false;
+        _contextMenuSession = null;
+    }
+    
+    /// <summary>
+    /// 处理固定/取消固定会话
+    /// </summary>
+    private async Task HandlePinSession()
+    {
+        if (_contextMenuSession != null)
+        {
+            await OnSessionPin.InvokeAsync(_contextMenuSession.Id);
+        }
+        CloseContextMenu();
+    }
+    
+    /// <summary>
+    /// 处理重命名会话
+    /// </summary>
+    private void HandleRenameSession()
+    {
+        if (_contextMenuSession != null)
+        {
+            _renamingSession = _contextMenuSession; // 锁定要重命名的会话
+            _newSessionTitle = _renamingSession.Title;
+            _showRenameDialog = true;
+        }
+        CloseContextMenu(); // 关闭菜单（会清除 _contextMenuSession，但不影响 _renamingSession）
+    }
+    
+    /// <summary>
+    /// 关闭重命名对话框
+    /// </summary>
+    private void CloseRenameDialog()
+    {
+        _showRenameDialog = false;
+        _renamingSession = null;
+        _newSessionTitle = "";
+    }
+    
+    /// <summary>
+    /// 确认重命名
+    /// </summary>
+    private async Task ConfirmRename()
+    {
+        if (_renamingSession != null && !string.IsNullOrWhiteSpace(_newSessionTitle))
+        {
+            await OnSessionRename.InvokeAsync((_renamingSession.Id, _newSessionTitle));
+        }
+        CloseRenameDialog();
+    }
+    
+    /// <summary>
+    /// 处理删除会话
+    /// </summary>
+    private async Task HandleDeleteSession()
+    {
+        if (_contextMenuSession != null)
+        {
+            await OnSessionDelete.InvokeAsync(_contextMenuSession.Id);
+        }
+        CloseContextMenu();
+    }
+
+    private string FormatTime(DateTime time)
+    {
+        var local = time.ToLocalTime();
+        if (local.Date == DateTime.Today) return local.ToString("HH:mm");
+        if (local.Date == DateTime.Today.AddDays(-1)) return "昨天";
+        if (local.Year == DateTime.Today.Year) return local.ToString("MM/dd");
+        return local.ToString("yy/MM/dd");
+    }
+
+    /// <summary>
+    /// 获取预览文本
+    /// </summary>
+    private string GetPreviewText(SessionItem session)
+    {
+        if (!session.RunPresentation.IsIdle)
+        {
+            return session.RunPresentation.Description;
+        }
+
+        if (string.IsNullOrEmpty(session.LastMessagePreview))
+        {
+            return "暂无消息";
+        }
+        
+        // 限制预览长度
+        var preview = session.LastMessagePreview.Replace("\n", " ").Replace("\r", "");
+        return preview.Length > 50 ? preview.Substring(0, 50) + "..." : preview;
+    }
+
+    private string GetRunStateText(Guid sessionId)
+    {
+        return Sessions?.FirstOrDefault(session => session.Id == sessionId)?.RunPresentation.CompactLabel ?? "空闲";
+    }
+
+    private string GetRunIndicatorClass(Guid sessionId)
+    {
+        return Sessions?.FirstOrDefault(session => session.Id == sessionId)?.RunPresentation.IndicatorClass ?? string.Empty;
+    }
+
+    /// <summary>
+    /// 会话项数据
+    /// </summary>
+    public record SessionItem(
+        Guid Id, 
+        string Title, 
+        DateTime UpdatedAt, 
+        string? LastMessagePreview = null, 
+        int MessageCount = 0,
+        bool IsPinned = false,
+        SessionRunPresentationState RunPresentation = null!);
+
+    /// <summary>
+    /// 菜单位置数据（用于 JS 互操作）
+    /// </summary>
+    private class MenuPosition
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+}

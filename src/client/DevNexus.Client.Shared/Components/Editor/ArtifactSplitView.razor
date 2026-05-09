@@ -1,0 +1,293 @@
+@*
+ArtifactSplitView.razor
+分屏资产预览容器组件
+功能：
+- 显示 AI 生成的资产内容（代码、HTML、图表等）
+- 支持复制、Diff 视图、关闭操作
+- 根据资产类型路由到不同的渲染组件
+*@
+@using DevNexus.Client.Shared.Components.Icons
+@inject IJSRuntime JS
+@inject IWindowService WindowService
+
+<div class="artifact-split-view">
+    @* 分屏头部 *@
+    @if (ShowHeader)
+    {
+        <div class="split-header">
+            <div class="artifact-info">
+            <span class="artifact-type-icon">@GetTypeIcon(Artifact?.Type ?? "code")</span>
+            <span class="artifact-name">@(Artifact?.Name ?? "未命名资产")</span>
+            @if (IsStreaming)
+            {
+                <span class="streaming-indicator">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </span>
+            }
+        </div>
+        <div class="artifact-actions">
+            <button class="btn-action" @onclick="HandleCopyAsync" title="复制内容">
+                @if (_showCopyFeedback)
+                {
+                    <CheckIcon Size="16" />
+                    <span class="copy-feedback">已复制!</span>
+                }
+                else
+                {
+                    <CopyIcon Size="16" />
+                }
+            </button>
+
+            @* 独立弹窗按钮 *@
+            @if (ShowOpenInWindowButton)
+            {
+                <button class="btn-action" @onclick="HandleOpenInWindow" title="在独立窗口中打开">
+                    <ExternalLinkIcon Size="16" />
+                </button>
+            }
+
+            <button class="btn-action btn-close" @onclick="HandleClose" title="关闭">
+                <XIcon Size="16" />
+            </button>
+        </div>
+    </div>
+    }
+
+    @* 资产内容区域 *@
+    <div class="artifact-content">
+        @if (Artifact != null)
+        {
+            @switch (GetContentType(Artifact.Type))
+            {
+                case ContentType.Html:
+                    <HtmlPreview Content="@Artifact.Content" />
+                    break;
+
+                case ContentType.Chart:
+                    @* 使用 PlotlyChart 组件渲染图表 *@
+                    <PlotlyChart Title="@(Artifact?.Name ?? "图表")" 
+                                 ShowTitle="false"
+                                 ShowSidekickButton="false"
+                                 Data="@(Artifact?.Content ?? "")" />
+                    break;
+
+                case ContentType.Mermaid:
+                    @* Mermaid 图表渲染 *@
+                    <div class="mermaid-preview" @ref="_mermaidContainer">
+                        <div class="mermaid">@Artifact.Content</div>
+                    </div>
+                    break;
+
+                case ContentType.Code:
+                default:
+                    @if (ShouldUsePlainTextPreview(Artifact))
+                    {
+                        <div class="artifact-large-text-preview" data-ui-scope="artifact-large-text-preview">
+                            <div class="artifact-large-text-preview__banner">
+                                内容较大，已切换为轻量预览，避免编辑器拖慢页面。
+                            </div>
+                            <pre class="artifact-large-text-preview__content">@Artifact.Content</pre>
+                        </div>
+                    }
+                    else
+                    {
+                        @* 使用 Monaco Editor 高亮代码 (只读模式) *@
+                        <MonacoEditor Content="@Artifact.Content"
+                                      Language="@GetLanguage(Artifact.Type)"
+                                      ReadOnly="true"
+                                      Theme="vs-dark"
+                                      ShowMinimap="false" />
+                    }
+                    break;
+            }
+        }
+        else
+        {
+            <div class="empty-state">
+                <FileTextIcon Size="16" />
+                <span class="text">暂无资产内容</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 资产数据
+    /// </summary>
+    [Parameter]
+    public ArtifactDto? Artifact { get; set; }
+
+    /// <summary>
+    /// 原始内容（用于 Diff 视图）
+    /// </summary>
+    [Parameter]
+    public string? OriginalContent { get; set; }
+
+    /// <summary>
+    /// 是否正在流式传输
+    /// </summary>
+    [Parameter]
+    public bool IsStreaming { get; set; }
+
+    /// <summary>
+    /// 关闭回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    /// <summary>
+    /// 复制成功回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCopy { get; set; }
+
+    /// <summary>
+    /// 是否显示"在独立窗口中打开"按钮
+    /// </summary>
+    [Parameter]
+    public bool ShowOpenInWindowButton { get; set; } = true;
+
+    /// <summary>
+    /// 是否显示标题栏
+    /// </summary>
+    [Parameter]
+    public bool ShowHeader { get; set; } = true;
+
+    private bool _showCopyFeedback = false;
+    private ElementReference _mermaidContainer;
+    private string? _lastMermaidContent;
+    private const int MonacoPreviewLimit = 200_000;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 渲染 Mermaid 图表
+        if (Artifact != null && GetContentType(Artifact.Type) == ContentType.Mermaid)
+        {
+            if (Artifact.Content != _lastMermaidContent)
+            {
+                _lastMermaidContent = Artifact.Content;
+                try
+                {
+                    await JS.InvokeVoidAsync("mermaid.init", _mermaidContainer);
+                }
+                catch
+                {
+                    // 忽略 Mermaid 渲染错误
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 根据资产类型获取图标组件
+    /// </summary>
+    private RenderFragment GetTypeIcon(string type) => type?.ToLower() switch
+    {
+        "html" => @<GlobeIcon Size="18" />,
+        "code" or "csharp" or "javascript" or "python" or "typescript" or "java" or "go" or "rust" => @<CodeIcon Size="18" />,
+        "markdown" or "md" => @<TypeIcon Size="18" />,
+        "chart" => @<BarChartIcon Size="18" />,
+        "mermaid" => @<DiagramIcon Size="18" />,
+        "sql" or "mysql" or "postgresql" => @<DatabaseIcon Size="18" />,
+        "json" => @<ListIcon Size="18" />,
+        _ => @<FileIcon Size="18" />
+    };
+
+    /// <summary>
+    /// 获取内容类型
+    /// </summary>
+    private ContentType GetContentType(string? type) => type?.ToLower() switch
+    {
+        "html" => ContentType.Html,
+        "chart" => ContentType.Chart,
+        "mermaid" => ContentType.Mermaid,
+        _ => ContentType.Code
+    };
+
+    /// <summary>
+    /// 获取语言高亮类型
+    /// </summary>
+    private string GetLanguage(string? type) => type?.ToLower() switch
+    {
+        "csharp" or "cs" => "csharp",
+        "javascript" or "js" => "javascript",
+        "typescript" or "ts" => "typescript",
+        "python" or "py" => "python",
+        "sql" => "sql",
+        "json" => "json",
+        "xml" => "xml",
+        "html" => "html",
+        "css" => "css",
+        "markdown" or "md" => "markdown",
+        "bash" or "shell" => "bash",
+        "powershell" or "ps1" => "powershell",
+        _ => "plaintext"
+    };
+
+    /// <summary>
+    /// 处理复制操作
+    /// </summary>
+    private async Task HandleCopyAsync()
+    {
+        if (Artifact?.Content == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Artifact.Content);
+            _showCopyFeedback = true;
+            await OnCopy.InvokeAsync();
+
+            // 2秒后隐藏反馈
+            await Task.Delay(2000);
+            _showCopyFeedback = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"复制失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 在独立窗口中打开 Artifact
+    /// </summary>
+    private void HandleOpenInWindow()
+    {
+        if (Artifact == null) return;
+
+        WindowService.OpenArtifactWindow(Artifact);
+    }
+
+    /// <summary>
+    /// 处理关闭操作
+    /// </summary>
+    private async Task HandleClose()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    /// <summary>
+    /// 大文本内容降级为轻量预览，避免 Monaco 初始化和布局把页面拖慢。
+    /// </summary>
+    private static bool ShouldUsePlainTextPreview(ArtifactDto? artifact)
+    {
+        return artifact != null
+            && !string.IsNullOrWhiteSpace(artifact.Content)
+            && artifact.Content.Length > MonacoPreviewLimit;
+    }
+
+    /// <summary>
+    /// 内容类型枚举
+    /// </summary>
+    private enum ContentType
+    {
+        Code,
+        Html,
+        Chart,
+        Mermaid
+    }
+}
+

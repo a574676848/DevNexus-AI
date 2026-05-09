@@ -1,0 +1,357 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Shared.DTOs
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Close">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>服务器信息</h3>
+                <button class="close-btn" @onclick="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                @if (ServerInfo == null)
+                {
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <span>加载服务器信息中...</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="card-icon">
+                                <i class="fa-solid fa-code-branch"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>版本</label>
+                                <span>v@(ServerInfo.Version)</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="card-icon">
+                                <i class="fa-solid fa-server"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>环境</label>
+                                <span>@ServerInfo.Environment</span>
+                        </div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="card-icon">
+                                <i class="fa-solid fa-clock"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>启动时间</label>
+                                <span>@ServerInfo.StartTime.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card">
+                            <div class="card-icon">
+                                <i class="fa-solid fa-microchip"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>处理器</label>
+                                <span>@ServerInfo.ProcessorCount Cores</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card full-width">
+                            <div class="card-icon">
+                                <i class="fa-brands fa-windows"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>操作系统</label>
+                                <span>@ServerInfo.OsVersion</span>
+                            </div>
+                        </div>
+
+                        @* 连接信息区域 *@
+                        <div class="info-section-title">连接信息</div>
+
+                        <div class="info-card full-width">
+                            <div class="card-icon">
+                                <i class="fa-solid fa-database"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>数据库 (@(ServerInfo.DatabaseProvider ?? "N/A"))</label>
+                                <span class="connection-string">@(ServerInfo.DatabaseHost ?? "未配置")</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card full-width">
+                            <div class="card-icon redis">
+                                <i class="fa-solid fa-memory"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>缓存 (@(ServerInfo.CacheProvider ?? "N/A"))</label>
+                                <span class="connection-string">@(ServerInfo.RedisHost ?? "未配置")</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card full-width">
+                            <div class="card-icon es">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>搜索服务 (@(ServerInfo.ElasticsearchProvider ?? "N/A"))</label>
+                                <span class="connection-string">@(ServerInfo.ElasticsearchHost ?? "未配置")</span>
+                            </div>
+                        </div>
+
+                        <div class="info-card full-width">
+                            <div class="card-icon vector">
+                                <i class="fa-solid fa-cube"></i>
+                            </div>
+                            <div class="card-content">
+                                <label>向量数据库 (@(ServerInfo.VectorDbProvider ?? "N/A"))</label>
+                                <span class="connection-string">@(ServerInfo.VectorDbHost ?? "未配置")</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .modal-content {
+        background-color: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        border-radius: 20px;
+        width: 480px;
+        max-width: 90%;
+        max-height: calc(100vh - 100px); /* 限制最大高度，留出上下空间 */
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12), inset 0 1px 1px #ffffff;
+        animation: modal-slide-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .modal-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: transparent;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 24px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 0;
+        line-height: 1;
+    }
+    
+    .close-btn:hover {
+        color: var(--text-primary);
+    }
+
+    .modal-body {
+        padding: 18px;
+        background-color: rgba(0, 0, 0, 0.02);
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        min-height: 0; /* 确保flex子项可以收缩 */
+        scroll-behavior: smooth;
+    }
+
+    /* 自定义滚动条 - 优雅的细滚动条 */
+    .modal-body::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .modal-body::-webkit-scrollbar-track {
+        background: transparent;
+        margin: 8px 0;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.12);
+        border-radius: 3px;
+        transition: background 0.3s ease;
+    }
+
+    .modal-body::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Firefox 滚动条样式 */
+    .modal-body {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+    }
+
+    .loading-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 0;
+        color: var(--text-secondary);
+        gap: 12px;
+    }
+
+    .spinner {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .info-card {
+        background-color: rgba(255, 255, 255, 0.6);
+        border-radius: 12px;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        box-shadow: inset 0 1px 1px #ffffff;
+    }
+    
+    .info-card.full-width {
+        grid-column: span 2;
+    }
+
+    .card-icon {
+        width: 32px;
+        height: 32px;
+        background-color: rgba(7, 193, 96, 0.1);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--brand-green);
+        font-size: 14px;
+    }
+
+    .card-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        overflow: hidden;
+    }
+
+    .card-content label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .card-content span {
+        font-size: 14px;
+        color: var(--text-primary);
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .info-section-title {
+        grid-column: 1 / -1;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        margin-top: 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .connection-string {
+        font-family: 'Consolas', 'Monaco', monospace !important;
+        font-size: 12px !important;
+        color: var(--text-primary) !important;
+        background-color: var(--bg-secondary);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    .card-icon.redis {
+        background-color: rgba(220, 38, 38, 0.1);
+        color: var(--brand-red);
+    }
+
+    .card-icon.es {
+        background-color: rgba(59, 130, 246, 0.1);
+        color: var(--brand-info);
+    }
+
+    .card-icon.vector {
+        background-color: rgba(139, 92, 246, 0.1);
+        color: var(--text-primary);
+    }
+
+    @@keyframes modal-slide-in {
+        from {
+            opacity: 0;
+            transform: translateY(20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    [Parameter]
+    public ServerInfoResponseDto? ServerInfo { get; set; }
+
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+}

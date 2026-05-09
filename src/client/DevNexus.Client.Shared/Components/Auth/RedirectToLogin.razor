@@ -1,0 +1,30 @@
+@inject NavigationManager Navigation
+
+<DevNexus.Client.Shared.Components.Shared.UI.LoadingScreen
+    Text="正在前往登录页..."
+    DetailText="正在清理当前页面状态并切换到安全入口"
+    ShowStages="false"
+    ShowLogo="true" />
+
+@code {
+    private bool _hasRedirected;
+
+    /// <summary>
+    /// 未授权时重定向到登录页
+    /// </summary>
+    protected override void OnInitialized()
+    {
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender || _hasRedirected)
+        {
+            return;
+        }
+
+        _hasRedirected = true;
+        // 使用 forceLoad: true 确保完全刷新页面状态
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

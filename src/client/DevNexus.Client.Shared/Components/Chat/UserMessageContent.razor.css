@@ -1,0 +1,263 @@
+/* UserMessageContent.razor.css */
+
+.user-content-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.user-text {
+    margin: 0;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+}
+
+.message-invocation-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.message-invocation-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    line-height: 1;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
+}
+
+.message-invocation-chip.tool {
+    background: rgba(32, 148, 243, 0.08);
+    border-color: rgba(32, 148, 243, 0.2);
+    color: #1677c8;
+}
+
+.message-invocation-chip.skill {
+    background: rgba(7, 193, 96, 0.1);
+    border-color: rgba(7, 193, 96, 0.24);
+    color: #0c9a51;
+}
+
+.message-artifacts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.message-task-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 12px;
+}
+
+.message-task-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.message-task-cards ::deep .interactive-card-placeholder {
+    width: 100%;
+}
+
+/* 用户消息的附件样式 - 适配浅色背景 */
+.message-artifacts ::deep .pasted-document-chip {
+    background: var(--bg-tertiary);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+    max-width: 100%;
+}
+
+.message-artifacts ::deep .chip-icon {
+    background: var(--list-hover);
+    color: var(--text-secondary);
+}
+
+.message-artifacts ::deep .chip-filename {
+    color: var(--text-primary);
+}
+
+.message-artifacts ::deep .chip-meta {
+    color: var(--text-secondary);
+}
+
+/* Expand Button Styles */
+.expand-btn {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    color: var(--text-secondary);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    cursor: pointer;
+    margin-top: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.expand-btn:hover {
+    background: rgba(255, 255, 255, 0.95);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+.expand-icon {
+    font-weight: bold;
+}
+
+/* ===== 编辑模式样式 - 参考 Gemini 风格 ===== */
+.edit-mode-container {
+    width: 100%;
+    background: transparent;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.edit-input-shell {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, rgba(254, 254, 252, 0.96) 0%, rgba(247, 248, 244, 0.98) 100%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: var(--radius-lg, 16px);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.edit-input-shell:focus-within {
+    border-color: var(--brand-green, #07c160);
+    box-shadow: 0 0 0 1px var(--brand-green, #07c160), 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.edit-textarea {
+    width: 100%;
+    min-height: 80px;
+    max-height: 300px;
+    background: transparent;
+    color: var(--text-primary);
+    padding: 16px;
+    border: none;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    outline: none;
+    box-sizing: border-box;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(15, 23, 42, 0.18) transparent;
+}
+
+.edit-textarea::-webkit-scrollbar {
+    width: 6px;
+}
+
+.edit-textarea::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.edit-textarea::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.16);
+    border-radius: 999px;
+}
+
+.edit-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 23, 42, 0.26);
+}
+
+.edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+}
+
+/* 统一按钮样式 - 紧凑精致 */
+.action-btn {
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 保存按钮 - 与品牌绿一致 */
+.action-btn.save-btn {
+    background: #07c160;
+    color: #ffffff;
+    border: none;
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(7, 193, 96, 0.25);
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.action-btn.save-btn:hover {
+    background: #06ad56;
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.35);
+    transform: translateY(-1px);
+}
+
+.action-btn.save-btn:active {
+    background: #05a050;
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(7, 193, 96, 0.2);
+}
+
+/* 取消按钮 - 低调简洁 */
+.action-btn.cancel-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary, #999);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.action-btn.cancel-btn:hover {
+    color: var(--text-primary, #333);
+}
+
+.action-btn.cancel-btn:active {
+    opacity: 0.8;
+}

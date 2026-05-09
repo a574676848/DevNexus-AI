@@ -1,0 +1,188 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@using System.ComponentModel.DataAnnotations
+
+@code {
+    public enum InputType
+    {
+        Text,
+        Email,
+        Password,
+        Number,
+        Tel,
+        Url,
+        Textarea,
+        Select
+    }
+    
+    public class SelectOption
+    {
+        public string Text { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+}
+
+<div class="form-group @(IsValid ? "" : "has-error")">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="form-label" for="@_elementId">
+            @Label
+            @if (Required)
+            {
+                <span class="required-mark">*</span>
+            }
+        </label>
+    }
+    
+    <div class="input-wrapper">
+        @if (Type == InputType.Textarea)
+        {
+            <textarea @ref="_elementRef"
+                      id="@_elementId"
+                      @bind="Value"
+                      @bind:event="oninput"
+                      @onblur="Validate"
+                      class="form-control @GetInputClass()"
+                      placeholder="@Placeholder"
+                      disabled="@Disabled"
+                      rows="@Rows"></textarea>
+        }
+        else if (Type == InputType.Select)
+        {
+            <select @ref="_elementRef"
+                    id="@_elementId"
+                    @bind="Value"
+                    class="form-control @GetInputClass()"
+                    disabled="@Disabled">
+                @if (Options != null)
+                {
+                    @foreach (var option in Options)
+                    {
+                        <option value="@option.Value">@option.Text</option>
+                    }
+                }
+            </select>
+        }
+        else
+        {
+            <input @ref="_elementRef"
+                   id="@_elementId"
+                   type="@GetTypeString()"
+                   @bind="Value"
+                   @bind:event="oninput"
+                   @onblur="Validate"
+                   class="form-control @GetInputClass()"
+                   placeholder="@Placeholder"
+                   disabled="@Disabled" />
+        }
+        
+        @if (!IsValid && !string.IsNullOrEmpty(ErrorMessage))
+        {
+            <i class="fa-solid fa-circle-exclamation error-icon"></i>
+        }
+        else if (ShowSuccessIndicator && IsValid && !string.IsNullOrEmpty(Value))
+        {
+            <i class="fa-solid fa-circle-check success-icon"></i>
+        }
+    </div>
+    
+    @if (!IsValid && !string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="error-message">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            @ErrorMessage
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = string.Empty;
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public InputType Type { get; set; } = InputType.Text;
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public Func<string?, Task<(bool, string?)>>? Validator { get; set; }
+    [Parameter] public bool ShowSuccessIndicator { get; set; } = false;
+    [Parameter] public int Rows { get; set; } = 3;
+    [Parameter] public IEnumerable<SelectOption>? Options { get; set; }
+    
+    private bool _isValid = true;
+    private string? _errorMessage;
+    private ElementReference _elementRef;
+    private string _elementId = $"input-{Guid.NewGuid():N}";
+    
+    public bool IsValid => _isValid;
+    public string? ErrorMessage => _errorMessage;
+    
+    private string GetInputClass()
+    {
+        var classes = new List<string>();
+        
+        if (!_isValid)
+        {
+            classes.Add("is-invalid");
+        }
+        else if (ShowSuccessIndicator && !string.IsNullOrEmpty(Value))
+        {
+            classes.Add("is-valid");
+        }
+        
+        if (Disabled)
+        {
+            classes.Add("is-disabled");
+        }
+        
+        return string.Join(" ", classes);
+    }
+    
+    private string GetTypeString()
+    {
+        return Type switch
+        {
+            InputType.Email => "email",
+            InputType.Password => "password",
+            InputType.Number => "number",
+            InputType.Tel => "tel",
+            InputType.Url => "url",
+            _ => "text"
+        };
+    }
+    
+    private async Task Validate()
+    {
+        if (Validator != null)
+        {
+            var (isValid, errorMessage) = await Validator(Value);
+            _isValid = isValid;
+            _errorMessage = errorMessage;
+        }
+        else if (Required && string.IsNullOrWhiteSpace(Value))
+        {
+            _isValid = false;
+            _errorMessage = $"{Label}不能为空";
+        }
+        else
+        {
+            _isValid = true;
+            _errorMessage = null;
+        }
+        
+        await ValueChanged.InvokeAsync(Value);
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    public void Reset()
+    {
+        _isValid = true;
+        _errorMessage = null;
+        Value = null;
+        StateHasChanged();
+    }
+    
+    public void SetValue(string? value)
+    {
+        Value = value;
+        _ = Validate();
+    }
+}

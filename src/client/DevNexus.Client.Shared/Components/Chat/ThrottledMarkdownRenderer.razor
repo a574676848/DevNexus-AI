@@ -1,0 +1,118 @@
+@using System.Threading
+@using DevNexus.Client.Shared.Utilities
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div id="@_containerId" class="silky-markdown-content markdown-body"></div>
+
+@code {
+    /// <summary>
+    /// Markdown 内容
+    /// </summary>
+    [Parameter] public string Content { get; set; } = "";
+
+    /// <summary>
+    /// 是否处于流式传输模式
+    /// </summary>
+    [Parameter] public bool IsStreaming { get; set; }
+
+    /// <summary>
+    /// 节流间隔（毫秒），默认 50ms（业界标准 30-60ms，兼顾流畅与性能）
+    /// </summary>
+    [Parameter] public int ThrottleMs { get; set; } = 50;
+
+    private string _containerId = $"smd-{Guid.NewGuid():N}";
+    private string _lastRenderedContent = "";
+    private bool _initialized;
+
+    // 使用 PerformanceHelper 的节流器
+    private Action<string>? _throttledRenderAction;
+
+    protected override void OnInitialized()
+    {
+        // 创建节流渲染动作 - 使用带泛型参数的版本
+        _throttledRenderAction = PerformanceHelper.Throttle<string>(
+            content => DoRender(content),
+            TimeSpan.FromMilliseconds(ThrottleMs)
+        );
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 初始化 JS 渲染器实例
+            await JS.InvokeVoidAsync("devnexusSilkyMarkdown.init", _containerId);
+            _initialized = true;
+        }
+
+        await TryRenderAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_initialized)
+        {
+            await TryRenderAsync();
+        }
+    }
+
+    private async Task TryRenderAsync()
+    {
+        // 如果未初始化或内容未变，跳过
+        if (!_initialized || Content == _lastRenderedContent) return;
+
+        // 只有在流式模式下才启用节流
+        if (IsStreaming)
+        {
+            // 使用 PerformanceHelper 的节流器
+            _throttledRenderAction?.Invoke(Content);
+        }
+        else
+        {
+            // 非流式模式，立即渲染
+            await DoRenderAsync();
+        }
+    }
+
+    private void DoRender(string content)
+    {
+        _lastRenderedContent = content;
+        InvokeAsync(async () => await DoRenderAsync());
+    }
+
+    private async Task DoRenderAsync()
+    {
+        try
+        {
+            // 调用 JS 进行增量渲染
+            await JS.InvokeVoidAsync("devnexusSilkyMarkdown.render",
+                _containerId, Content, IsStreaming);
+
+            // 非流式模式（已完成）或流式结束时，执行代码高亮等增强
+            if (!IsStreaming)
+            {
+                await JS.InvokeVoidAsync("devnexusSilkyMarkdown.enhance", _containerId);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[ThrottledMarkdownRenderer] 渲染错误：{ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("devnexusSilkyMarkdown.dispose", _containerId);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ThrottledMarkdownRenderer] Dispose 错误：{ex.Message}");
+            }
+        }
+    }
+}

@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+@inject IWindowService WindowService
+
+<div class="empty-layout @(WindowService.IsMaximized ? "maximized" : "")">
+    @* 自定义标题栏（无边框模式下显示） *@
+    @if (WindowService.IsBorderlessMode)
+    {
+        <CustomTitleBar Title="" IsMaximized="@WindowService.IsMaximized" />
+    }
+    
+    @* 主内容区域 *@
+    <div class="empty-content">
+        @Body
+    </div>
+</div>
+

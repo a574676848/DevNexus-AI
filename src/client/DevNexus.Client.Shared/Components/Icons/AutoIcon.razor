@@ -1,0 +1,18 @@
+@namespace DevNexus.Client.Shared.Components.Icons
+@inherits IconBase
+
+@* AutoIcon.razor - 自动选择/自动化图标 (齿轮+闪电组合) *@
+<svg width="@Size" height="@Size" viewBox="0 0 24 24" fill="@Fill" stroke="@Stroke"
+     stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round"
+     class="@CssClass" style="@Style">
+    <!-- 齿轮 -->
+    <circle cx="11" cy="11" r="2.5" />
+    <path d="M11 1v3M11 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 11h3M19 11h3M4.22 17.78l2.12-2.12M17.66 6.34l2.12-2.12" />
+    <!-- 闪电符号 -->
+    <path d="M14 4l-3 8h3l-2 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+</svg>
+
+@code {
+    // 继承 IconBase 的参数
+    // Size, Fill, Stroke, StrokeWidth, CssClass, Style
+}

@@ -1,0 +1,197 @@
+@using DevNexus.Client.Shared.Models
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="expanded-input-overlay" @onclick="HandleOverlayClick">
+        <div class="expanded-input-modal" @onclick:stopPropagation>
+            <div class="expanded-input-header">
+                <h3>输入消息</h3>
+                <div class="expanded-input-actions">
+                    <button class="header-btn" title="收起" @onclick="Close">
+                        <i class="fa-solid fa-compress"></i>
+                    </button>
+                    <button class="header-btn" title="关闭" @onclick="Close">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Pasted Documents in Modal -->
+            @if (PastedDocuments.Any())
+            {
+                <div class="expanded-pasted-documents">
+                    @foreach (var doc in PastedDocuments)
+                    {
+                        <PastedDocumentChip Document="doc"
+                                            OnRemove="OnRemoveDocument"
+                                            OnRetryParse="OnRetryParseDocument"
+                                            OnContextModeChanged="OnContextModeChanged" />
+                    }
+                </div>
+
+                @if (IsUploading)
+                {
+                    <div class="expanded-upload-status" role="status" aria-live="polite">
+                        文件正在入库，语义准备中。执行上下文会在入库后可用。
+                    </div>
+                }
+
+                @if (IsSending)
+                {
+                    <div class="expanded-upload-status expanded-upload-status--sending" role="status" aria-live="polite">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>消息正在发送，请稍候。</span>
+                    </div>
+                }
+            }
+            
+            <!-- Expanded Text Area -->
+            <div class="expanded-input-wrapper">
+                <textarea @ref="_textareaRef" 
+                          value="@Content"
+                          @oninput="HandleContentChangedAsync"
+                          @onkeydown="HandleKeyDownAsync"
+                          @onpaste="OnPaste"
+                          placeholder="@(EnterToSendMessage ? "输入消息内容...（Enter 发送）" : "输入消息内容...（Ctrl+Enter 发送）")" 
+                          disabled="@IsDisabled"></textarea>
+            </div>
+            
+            <!-- Expanded Footer -->
+            <div class="expanded-input-footer">
+                <div class="footer-info">
+                    <span class="char-count">@Content.Length 字符</span>
+                    @if (PastedDocuments.Any())
+                    {
+                        <span class="doc-count">@PastedDocuments.Count 个文档</span>
+                    }
+                </div>
+                <div class="footer-actions">
+                    <button class="btn-secondary" @onclick="Close">取消</button>
+                    @if (CanCancel)
+                    {
+                        <button class="btn-primary btn-cancel" @onclick="OnCancel" title="停止生成">
+                            <i class="fa-solid fa-stop"></i>
+                            <span>停止</span>
+                        </button>
+                    }
+                    else if (IsBusy)
+                    {
+                        <button class="btn-primary" disabled title="@BusyLabel">
+                            <i class="fa-solid fa-clock"></i>
+                            <span>@BusyLabel</span>
+                        </button>
+                    }
+                    else if (IsSending)
+                    {
+                        <button class="btn-primary" disabled title="消息正在发送">
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            <span>发送中...</span>
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn-primary" @onclick="HandleSendAsync"
+                            disabled="@(IsDisabled || IsBlocked || (string.IsNullOrWhiteSpace(Content) && !PastedDocuments.Any()))" 
+                            title="@(EnterToSendMessage ? "发送 (Enter)" : "发送 (Ctrl+Enter)")">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span>发送</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public string Content { get; set; } = "";
+    [Parameter] public EventCallback<string> ContentChanged { get; set; }
+    [Parameter] public List<PastedDocument> PastedDocuments { get; set; } = new();
+    [Parameter] public bool IsDisabled { get; set; }
+    [Parameter] public bool IsBusy { get; set; }
+    [Parameter] public bool CanCancel { get; set; }
+    [Parameter] public bool IsBlocked { get; set; }
+    [Parameter] public string BusyLabel { get; set; } = "处理中...";
+    [Parameter] public bool IsUploading { get; set; }
+    [Parameter] public bool IsSending { get; set; }
+    [Parameter] public EventCallback OnSend { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<Guid> OnRemoveDocument { get; set; }
+    [Parameter] public EventCallback<Guid> OnRetryParseDocument { get; set; }
+    [Parameter] public EventCallback<DocumentContextModeChange> OnContextModeChanged { get; set; }
+
+    [Parameter] public EventCallback<ClipboardEventArgs> OnPaste { get; set; }
+    [Parameter] public bool EnterToSendMessage { get; set; } = true;
+    
+    private ElementReference _textareaRef;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible)
+        {
+            // 延迟聚焦以确保模态框已渲染
+            await Task.Delay(100);
+            try
+            {
+                await JS.InvokeVoidAsync("focusElement", _textareaRef);
+            }
+            catch { /* Ignore */ }
+        }
+    }
+    
+    private async Task HandleKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            if (EnterToSendMessage)
+            {
+                // Enter 发送模式: Enter 发送, Shift+Enter 换行
+                if (!e.ShiftKey)
+                {
+                    await HandleSendAsync();
+                }
+            }
+            else
+            {
+                // Ctrl+Enter 发送模式: Ctrl+Enter 发送, Enter 换行
+                if (e.CtrlKey)
+                {
+                    await HandleSendAsync();
+                }
+            }
+        }
+        // Esc 关闭
+        else if (e.Key == "Escape")
+        {
+            await Close();
+        }
+    }
+    
+    private async Task HandleSendAsync()
+    {
+        await ContentChanged.InvokeAsync(Content);
+        await OnSend.InvokeAsync();
+        await Close();
+    }
+
+    private async Task HandleContentChangedAsync(ChangeEventArgs e)
+    {
+        Content = e.Value?.ToString() ?? string.Empty;
+        await ContentChanged.InvokeAsync(Content);
+    }
+    
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+    
+    private void HandleOverlayClick()
+    {
+        // 点击遮罩层关闭（可选）
+        // await Close();
+    }
+
+}

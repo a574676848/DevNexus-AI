@@ -1,0 +1,118 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using DevNexus.Domain.Entities.Base;
+using DevNexus.Shared.DTOs;
+
+namespace DevNexus.Domain.Entities;
+
+/// <summary>
+/// 模型调用审计实体。
+/// </summary>
+[Table("ModelInvocationAudits")]
+public class ModelInvocationAudit : AuditableEntity
+{
+    [Required]
+    [MaxLength(32)]
+    public string OwnerType { get; set; } = "system";
+
+    public Guid? OwnerUserId { get; set; }
+
+    /// <summary>
+    /// 用户ID镜像字段。
+    /// </summary>
+    public Guid? UserId { get; set; }
+
+    [Required]
+    [MaxLength(64)]
+    public string InvocationKind { get; set; } = "other";
+
+    [Required]
+    [MaxLength(128)]
+    public string SceneCode { get; set; } = "system.other";
+
+    [Required]
+    [MaxLength(64)]
+    public string SceneCategory { get; set; } = "other";
+
+    [Required]
+    [MaxLength(64)]
+    public string ResourceType { get; set; } = "none";
+
+    [MaxLength(128)]
+    public string? ResourceId { get; set; }
+
+    public Guid? SessionId { get; set; }
+
+    public Guid? MessageId { get; set; }
+
+    [MaxLength(128)]
+    public string? TraceId { get; set; }
+
+    public Guid? ParentInvocationId { get; set; }
+
+    public Guid? RootInvocationId { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    public string ModelId { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(32)]
+    public string ProviderType { get; set; } = ModelInvocationProviderTypes.Llm;
+
+    [Required]
+    [MaxLength(100)]
+    public string ProviderName { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string ProviderId { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(32)]
+    public string MeteringType { get; set; } = "token";
+
+    public int? InputTokens { get; set; }
+
+    public int? OutputTokens { get; set; }
+
+    public int? TotalTokens { get; set; }
+
+    [Column(TypeName = "decimal(18,6)")]
+    public decimal? MeteringValue { get; set; }
+
+    [Column(TypeName = "decimal(18,6)")]
+    public decimal? Cost { get; set; }
+
+    /// <summary>
+    /// 请求类型镜像字段。
+    /// </summary>
+    [Required]
+    [MaxLength(50)]
+    public string RequestType { get; set; } = "other";
+
+    [Required]
+    [MaxLength(32)]
+    public string UsageSource { get; set; } = "none";
+
+    [Required]
+    [MaxLength(32)]
+    public string Status { get; set; } = "succeeded";
+
+    /// <summary>
+    /// 成功标记镜像字段。
+    /// </summary>
+    public bool IsSuccess { get; set; } = true;
+
+    [MaxLength(100)]
+    public string? ErrorCode { get; set; }
+
+    [MaxLength(4000)]
+    public string? ErrorMessage { get; set; }
+
+    public DateTime StartedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? CompletedAt { get; set; }
+
+    public long DurationMs { get; set; }
+}

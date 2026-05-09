@@ -1,0 +1,231 @@
+@*
+PlotlyChart.razor
+Plotly 图表 Blazor 封装组件
+功能：
+- 渲染 Plotly.js 图表
+- 支持暗色主题
+- 支持导出图片和重置缩放
+*@
+@using DevNexus.Client.Shared.Services.State
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IChatState ChatState
+
+<div class="plotly-chart-wrapper">
+    <div class="chart-header">
+        @if (ShowTitle)
+        {
+            <span class="chart-title">@Title</span>
+        }
+        <div class="chart-actions">
+            @if (ShowSidekickButton)
+            {
+                <button class="btn-action" @onclick="HandleSidekickAsync" title="分屏展示">
+                    <SidekickIcon Size="14" />
+                </button>
+            }
+            <button class="btn-action" @onclick="HandleExportAsync" title="导出图片">
+                <DownloadIcon Size="14" />
+            </button>
+            <button class="btn-action" @onclick="HandleResetZoomAsync" title="重置缩放">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+            </button>
+        </div>
+    </div>
+    <div class="chart-container" @ref="_chartContainer">
+        @if (_isLoading)
+        {
+            <div class="loading-overlay">
+                <div class="loading-spinner"></div>
+                <span>加载图表...</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 是否显示图表标题
+    /// </summary>
+    [Parameter]
+    public bool ShowTitle { get; set; } = true;
+
+    /// <summary>
+    /// 是否显示分屏展示按钮（在分屏区域内渲染时应设为 false）
+    /// </summary>
+    [Parameter]
+    public bool ShowSidekickButton { get; set; } = true;
+
+    /// <summary>
+    /// 图表标题
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; } = "图表";
+
+    /// <summary>
+    /// Plotly 数据 (JSON 格式)
+    /// </summary>
+    [Parameter]
+    public string? Data { get; set; }
+
+    /// <summary>
+    /// Plotly 布局配置 (JSON 格式)
+    /// </summary>
+    [Parameter]
+    public string? Layout { get; set; }
+
+    /// <summary>
+    /// Plotly 配置 (JSON 格式)
+    /// </summary>
+    [Parameter]
+    public string? Config { get; set; }
+
+    private ElementReference _chartContainer;
+    private string? _chartId;
+    private bool _isLoading = true;
+    private bool _isInitialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeChartAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_isInitialized && !string.IsNullOrEmpty(Data))
+        {
+            await UpdateChartAsync();
+        }
+    }
+
+    /// <summary>
+    /// 初始化图表
+    /// </summary>
+    private async Task InitializeChartAsync()
+    {
+        if (string.IsNullOrEmpty(Data))
+        {
+            _isLoading = false;
+            return;
+        }
+
+        try
+        {
+            _chartId = $"plotly-chart-{Guid.NewGuid():N}";
+
+            await JS.InvokeVoidAsync("plotlyChart.render",
+            _chartContainer,
+            _chartId,
+            Data,
+            Layout ?? "{}",
+            Config ?? "{}");
+
+            _isLoading = false;
+            _isInitialized = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PlotlyChart] 初始化失败: {ex.Message}");
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 更新图表
+    /// </summary>
+    private async Task UpdateChartAsync()
+    {
+        if (_chartId == null || string.IsNullOrEmpty(Data)) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("plotlyChart.update",
+            _chartId,
+            Data,
+            Layout ?? "{}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PlotlyChart] 更新失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 分屏展示
+    /// </summary>
+    private Task HandleSidekickAsync()
+    {
+        if (string.IsNullOrEmpty(Data)) return Task.CompletedTask;
+
+        ChatState.SetArtifact(new ArtifactDto
+        {
+            ArtifactId = Guid.NewGuid(),
+            Type = "chart",
+            Name = Title,
+            Content = Data
+        });
+        
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 导出图片
+    /// </summary>
+    private async Task HandleExportAsync()
+    {
+        if (_chartId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("plotlyChart.exportImage", _chartId, Title);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PlotlyChart] 导出失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 重置缩放
+    /// </summary>
+    private async Task HandleResetZoomAsync()
+    {
+        if (_chartId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("plotlyChart.resetZoom", _chartId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[PlotlyChart] 重置缩放失败: {ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_chartId != null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("plotlyChart.dispose", _chartId);
+            }
+            catch
+            {
+                // 忽略释放时的错误
+            }
+        }
+    }
+}

@@ -1,0 +1,306 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Models
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Terminal
+
+@* 按原始顺序渲染所有 Block *@
+@if (UseOrderedBlocks)
+{
+    @* 使用 OrderedBlocks 实现交错布局 *@
+    @* 优先使用块级 Thinking；如果当前消息只有结构化块但没有块级 Thinking，则回退渲染全局 Thoughts，避免思维链丢失。 *@
+
+    @if (!HasThinkingInOrderedBlocks && Thoughts.Count > 0)
+    {
+        <ThoughtChainPanel Thoughts="@Thoughts" RunState="@RunState" />
+    }
+
+    @foreach (var item in MergedBlocks.Select((block, index) => new { block, index }))
+    {
+        <div class="@GetBlockStageClass(item.block.BlockType)"
+             style="@GetBlockRevealStyle(item.index)">
+            @switch (item.block.BlockType)
+        {
+            case BlockType.Thinking:
+                <ThoughtChainPanel Thoughts="@MetadataHelper.ParseThoughts(item.block.Content ?? "")" RunState="@RunState" />
+                break;
+                
+            case BlockType.TextDelta:
+                @if (!string.IsNullOrEmpty(item.block.Content))
+                {
+                    <ThrottledMarkdownRenderer Content="@item.block.Content" IsStreaming="@IsStreamingRun" />
+                }
+                break;
+
+            case BlockType.Chart:
+                @if (IsSidekickVisible && AreArtifactsCollapsed)
+                {
+                    <button class="collapsed-block-btn" @onclick="OnToggleCollapse" title="点击展开图表">
+                        <BarChartIcon Size="16" />
+                        <span class="block-label">图表已折叠</span>
+                        <span class="expand-hint">▶</span>
+                    </button>
+                }
+                else
+                {
+                    <ChartBlockRenderer Block="@item.block" />
+                }
+                break;
+
+            case BlockType.InteractiveCard:
+                @if (IsSidekickVisible && AreArtifactsCollapsed)
+                {
+                    <button class="collapsed-block-btn" @onclick="OnToggleCollapse" title="点击展开卡片">
+                        <SearchIcon Size="16" />
+                        <span class="block-label">交互卡片已折叠</span>
+                        <span class="expand-hint">▶</span>
+                    </button>
+                }
+                else
+                {
+                    <InteractiveBlockRenderer Block="@item.block" />
+                }
+                break;
+
+            case BlockType.ToolResult:
+                <ToolResultBlock Block="@item.block" />
+                break;
+
+            case BlockType.Warning:
+                <WarningBlock Block="@item.block" />
+                break;
+
+            case BlockType.Reference:
+                <ReferenceBlock Block="@item.block" />
+                break;
+
+            case BlockType.RagContext:
+                <DevNexus.Client.Shared.Components.Cards.RagReferencesCard
+                    References="@DevNexus.Client.Shared.Components.Cards.RagReferencesCard.ParseFromContent(item.block.Content)" />
+                break;
+                
+            case BlockType.ArtifactStart:
+            case BlockType.ArtifactDelta:
+            case BlockType.ArtifactEnd:
+                @* 代码/HTML/Diff Artifact - 包装成 Markdown 代码块复用渲染器 *@
+                <ThrottledMarkdownRenderer Content="@FormatArtifactAsMarkdown(item.block)" IsStreaming="@IsStreamingRun" />
+                break;
+
+            case BlockType.Truncated:
+                <div class="truncated-notice history">
+                    <div class="truncated-content">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span>@item.block.Content</span>
+                    </div>
+                    @if (OnContinue.HasDelegate && CanContinue(item.block))
+                    {
+                        <button class="continue-btn" @onclick="() => OnContinue.InvokeAsync(item.block)">
+                            <i class="fa-solid fa-forward"></i> 继续生成
+                        </button>
+                    }
+                </div>
+                break;
+            }
+        </div>
+    }
+}
+else
+{
+    @* 降级方案：使用旧的按类型分组渲染 *@
+    @if (Thoughts.Count > 0)
+    {
+        <ThoughtChainPanel Thoughts="@Thoughts" RunState="@RunState" />
+    }
+    <div class="assistant-block-stage assistant-block-stage--fallback">
+        <ThrottledMarkdownRenderer Content="@DisplayedContent" IsStreaming="@IsStreamingRun" />
+    </div>
+
+    @* 渲染历史消息中的图表 *@
+    @if (IsSidekickVisible && AreArtifactsCollapsed && ChartBlocks.Any())
+    {
+        <button class="collapsed-block-btn" @onclick="OnToggleCollapse" title="点击展开图表">
+            <BarChartIcon Size="16" />
+            <span class="block-label">@ChartBlocks.Count 个图表已折叠</span>
+            <span class="expand-hint">▶</span>
+        </button>
+    }
+    else
+    {
+        @foreach (var chartBlock in ChartBlocks)
+        {
+            <ChartBlockRenderer Block="@chartBlock" />
+        }
+    }
+
+    @* 渲染历史消息中的交互卡片 *@
+    @if (IsSidekickVisible && AreArtifactsCollapsed && InteractiveBlocks.Any())
+    {
+        <button class="collapsed-block-btn" @onclick="OnToggleCollapse" title="点击展开卡片">
+            <SearchIcon Size="16" />
+            <span class="block-label">@InteractiveBlocks.Count 个交互卡片已折叠</span>
+            <span class="expand-hint">▶</span>
+        </button>
+    }
+    else
+    {
+        @foreach (var block in InteractiveBlocks)
+        {
+            <InteractiveBlockRenderer Block="@block" />
+        }
+    }
+}
+
+@* AI 消息的 Artifacts 显示为简洁的卡片 *@
+<ArtifactsList Artifacts="@FilteredArtifacts" InitiallyCollapsed="@AreArtifactsCollapsed" />
+
+@code {
+    [Parameter] public string DisplayedContent { get; set; } = default!;
+    [Parameter] public List<string> Thoughts { get; set; } = new();
+    [Parameter] public List<BlockDto> OrderedBlocks { get; set; } = new();
+    [Parameter] public List<BlockDto> ChartBlocks { get; set; } = new();
+    [Parameter] public List<BlockDto> InteractiveBlocks { get; set; } = new();
+    [Parameter] public List<ArtifactDto> FilteredArtifacts { get; set; } = new();
+    [Parameter] public bool IsSidekickVisible { get; set; }
+    [Parameter] public bool ShowRegenerateButton { get; set; }
+    [Parameter] public bool AreArtifactsCollapsed { get; set; }
+    [Parameter] public EventCallback OnRegenerate { get; set; }
+    [Parameter] public EventCallback OnToggleCollapse { get; set; }
+    [Parameter] public EventCallback<BlockDto> OnContinue { get; set; }
+    [Parameter] public ChatSessionRunState RunState { get; set; }
+
+    private bool IsStreamingRun => RunState is ChatSessionRunState.Generating or ChatSessionRunState.Recovering;
+
+    private bool UseOrderedBlocks => OrderedBlocks != null && OrderedBlocks.Any();
+    private bool HasThinkingInOrderedBlocks => OrderedBlocks?.Any(b => b.BlockType == BlockType.Thinking) ?? false;
+
+    private List<BlockDto> MergedBlocks
+    {
+        get
+        {
+            var merged = new List<BlockDto>();
+
+            // 检查 OrderedBlocks 中是否已有 TextDelta
+            var hasTextDeltaInOrderedBlocks = OrderedBlocks?.Any(b => b.BlockType == BlockType.TextDelta) ?? false;
+
+            // 只有当 OrderedBlocks 中没有 TextDelta 时，才从 DisplayedContent 创建
+            if (!hasTextDeltaInOrderedBlocks && !string.IsNullOrEmpty(DisplayedContent))
+            {
+                merged.Add(new BlockDto
+                {
+                    BlockType = BlockType.TextDelta,
+                    Content = DisplayedContent
+                });
+            }
+
+            if (OrderedBlocks != null)
+            {
+                // 对 InteractiveCard 类型去重（基于内容）
+                var seenInteractiveContents = new HashSet<string>();
+                
+                foreach (var block in OrderedBlocks)
+                {
+                    if (block.BlockType == BlockType.Terminal)
+                    {
+                        continue;
+                    }
+
+                    if (block.BlockType == BlockType.InteractiveCard)
+                    {
+                        // 使用内容 hash 去重
+                        var contentKey = block.Content ?? "";
+                        if (seenInteractiveContents.Contains(contentKey))
+                        {
+                            continue; // 跳过重复的交互卡片
+                        }
+                        seenInteractiveContents.Add(contentKey);
+                    }
+                    merged.Add(block);
+                }
+            }
+
+            return merged;
+        }
+    }
+
+    private string FormatArtifactAsMarkdown(BlockDto block)
+    {
+        var artifactType = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Type, ArtifactBlockMetadataConstants.TypeCode);
+        
+        return artifactType switch
+        {
+            ArtifactBlockMetadataConstants.TypeCode => FormatCodeArtifact(block),
+            ArtifactBlockMetadataConstants.TypeHtml => FormatHtmlArtifact(block),
+            _ => FormatCodeArtifact(block)
+        };
+    }
+    
+    private string FormatCodeArtifact(BlockDto block)
+    {
+        var lang = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Language, "text");
+        return $"```{lang}\n{block.Content}\n```";
+    }
+    
+    private string FormatHtmlArtifact(BlockDto block)
+    {
+        return $"```html\n{block.Content}\n```";
+    }
+    
+    private string FormatDiffArtifact(BlockDto block)
+    {
+        var lang = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Language, "text");
+        var original = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.OriginalCode, string.Empty);
+        var modified = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.ModifiedCode, string.Empty);
+        var title = MetadataHelper.GetString(block.Metadata, ArtifactBlockMetadataConstants.Title, ArtifactBlockMetadataConstants.DefaultDiffTitle);
+        
+        return $"**{title}**\n\n**原始代码：**\n```{lang}\n{original}\n```\n\n**修改后：**\n```{lang}\n{modified}\n```";
+    }
+
+    private static bool CanContinue(BlockDto block)
+    {
+        return MetadataHelper.GetBool(block.Metadata, TruncatedBlockMetadataConstants.CanContinue) ?? true;
+    }
+
+    private string GetBlockRevealStyle(int index)
+    {
+        if (!IsStreamingRun)
+        {
+            return string.Empty;
+        }
+
+        var delayMs = Math.Min(index * 60, 360);
+        return $"--assistant-block-delay: {delayMs}ms;";
+    }
+
+    private string GetBlockStageKind(BlockType blockType)
+    {
+        return blockType switch
+        {
+            BlockType.Thinking => "thinking",
+            BlockType.TextDelta => "text",
+            BlockType.Chart => "artifact",
+            BlockType.InteractiveCard => "artifact",
+            BlockType.ToolResult => "tool",
+            BlockType.Terminal => "terminal",
+            BlockType.RagContext => "artifact",
+            BlockType.ArtifactStart => "artifact",
+            BlockType.ArtifactDelta => "artifact",
+            BlockType.ArtifactEnd => "artifact",
+            BlockType.Truncated => "notice",
+            _ => "text"
+        };
+    }
+
+    private string GetBlockStageClass(BlockType blockType)
+    {
+        var classes = $"assistant-block-stage assistant-block-stage--{GetBlockStageKind(blockType)}";
+
+        if (IsStreamingRun)
+        {
+            classes += " assistant-block-stage--live";
+        }
+
+        return classes;
+    }
+}

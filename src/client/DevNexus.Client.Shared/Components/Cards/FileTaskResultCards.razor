@@ -1,0 +1,468 @@
+@namespace DevNexus.Client.Shared.Components.Cards
+
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Abstractions.Chat
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Models
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+@using System.Text.Json
+
+@implements IDisposable
+
+@if (ShouldRenderContainer)
+{
+    <div class="file-task-results-shell">
+        <div class="file-task-results-header">
+            <span class="file-task-results-title">生成文件</span>
+            <div class="file-task-results-status-wrap">
+                <span class="file-task-results-stage">@GetStageText()</span>
+                <span class="file-task-results-state @GetStatusClass()">@GetStatusText()</span>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(GetStageSummary()))
+        {
+            <div class="file-task-results-stage-summary">@GetStageSummary()</div>
+        }
+
+        @if (OutputAssets.Any())
+        {
+            <div class="file-task-results-grid">
+                @foreach (var asset in OutputAssets)
+                {
+                    <div class="file-task-result-card">
+                        <div class="file-task-result-icon">
+                            <DownloadIcon Size="16" />
+                        </div>
+                        <div class="file-task-result-main">
+                            <div class="file-task-result-name">@asset.OriginalFileName</div>
+                            <div class="file-task-result-meta">@asset.StorageProvider · @GetFileSizeText(asset.SizeBytes)</div>
+                            @if (IsFallbackOutput(asset))
+                            {
+                                <div class="file-task-result-validation">
+                                    <span class="file-task-result-validation-badge">回退模式</span>
+                                    <span class="file-task-result-validation-text">当前结果为摘要与引用文件，未执行外部转换器。</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(GetValidationSummary(asset)))
+                            {
+                                <div class="file-task-result-validation">
+                                    <span class="file-task-result-validation-badge">@GetValidationCategory(asset)</span>
+                                    <span class="file-task-result-validation-text">@GetValidationSummary(asset)</span>
+                                </div>
+                            }
+                        </div>
+                        <div class="file-task-result-actions-inline">
+                            <a class="file-task-result-action" href="@asset.FileUrl" target="_blank" rel="noopener noreferrer">下载</a>
+                            <button
+                                type="button"
+                                class="file-task-result-secondary-action"
+                                @onclick="() => ContinueWithAssetAsync(asset)"
+                                disabled="@IsContinuing(asset)">
+                                @(IsContinuing(asset) ? "加入中..." : "加入下一轮")
+                            </button>
+                        </div>
+                        <div class="file-task-result-reuse-hint">加入后会出现在当前输入区，并作为执行上下文参与下一轮。</div>
+                    </div>
+                }
+            </div>
+        }
+        else if (CurrentStatus is FileTaskStatus.Pending or FileTaskStatus.Running)
+        {
+            <div class="file-task-results-empty">正在处理输入文件，生成文件后会在这里出现。</div>
+        }
+        else if (CurrentStatus == FileTaskStatus.Failed)
+        {
+            <div class="file-task-results-error">处理失败，未生成可下载文件。</div>
+            <div class="file-task-results-actions">
+                <button
+                    type="button"
+                    class="file-task-results-retry-btn"
+                    @onclick="RetryAsync"
+                    disabled="@_isRetrying">
+                    @(_isRetrying ? "重新执行中..." : "重新执行")
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_actionError))
+            {
+                <div class="file-task-results-error-detail">@_actionError</div>
+            }
+        }
+
+        @if (CanCancel())
+        {
+            <div class="file-task-results-actions">
+                <button
+                    type="button"
+                    class="file-task-results-retry-btn"
+                    @onclick="CancelAsync"
+                    disabled="@_isCancelling">
+                    @(_isCancelling ? "停止中..." : "停止处理")
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Inject] private IApiService ApiService { get; set; } = default!;
+    [Inject] private INotificationService NotificationService { get; set; } = default!;
+    [Inject] private IComposerFileBridgeService ComposerFileBridgeService { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public ArtifactDto TaskArtifact { get; set; } = default!;
+
+    private CancellationTokenSource? _pollingCts;
+    private Guid? _trackedTaskId;
+    private FileTaskDto? _liveTask;
+    private List<FileAssetDto> _outputAssets = new();
+    private int _refreshVersion;
+    private bool _isRetrying;
+    private bool _isCancelling;
+    private Guid? _continuingAssetId;
+    private string? _actionError;
+
+    private IReadOnlyList<FileAssetDto> OutputAssets => _outputAssets;
+    private FileTaskStatus CurrentStatus => _liveTask?.Status ?? ParsePayload()?.Status ?? FileTaskStatus.Pending;
+    private FileTaskStage CurrentStage => _liveTask?.Stage ?? ParsePayload()?.Stage ?? FileTaskStage.Queued;
+    private bool ShouldRenderContainer => GetTaskId().HasValue;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var taskId = GetTaskId();
+        if (taskId == _trackedTaskId)
+        {
+            return;
+        }
+
+        StopPolling();
+        System.Threading.Interlocked.Increment(ref _refreshVersion);
+        _trackedTaskId = taskId;
+        _liveTask = null;
+        _outputAssets.Clear();
+        _actionError = null;
+
+        if (!taskId.HasValue)
+        {
+            return;
+        }
+
+        await RefreshAsync(taskId.Value, CancellationToken.None);
+
+        if (ShouldPoll())
+        {
+            _pollingCts = new CancellationTokenSource();
+            _ = PollAsync(taskId.Value, _pollingCts.Token);
+        }
+    }
+
+    private FileTaskArtifactPayload? ParsePayload()
+    {
+        if (string.IsNullOrWhiteSpace(TaskArtifact.Content))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<FileTaskArtifactPayload>(TaskArtifact.Content);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private Guid? GetTaskId()
+    {
+        var payload = ParsePayload();
+        if (payload is { FileTaskId: var payloadTaskId } && payloadTaskId != Guid.Empty)
+        {
+            return payloadTaskId;
+        }
+
+        if (TaskArtifact.Metadata != null &&
+            TaskArtifact.Metadata.TryGetValue(ToolBlockMetadataConstants.FileTaskId, out var rawValue) &&
+            Guid.TryParse(rawValue?.ToString(), out var taskId))
+        {
+            return taskId;
+        }
+
+        return null;
+    }
+
+    private bool ShouldPoll()
+    {
+        return CurrentStatus is FileTaskStatus.Pending or FileTaskStatus.Running;
+    }
+
+    private async Task PollAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync(taskId, cancellationToken);
+                if (!ShouldPoll())
+                {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        var refreshVersion = System.Threading.Interlocked.Increment(ref _refreshVersion);
+
+        var task = await ApiService.GetFileTaskAsync(taskId);
+        if (task == null)
+        {
+            return;
+        }
+
+        if (refreshVersion != System.Threading.Volatile.Read(ref _refreshVersion) || _trackedTaskId != taskId)
+        {
+            return;
+        }
+
+        _liveTask = task;
+        if (task.OutputAssetIds.Count == 0)
+        {
+            _outputAssets = new List<FileAssetDto>();
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var outputAssets = await ApiService.GetFileAssetsByIdsAsync(task.OutputAssetIds);
+        if (refreshVersion != System.Threading.Volatile.Read(ref _refreshVersion) || _trackedTaskId != taskId)
+        {
+            return;
+        }
+
+        _outputAssets = outputAssets
+            .OrderByDescending(asset => asset.UpdatedAt)
+            .ToList();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RetryAsync()
+    {
+        var taskId = GetTaskId();
+        if (!taskId.HasValue || _isRetrying || _isCancelling)
+        {
+            return;
+        }
+
+        try
+        {
+            _isRetrying = true;
+            _actionError = null;
+            StopPolling();
+            System.Threading.Interlocked.Increment(ref _refreshVersion);
+
+            var task = await ApiService.RetryFileTaskAsync(taskId.Value);
+            _liveTask = task;
+            _outputAssets.Clear();
+
+            await NotificationService.ShowAsync("文件处理已重新开始", "系统已重新排队并开始处理当前文件。");
+
+            if (ShouldPoll())
+            {
+                _pollingCts = new CancellationTokenSource();
+                _ = PollAsync(taskId.Value, _pollingCts.Token);
+            }
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.Message;
+            await NotificationService.ShowAsync("重新执行失败", ex.Message);
+        }
+        finally
+        {
+            _isRetrying = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        var taskId = GetTaskId();
+        if (!taskId.HasValue || _isCancelling || _isRetrying)
+        {
+            return;
+        }
+
+        try
+        {
+            _isCancelling = true;
+            _actionError = null;
+            System.Threading.Interlocked.Increment(ref _refreshVersion);
+            _liveTask = await ApiService.CancelFileTaskAsync(taskId.Value);
+            StopPolling();
+            await NotificationService.ShowAsync("文件处理已停止", "当前文件处理已停止并保留现有结果。");
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.Message;
+            await NotificationService.ShowAsync("停止处理失败", ex.Message);
+        }
+        finally
+        {
+            _isCancelling = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ContinueWithAssetAsync(FileAssetDto asset)
+    {
+        if (_continuingAssetId.HasValue || !TaskArtifact.SessionId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            _continuingAssetId = asset.FileAssetId;
+            _actionError = null;
+            await ComposerFileBridgeService.QueueFileAssetAsync(TaskArtifact.SessionId.Value, asset);
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.Message;
+            await NotificationService.ShowAsync("加入下一轮失败", ex.Message);
+        }
+        finally
+        {
+            _continuingAssetId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private bool IsContinuing(FileAssetDto asset)
+    {
+        return _continuingAssetId.HasValue && _continuingAssetId.Value == asset.FileAssetId;
+    }
+
+    private bool CanCancel()
+    {
+        return CurrentStatus is FileTaskStatus.Pending or FileTaskStatus.Running;
+    }
+
+    private string GetStatusText()
+    {
+        return CurrentStatus switch
+        {
+            FileTaskStatus.Pending => "待生成",
+            FileTaskStatus.Running => "生成中",
+            FileTaskStatus.Completed => "已生成",
+            FileTaskStatus.Failed => "生成失败",
+            FileTaskStatus.Cancelled => "已取消",
+            _ => "未知状态"
+        };
+    }
+
+    private string GetStageText()
+    {
+        return CurrentStage switch
+        {
+            FileTaskStage.Queued => "排队中",
+            FileTaskStage.PreparingTaskDirectory => "准备任务目录",
+            FileTaskStage.StagingAssets => "整理文件",
+            FileTaskStage.ExecutingScript => "执行处理中",
+            FileTaskStage.ValidatingOutputs => "验证结果中",
+            FileTaskStage.PublishingOutputs => "发布结果中",
+            FileTaskStage.Completed => "结果已发布",
+            FileTaskStage.Failed => "处理失败",
+            FileTaskStage.Cancelled => "任务已取消",
+            _ => "未知阶段"
+        };
+    }
+
+    private string? GetStageSummary()
+    {
+        return _liveTask?.StageSummary
+            ?? ParsePayload()?.StageSummary
+            ?? MetadataHelper.GetString(TaskArtifact.Metadata, ToolBlockMetadataConstants.StageSummary);
+    }
+
+    private string GetStatusClass()
+    {
+        return CurrentStatus switch
+        {
+            FileTaskStatus.Completed => "status-completed",
+            FileTaskStatus.Failed => "status-failed",
+            FileTaskStatus.Cancelled => "status-cancelled",
+            FileTaskStatus.Running => "status-running",
+            _ => "status-pending"
+        };
+    }
+
+    private static string GetFileSizeText(long sizeBytes)
+    {
+        if (sizeBytes >= 1024 * 1024)
+        {
+            return $"{sizeBytes / 1024d / 1024d:0.0} MB";
+        }
+
+        if (sizeBytes >= 1024)
+        {
+            return $"{sizeBytes / 1024d:0.0} KB";
+        }
+
+        return $"{sizeBytes} B";
+    }
+
+    private static string GetValidationSummary(FileAssetDto asset)
+    {
+        return MetadataHelper.GetString(asset.Metadata, "validationSummary");
+    }
+
+    private static string GetValidationCategory(FileAssetDto asset)
+    {
+        var category = MetadataHelper.GetString(asset.Metadata, "validationCategory", "generic");
+        return category switch
+        {
+            "excel" => "Excel",
+            "csv" => "CSV",
+            "markdown" => "Markdown",
+            "json" => "JSON",
+            "xml" => "XML",
+            "code" => "Code",
+            _ => "文件"
+        };
+    }
+
+    private static bool IsFallbackOutput(FileAssetDto asset)
+    {
+        return string.Equals(
+            MetadataHelper.GetString(asset.Metadata, "executionMode"),
+            "fallback-summary",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void StopPolling()
+    {
+        if (_pollingCts == null)
+        {
+            return;
+        }
+
+        _pollingCts.Cancel();
+        _pollingCts.Dispose();
+        _pollingCts = null;
+    }
+
+    public void Dispose()
+    {
+        StopPolling();
+    }
+}

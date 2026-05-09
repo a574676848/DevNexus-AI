@@ -1,0 +1,273 @@
+/* UserIntegrationsPanel.UserView.razor.css - 用户视图样式 */
+
+/* ===== 用户网格视图 ===== */
+.provider-grid.user-view {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    column-gap: 20px;
+    row-gap: 20px;
+    padding: 8px;
+}
+
+/* ===== 用户项间距 ===== */
+.provider-card {
+    margin: 0;
+}
+
+/* ===== 元数据区域 ===== */
+.provider-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--stage-bg);
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: var(--font-xs);
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+}
+
+.meta-item i {
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+/* ===== 操作按钮区域 ===== */
+.provider-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    padding: 10px 14px;
+}
+
+/* ===== 徽章样式补充 ===== */
+.badge-inactive {
+    background: rgba(107, 114, 128, 0.1);
+    color: var(--text-secondary);
+}
+
+.badge-error {
+    background: rgba(250, 81, 81, 0.1);
+    color: var(--brand-red);
+}
+
+/* ===== 按钮大小变体 ===== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--font-base);
+    font-weight: 400;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    font-size: var(--font-sm);
+    min-height: 28px;
+    width: 100%;
+    justify-content: center;
+}
+
+/* ===== 响应式设计 ===== */
+@media (max-width: 1024px) {
+    .provider-grid.user-view {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .provider-grid.user-view {
+        grid-template-columns: 1fr;
+    }
+
+    .provider-meta {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+}
+
+/* ===== 移植自父组件的 Card 样式 ===== */
+
+/* ===== 供应商卡片 ===== */
+.provider-card {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-sm), inset 0 1px 1px #ffffff;
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.provider-card:hover {
+    border-color: var(--brand-green);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 卡片头部 */
+.provider-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.provider-logo {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+}
+
+.provider-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.provider-name {
+    font-size: var(--font-base);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.provider-type {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
+.provider-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+/* 徽章样式 */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: var(--font-xs);
+    font-weight: 500;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.badge-primary {
+    background: rgba(7, 193, 96, 0.1);
+    color: var(--brand-green);
+}
+
+.badge-success {
+    background: rgba(7, 193, 96, 0.1);
+    color: var(--brand-green);
+}
+
+.badge-gray {
+    background: var(--stage-bg);
+    color: var(--text-secondary);
+}
+
+.badge-danger {
+    background: rgba(250, 81, 81, 0.1);
+    color: var(--brand-red);
+}
+
+/* 按钮样式复用 */
+.btn-secondary {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--text-primary);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius-full);
+}
+
+.btn-secondary:hover {
+    background: #ffffff;
+    border-color: var(--brand-green);
+    color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-danger {
+    padding: 6px 12px;
+    background: var(--white-bg);
+    color: var(--brand-red);
+    border: 1px solid var(--border-default);
+}
+
+.btn-danger:hover {
+    background: rgba(250, 81, 81, 0.05);
+}
+
+/* ===== 添加供应商卡片 ===== */
+.add-provider-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 2px dashed rgba(0, 0, 0, 0.08);
+    border-radius: var(--radius-lg);
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    height: 100%;
+    width: 100%;
+    min-height: 180px;
+    box-sizing: border-box;
+}
+
+.add-provider-card:hover {
+    border-color: var(--brand-green);
+    color: var(--brand-green);
+    background: rgba(7, 193, 96, 0.05);
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+}
+
+.add-icon-wrapper {
+    transition: transform 0.3s ease;
+}
+
+.add-provider-card:hover .add-icon-wrapper {
+    transform: scale(1.1) rotate(90deg);
+}
+
+.add-text {
+    font-weight: 400;
+}

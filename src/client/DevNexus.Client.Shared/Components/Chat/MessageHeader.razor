@@ -1,0 +1,38 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+<div class="message-header">
+    <span class="message-sender">@SenderName</span>
+    <span class="message-time">@FormattedTime</span>
+    @if (!string.IsNullOrWhiteSpace(StatusLabel))
+    {
+        <span class="message-status message-status--@StatusTone">@StatusLabel</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string SenderName { get; set; } = default!;
+    [Parameter] public DateTime CreatedAt { get; set; }
+    [Parameter] public string? StatusLabel { get; set; }
+    [Parameter] public string StatusTone { get; set; } = "neutral";
+
+    private string FormattedTime => FormatTime(CreatedAt);
+
+    private string FormatTime(DateTime time)
+    {
+        var localTime = time.ToLocalTime();
+        var now = DateTime.UtcNow;
+
+        if (localTime.Date == now.Date)
+        {
+            return localTime.ToString("HH:mm");
+        }
+        else if (localTime.Date == now.Date.AddDays(-1))
+        {
+            return "昨天 " + localTime.ToString("HH:mm");
+        }
+        else
+        {
+            return localTime.ToString("MM-dd HH:mm");
+        }
+    }
+}

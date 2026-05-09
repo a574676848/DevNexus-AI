@@ -1,0 +1,77 @@
+/* AppShell Component Styles - Modern Minimalist Layout */
+
+.app-shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    background: var(--white-bg);
+}
+
+/* App Body Container - 填充整个区域 */
+.app-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Region 1: Nav Sidebar (54px) */
+.region-nav {
+    width: var(--sidebar-width, 54px);
+    background: transparent;
+    /* Changed to transparent for Glassmorphism sidebar */
+    flex-shrink: 0;
+    z-index: 20;
+}
+
+/* Region 2: List Sidebar - 已移除，由 ResizablePanel 处理 */
+.list-sidebar-expand-handle {
+    width: 18px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-right: 1px solid var(--dnx-border-subtle, #e3e7ea);
+    background: linear-gradient(180deg, rgba(248, 249, 250, 0.98) 0%, rgba(242, 244, 246, 0.98) 100%);
+    color: var(--dnx-text-secondary, #5f6b76);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.18s ease, color 0.18s ease, width 0.18s ease;
+}
+
+.list-sidebar-expand-handle:hover {
+    width: 22px;
+    background: linear-gradient(180deg, rgba(241, 245, 243, 1) 0%, rgba(234, 239, 236, 1) 100%);
+    color: var(--dnx-text-primary, #182026);
+}
+
+.list-sidebar-expand-handle:focus-visible {
+    outline: 2px solid rgba(7, 193, 96, 0.22);
+    outline-offset: -2px;
+}
+
+/* Region 3: Main Stage (Flex) */
+.region-stage {
+    flex: 1;
+    background: var(--stage-bg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Region 4: Sidekick Panel (Auto Width) */
+.region-sidekick {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(252, 254, 253, 0.96) 0%, rgba(245, 248, 246, 0.98) 100%);
+    border-left: 1px solid var(--border-default);
+    box-shadow: -14px 0 28px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}

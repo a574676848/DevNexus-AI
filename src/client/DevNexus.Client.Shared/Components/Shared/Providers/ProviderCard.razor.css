@@ -1,0 +1,535 @@
+/* ProviderCard.razor.css - 供应商卡片通用样式 */
+
+.provider-card {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 12px;
+    padding: 12px;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    box-sizing: border-box;
+}
+
+.provider-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--brand-green), rgba(7, 193, 96, 0.5));
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+}
+
+.provider-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px #ffffff;
+    border-color: rgba(7, 193, 96, 0.3);
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.85);
+}
+
+.provider-card:hover::before {
+    transform: scaleX(1);
+}
+
+/* 默认供应商样式 */
+.provider-card.default {
+    border-color: var(--brand-green);
+    background: linear-gradient(135deg, rgba(7, 193, 96, 0.05) 0%, rgba(255, 255, 255, 0.7) 100%);
+}
+
+.provider-card.default:hover {
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.15);
+}
+
+/* 卡片头部 */
+.provider-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.provider-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+
+.provider-logo-wrapper {
+    flex-shrink: 0;
+}
+
+.provider-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 6px;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.provider-card:hover .provider-logo {
+    transform: scale(1.05);
+}
+
+.provider-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.provider-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.provider-type {
+    font-size: var(--font-xs);
+    color: var(--text-secondary);
+}
+
+.provider-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transition: transform 0.3s ease;
+}
+
+.provider-card:hover .status-dot {
+    transform: scale(1.2);
+}
+
+.status-dot.enabled {
+    background: var(--brand-green);
+    box-shadow: 0 0 8px rgba(7, 193, 96, 0.4);
+}
+
+.status-dot.disabled {
+    background: var(--text-placeholder);
+}
+
+.default-badge {
+    padding: 2px 8px;
+    background: var(--brand-green);
+    color: #ffffff;
+    font-size: var(--font-xs);
+    font-weight: 500;
+    border-radius: 3px;
+}
+
+/* 卡片主体 */
+.provider-card-body {
+    margin-bottom: 8px;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+}
+
+/* 卡片底部按钮区域 - 等距铺满一行 */
+.provider-card-footer {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    align-items: center;
+}
+
+/* ===== 测试结果内联显示样式 ===== */
+
+/* 测试成功时卡片边框发光效果 */
+.provider-card.test-success {
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.15), 0 4px 12px rgba(7, 193, 96, 0.1);
+}
+
+/* 测试失败时卡片边框效果 */
+.provider-card.test-error {
+    border-color: var(--brand-red, #fa5151);
+    box-shadow: 0 0 0 2px rgba(250, 81, 81, 0.15), 0 4px 12px rgba(250, 81, 81, 0.1);
+}
+
+/* 测试警告时卡片边框效果（Key 有效但需要充値） */
+.provider-card.test-warning {
+    border-color: var(--brand-orange, #fa9d3b);
+    box-shadow: 0 0 0 2px rgba(250, 157, 59, 0.15), 0 4px 12px rgba(250, 157, 59, 0.1);
+}
+
+/* 测试结果内联区域 - 绝对定位悬浮，不撑高卡片 */
+.test-result-inline {
+    position: absolute;
+    bottom: 48px;
+    /* 刚好浮在 footer 上方 */
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 12px 4px;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: var(--radius-sm, 4px);
+    border: 1px solid;
+    animation: fadeSlideIn 0.25s ease;
+    z-index: 10;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    backdrop-filter: blur(4px);
+}
+
+@keyframes fadeSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.test-result-inline.success {
+    background: linear-gradient(135deg, rgba(7, 193, 96, 0.08) 0%, rgba(7, 193, 96, 0.03) 100%);
+    color: var(--brand-green, #07c160);
+    border-color: rgba(7, 193, 96, 0.25);
+}
+
+.test-result-inline.error {
+    background: linear-gradient(135deg, rgba(250, 81, 81, 0.08) 0%, rgba(250, 81, 81, 0.03) 100%);
+    color: var(--brand-red, #fa5151);
+    border-color: rgba(250, 81, 81, 0.25);
+}
+
+/* 警告状态：Key 有效但账户限制（如余额不足）- 黄色 */
+.test-result-inline.warning {
+    background: linear-gradient(135deg, rgba(250, 157, 59, 0.08) 0%, rgba(250, 157, 59, 0.03) 100%);
+    color: var(--brand-orange, #fa9d3b);
+    border-color: rgba(250, 157, 59, 0.25);
+}
+
+.test-result-inline span {
+    flex: 1;
+    line-height: 1.4;
+}
+
+/* 关闭测试结果按钮 */
+.test-result-close {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: currentColor;
+    opacity: 0.6;
+    cursor: pointer;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 16px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.test-result-close:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.test-result-inline.success .test-result-close:hover {
+    background: rgba(7, 193, 96, 0.15);
+}
+
+.test-result-inline.error .test-result-close:hover {
+    background: rgba(250, 81, 81, 0.15);
+}
+
+/* ===== 按钮样式 (Blazor CSS 隔离修复) ===== */
+/* 由于 FooterContent 插槽内容在 ProviderCard 内部渲染，按钮样式必须定义在此文件中 */
+
+/* 按钮基础样式 - flex:1 实现等距铺满 */
+::deep .btn-primary,
+::deep .btn-secondary,
+::deep .btn-danger {
+    padding: 5px 10px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+/* 主按钮 */
+::deep .btn-primary {
+    background: linear-gradient(135deg, var(--brand-green) 0%, #05a650 100%);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+}
+
+::deep .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #07d268 0%, #06b859 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(7, 193, 96, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+::deep .btn-primary:active:not(:disabled) {
+    transform: translateY(0) scale(0.96);
+    box-shadow: 0 2px 6px rgba(7, 193, 96, 0.2);
+}
+
+/* 次要按钮 */
+::deep .btn-secondary {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+}
+
+::deep .btn-secondary:hover:not(:disabled) {
+    background: #ffffff;
+    border-color: rgba(7, 193, 96, 0.3);
+    color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+::deep .btn-secondary:active:not(:disabled) {
+    transform: translateY(0) scale(0.96);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* 危险按钮 */
+::deep .btn-danger {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.08);
+    color: var(--brand-red, #fa5151);
+}
+
+::deep .btn-danger:hover:not(:disabled) {
+    background: rgba(250, 81, 81, 0.08);
+    border-color: rgba(250, 81, 81, 0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(250, 81, 81, 0.1);
+}
+
+::deep .btn-danger:active:not(:disabled) {
+    transform: translateY(0) scale(0.96);
+    background: rgba(250, 81, 81, 0.12);
+}
+
+/* 按钮禁用状态 */
+::deep .btn-primary:disabled,
+::deep .btn-secondary:disabled,
+::deep .btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* 图标按钮 - 自动等分宽度 */
+::deep .btn-icon {
+    flex: 1;
+    min-width: 0;
+    gap: 4px;
+}
+
+/* 更多操作按钮容器 - 同样等分 */
+::deep .btn-more-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    min-width: 0;
+}
+
+::deep .btn-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 紧凑按钮模式 (用于多按钮布局) */
+::deep .btn-compact {
+    padding: 6px 8px;
+    font-size: 11px;
+    min-width: 50px;
+    height: 26px;
+}
+
+::deep .btn-icon.btn-compact {
+    min-width: 60px;
+}
+
+::deep .btn-icon.btn-compact svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* 更多操作按钮 - 与其他按钮尺寸一致并撑满 wrapper */
+::deep .btn-more {
+    padding: 6px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 9999px;
+    background: rgba(255, 255, 255, 0.8);
+    color: var(--text-secondary);
+    font-size: var(--font-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+::deep .btn-more:hover {
+    background: #ffffff;
+    border-color: rgba(7, 193, 96, 0.3);
+    color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* 更多菜单下拉 */
+::deep .more-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 4px;
+    background: var(--white-bg);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 120px;
+    z-index: 100;
+    animation: dropdownShow 0.2s ease;
+}
+
+@keyframes dropdownShow {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+::deep .more-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    color: var(--text-primary);
+    font-size: var(--font-xs);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+}
+
+::deep .more-menu-item:hover {
+    background: var(--stage-bg);
+    color: var(--brand-green);
+}
+
+::deep .more-menu-item.danger {
+    color: var(--brand-red, #fa5151);
+}
+
+::deep .more-menu-item.danger:hover {
+    background: rgba(250, 81, 81, 0.08);
+}
+
+::deep .more-menu-item svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 加载状态小动画 */
+::deep .spinner-small {
+    width: 12px;
+    height: 12px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 徽章点 (用于显示付费状态等) */
+::deep .badge-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 4px;
+}
+
+::deep .badge-dot.success {
+    background: var(--brand-green);
+}
+
+::deep .badge-dot.warning {
+    background: var(--brand-orange, #fa9d3b);
+}
+
+::deep .badge-dot.error {
+    background: var(--brand-red, #fa5151);
+}

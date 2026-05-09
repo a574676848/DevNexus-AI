@@ -1,0 +1,308 @@
+@*
+    MonacoEditor.razor
+    Monaco Editor Blazor 封装组件
+    功能：
+    - 创建和管理 Monaco 编辑器实例
+    - 支持多种编程语言语法高亮
+    - 支持只读模式和内容更新
+    - 支持暗色主题
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="monaco-editor-wrapper">
+    <div class="monaco-editor-container" @ref="_editorContainer"></div>
+    @if (_isLoading)
+    {
+            <div class="loading-overlay">
+                <div class="loading-spinner"></div>
+                <span>加载编辑器中...</span>
+            </div>
+    }
+    @if (_showLargeContentHint)
+    {
+        <div class="editor-hint-badge">大文件保护已启用</div>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// 编辑器内容
+    /// </summary>
+    [Parameter]
+    public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 编程语言 (用于语法高亮)
+    /// </summary>
+    [Parameter]
+    public string Language { get; set; } = "plaintext";
+
+    /// <summary>
+    /// 是否只读模式
+    /// </summary>
+    [Parameter]
+    public bool ReadOnly { get; set; } = false;
+
+    /// <summary>
+    /// 编辑器主题 (vs-dark, vs-light, hc-black)
+    /// </summary>
+    [Parameter]
+    public string Theme { get; set; } = "vs-dark";
+
+    /// <summary>
+    /// 字体大小
+    /// </summary>
+    [Parameter]
+    public int FontSize { get; set; } = 14;
+
+    /// <summary>
+    /// 是否显示 minimap
+    /// </summary>
+    [Parameter]
+    public bool ShowMinimap { get; set; } = true;
+
+    /// <summary>
+    /// 是否启用自动换行
+    /// </summary>
+    [Parameter]
+    public bool WordWrap { get; set; } = false;
+
+    /// <summary>
+    /// 内容变更回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnContentChanged { get; set; }
+
+    private ElementReference _editorContainer;
+    private string? _editorId;
+    private bool _isLoading = true;
+    private string? _lastContent;
+    private bool _isInitialized = false;
+    private bool _focusPending;
+    private DotNetObjectReference<MonacoEditor>? _dotNetRef;
+    private bool _showLargeContentHint;
+    private const int LargeContentThreshold = 120_000;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeEditorAsync();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _showLargeContentHint = !string.IsNullOrWhiteSpace(Content) && Content.Length > LargeContentThreshold;
+
+        if (_isInitialized && Content != _lastContent)
+        {
+            _lastContent = Content;
+            await UpdateContentAsync();
+        }
+    }
+
+    /// <summary>
+    /// 初始化 Monaco 编辑器
+    /// </summary>
+    private async Task InitializeEditorAsync()
+    {
+        try
+        {
+            _editorId = $"monaco-editor-{Guid.NewGuid():N}";
+
+            // 创建编辑器配置
+            var options = new
+            {
+                value = Content ?? "",
+                language = Language,
+                readOnly = ReadOnly,
+                theme = Theme,
+                automaticLayout = true,
+                fontSize = FontSize,
+                fontFamily = "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace",
+                minimap = new { enabled = !_showLargeContentHint && ShowMinimap },
+                wordWrap = WordWrap ? "on" : "off",
+                scrollBeyondLastLine = false,
+                lineNumbers = "on",
+                renderLineHighlight = "line",
+                cursorBlinking = "smooth",
+                smoothScrolling = true,
+                padding = new { top = 12, bottom = 12 },
+                renderWhitespace = _showLargeContentHint ? "none" : "selection",
+                guides = new { indentation = !_showLargeContentHint },
+                folding = !_showLargeContentHint
+            };
+
+            // 调用 JS 创建编辑器
+            await JS.InvokeVoidAsync("monacoEditor.create", _editorContainer, _editorId, options);
+
+            if (OnContentChanged.HasDelegate)
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("monacoEditor.registerContentChangedCallback", _editorId, _dotNetRef);
+            }
+
+            _isLoading = false;
+            _isInitialized = true;
+            _lastContent = Content;
+
+            if (_focusPending)
+            {
+                _focusPending = false;
+                await FocusAsync();
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 初始化失败: {ex.Message}");
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 更新编辑器内容
+    /// </summary>
+    private async Task UpdateContentAsync()
+    {
+        if (_editorId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("monacoEditor.updateContent", _editorId, Content ?? "");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 更新内容失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 追加内容 (用于流式更新)
+    /// </summary>
+    public async Task AppendContentAsync(string text)
+    {
+        if (_editorId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("monacoEditor.appendContent", _editorId, text);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 追加内容失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 获取编辑器内容
+    /// </summary>
+    public async Task<string> GetContentAsync()
+    {
+        if (_editorId == null) return string.Empty;
+
+        try
+        {
+            return await JS.InvokeAsync<string>("monacoEditor.getContent", _editorId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 获取内容失败: {ex.Message}");
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// 设置编辑器语言
+    /// </summary>
+    public async Task SetLanguageAsync(string language)
+    {
+        if (_editorId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("monacoEditor.setLanguage", _editorId, language);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 设置语言失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 格式化代码
+    /// </summary>
+    public async Task FormatDocumentAsync()
+    {
+        if (_editorId == null) return;
+
+        try
+        {
+            await JS.InvokeVoidAsync("monacoEditor.formatDocument", _editorId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 格式化失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 聚焦编辑器。
+    /// </summary>
+    public async Task FocusAsync()
+    {
+        if (_editorId == null || !_isInitialized)
+        {
+            _focusPending = true;
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("monacoEditor.focus", _editorId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[MonacoEditor] 聚焦失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// JS 内容变更回调。
+    /// </summary>
+    /// <param name="content">编辑器最新内容。</param>
+    [JSInvokable]
+    public async Task OnContentChangedFromJs(string content)
+    {
+        _lastContent = content;
+
+        if (OnContentChanged.HasDelegate)
+        {
+            await OnContentChanged.InvokeAsync(content);
+        }
+    }
+
+    /// <summary>
+    /// 释放编辑器资源
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (_editorId != null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("monacoEditor.dispose", _editorId);
+            }
+            catch
+            {
+                // 忽略释放时的错误
+            }
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

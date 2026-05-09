@@ -1,0 +1,106 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+
+<div class="provider-grid admin-view">
+    @foreach (var integration in Integrations)
+    {
+        <div class="provider-card" @key="@integration.Id">
+            <div class="provider-header">
+                <div class="provider-logo">
+                    @GetIntegrationTypeIcon(integration.IntegrationType)
+                </div>
+                <div class="provider-info">
+                    <h4 class="provider-name">@integration.DisplayName</h4>
+                    <span class="provider-type">@integration.IntegrationTypeName</span>
+                    <span class="provider-user">👤 @integration.Username (@integration.UserEmail)</span>
+                </div>
+                <div class="provider-status">
+                    @if (integration.IsDefault)
+                    {
+                        <span class="badge badge-primary">默认</span>
+                    }
+                    @if (!integration.IsActive)
+                    {
+                        <span class="badge badge-inactive">已禁用</span>
+                    }
+                    @if (TryGetCredentialStatusBadge(integration.CredentialRuntimeStatus) is { } credentialBadge)
+                    {
+                        <span class="badge @credentialBadge.Class">@credentialBadge.Text</span>
+                    }
+                </div>
+            </div>
+            <div class="provider-meta">
+                <span class="meta-item">
+                    <i class="fa-regular fa-clock"></i>
+                    创建于 @integration.CreatedAt.ToString("yyyy-MM-dd")
+                </span>
+                @if (integration.LastUsedAt.HasValue)
+                {
+                    <span class="meta-item">
+                        <i class="fa-solid fa-chart-line"></i>
+                        最近使用 @integration.LastUsedAt.Value.ToString("yyyy-MM-dd")
+                    </span>
+                }
+                <span class="meta-item">
+                    <i class="fa-solid fa-fingerprint"></i>
+                    使用次数 @integration.UsageCount
+                </span>
+            </div>
+            <div class="provider-actions">
+                <button class="btn btn-sm btn-secondary" @onclick="() => OnEdit.InvokeAsync(integration)" 
+                        title="编辑">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    编辑
+                </button>
+                <button class="btn btn-sm btn-danger" @onclick="() => OnDelete.InvokeAsync(integration)" 
+                        title="删除">
+                    <i class="fa-regular fa-trash-alt"></i>
+                    删除
+                </button>
+            </div>
+        </div>
+    }
+
+    <div class="add-provider-card admin-add-card" @onclick="OnAddClick">
+        <div class="add-icon-wrapper">
+            <DevNexus.Client.Shared.Components.Icons.PlusIcon Size="32" Stroke="#9ca3af" />
+        </div>
+        <span class="add-text">添加系统集成</span>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<UserIntegrationDetailedResponse> Integrations { get; set; } = new();
+
+    [Parameter]
+    public EventCallback<UserIntegrationDetailedResponse> OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback<UserIntegrationDetailedResponse> OnDelete { get; set; }
+
+    [Parameter]
+    public EventCallback OnAddClick { get; set; }
+
+    private RenderFragment GetIntegrationTypeIcon(IntegrationType type) => type switch
+    {
+        IntegrationType.NoteSystem => @<i class="fa-solid fa-note-sticky" style="color: #10aeff;"></i>,
+        IntegrationType.CodeRepository => @<i class="fa-brands fa-github" style="color: #333;"></i>,
+        IntegrationType.CloudStorage => @<i class="fa-solid fa-cloud" style="color: #07c160;"></i>,
+        IntegrationType.Custom => @<i class="fa-solid fa-puzzle-piece" style="color: #ffc300;"></i>,
+        _ => @<i class="fa-solid fa-plug" style="color: #999;"></i>
+    };
+
+    private static (string Text, string Class)? TryGetCredentialStatusBadge(CredentialRuntimeStatus status)
+    {
+        return status switch
+        {
+            CredentialRuntimeStatus.Ready => ("凭证可用", "badge-success"),
+            CredentialRuntimeStatus.ExpiringSoon => ("即将过期", "badge-warning"),
+            CredentialRuntimeStatus.Expired => ("已过期", "badge-error"),
+            CredentialRuntimeStatus.Invalid => ("认证失效", "badge-error"),
+            CredentialRuntimeStatus.CoolingDown => ("冷却中", "badge-warning"),
+            _ => null
+        };
+    }
+}

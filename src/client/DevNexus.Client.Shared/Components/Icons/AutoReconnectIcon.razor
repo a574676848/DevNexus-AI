@@ -1,0 +1,20 @@
+@namespace DevNexus.Client.Shared.Components.Icons
+@inherits IconBase
+
+@* AutoReconnectIcon.razor - 自动重连图标 (Wi-Fi + 循环箭头组合) *@
+<svg width="@Size" height="@Size" viewBox="0 0 24 24" fill="@Fill" stroke="@Stroke"
+     stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round"
+     class="@CssClass" style="@Style">
+    <!-- Wi-Fi信号部分 -->
+    <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+    <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+    <circle cx="12" cy="20" r="1" />
+    <!-- 循环箭头部分 -->
+    <path d="M12 7v3m0 0l-1.5-1.5M12 10l1.5-1.5" />
+    <path d="M7 16a5 5 0 0 0 10 0" stroke="currentColor" stroke-width="1.5" fill="none" />
+</svg>
+
+@code {
+    // 继承 IconBase 的参数
+    // Size, Fill, Stroke, StrokeWidth, CssClass, Style
+}

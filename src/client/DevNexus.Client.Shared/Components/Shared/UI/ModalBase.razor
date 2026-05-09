@@ -1,0 +1,165 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (IsVisible)
+{
+    <div class="modal-overlay @(IsVisible ? "visible" : "") @OverlayClass"
+         @onclick="OnOverlayClick"
+         @onkeydown="OnKeyDown"
+         @ref="_overlayRef"
+         tabindex="-1">
+        <div class="modal-container @Size.ToString().ToLower() @ContainerClass"
+             @onclick:stopPropagation="true"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="@TitleId"
+             @ref="_modalRef">
+            @if (ShowCloseButton)
+            {
+                <button class="modal-close" @onclick="CloseAsync" title="关闭">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            }
+            
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <div class="modal-header" id="@TitleId">
+                    <h3>@Title</h3>
+                </div>
+            }
+            
+            <div class="modal-body @BodyClass">
+                @ChildContent
+            </div>
+            
+            @if (ShowFooter && Footer != null)
+            {
+                <div class="modal-footer">
+                    @Footer
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    public enum ModalSize { Small, Medium, Large, FullScreen }
+    
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string TitleId { get; set; } = $"modal-title-{Guid.NewGuid():N}";
+    [Parameter] public bool ShowCloseButton { get; set; } = true;
+    [Parameter] public bool ShowFooter { get; set; } = true;
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Medium;
+    [Parameter] public bool CloseOnOverlayClick { get; set; } = true;
+    [Parameter] public bool CloseOnEscape { get; set; } = true;
+    [Parameter] public string OverlayClass { get; set; } = string.Empty;
+    [Parameter] public string ContainerClass { get; set; } = string.Empty;
+    [Parameter] public string BodyClass { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    
+    private ElementReference _overlayRef;
+    private ElementReference _modalRef;
+    private bool _bodyScrollLocked;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (IsVisible)
+        {
+            await LockBodyScrollAsync();
+            
+            // 聚焦到模态框
+            await FocusFirstFocusableElementAsync();
+        }
+        else
+        {
+            await UnlockBodyScrollAsync();
+        }
+    }
+    
+    private async Task CloseAsync()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+        await OnClose.InvokeAsync();
+    }
+    
+    private async Task OnOverlayClick()
+    {
+        if (CloseOnOverlayClick)
+        {
+            await CloseAsync();
+        }
+    }
+    
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && CloseOnEscape)
+        {
+            await CloseAsync();
+        }
+        else if (e.Key == "Tab")
+        {
+            await HandleTabKeyAsync(e);
+        }
+    }
+    
+    private async Task HandleTabKeyAsync(KeyboardEventArgs e)
+    {
+        // 简化焦点管理 - 由浏览器默认处理
+        await Task.CompletedTask;
+    }
+    
+    private async Task FocusFirstFocusableElementAsync()
+    {
+        // 聚焦到模态框内的第一个可聚焦元素
+        await Task.Delay(50);
+        await _modalRef.FocusAsync();
+    }
+
+    /// <summary>
+    /// 通过统一的 JS 管理器锁定 body 滚动，避免多个模态框相互覆盖时误解锁或误锁死页面。
+    /// </summary>
+    private async Task LockBodyScrollAsync()
+    {
+        if (_bodyScrollLocked)
+        {
+            return;
+        }
+
+        await JS.InvokeVoidAsync("devnexus.lockBodyScroll");
+        _bodyScrollLocked = true;
+    }
+
+    /// <summary>
+    /// 释放当前模态框持有的 body 滚动锁。
+    /// </summary>
+    private async Task UnlockBodyScrollAsync()
+    {
+        if (!_bodyScrollLocked)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("devnexus.unlockBodyScroll");
+        }
+        finally
+        {
+            _bodyScrollLocked = false;
+        }
+    }
+
+    /// <summary>
+    /// 组件销毁时兜底释放 body 滚动锁，避免异常路径把整页留在不可滚动态。
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        await UnlockBodyScrollAsync();
+    }
+}

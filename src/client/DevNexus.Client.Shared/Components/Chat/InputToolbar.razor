@@ -1,0 +1,95 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@using DevNexus.Shared.DTOs
+@using Microsoft.AspNetCore.Components.Forms
+@using DevNexus.Client.Shared.Components.Icons
+
+<!-- Top Toolbar (Icons) -->
+<div class="input-toolbar">
+    <div class="toolbar-primary-group">
+        <button class="toolbar-btn toolbar-upload-btn @(IsUploading ? "busy" : "")"
+                title="@(IsUploading ? "文件正在解析" : "上传文件")"
+                aria-busy="@IsUploading"
+                disabled="@IsUploading"
+                @onclick="TriggerFileUpload">
+            @if (IsUploading)
+            {
+                <i class="fa-solid fa-spinner fa-spin"></i>
+            }
+            else
+            {
+                <i class="fa-solid fa-paperclip"></i>
+            }
+        </button>
+
+        <button class="toolbar-btn toolbar-more-btn"
+                title="工具箱"
+                aria-label="工具箱"
+                @onclick="OpenQuickCommandAsync">
+            <i class="fa-solid fa-toolbox"></i>
+        </button>
+
+        <button class="toolbar-btn toolbar-rag-btn @(EnableRag ? "active" : string.Empty)"
+                title="@(EnableRag ? "已开启知识库引用" : "已关闭知识库引用")"
+                aria-label="引用知识库"
+                aria-pressed="@EnableRag"
+                @onclick="ToggleRagAsync">
+            <i class="fa-solid fa-book-open"></i>
+        </button>
+
+        @if (CanToggleSidekick)
+        {
+            <button class="toolbar-btn toolbar-sidekick-btn @(IsSidekickVisible ? "active" : string.Empty)"
+                    title="@(IsSidekickVisible ? "收起侧栏" : "展开侧栏")"
+                    aria-label="侧栏"
+                    aria-pressed="@IsSidekickVisible"
+                    @onclick="ToggleSidekickAsync">
+                <i class="fa-solid fa-table-columns"></i>
+            </button>
+        }
+
+        @if (HasActiveSelection)
+        {
+            <div class="toolbar-selection-group" aria-label="当前已选择的工具与技能">
+                @if (!string.IsNullOrWhiteSpace(SelectedToolName))
+                {
+                    <div class="toolbar-selection-chip tool" title="@SelectedToolDescription">
+                        <span class="toolbar-selection-chip-icon"><i class="@SelectedToolIcon"></i></span>
+                        <span class="toolbar-selection-chip-label">@SelectedToolName</span>
+                        <button type="button"
+                                class="toolbar-selection-chip-close"
+                                @onclick="ClearSelectedToolAsync"
+                                aria-label="移除当前工具">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(SelectedSkillName))
+                {
+                    <div class="toolbar-selection-chip skill" title="@SelectedSkillDescription">
+                        <span class="toolbar-selection-chip-icon"><i class="fa-solid fa-sparkles"></i></span>
+                        <span class="toolbar-selection-chip-label">/@SelectedSkillName</span>
+                        <button type="button"
+                                class="toolbar-selection-chip-close"
+                                @onclick="ClearSelectedSkillAsync"
+                                aria-label="移除当前技能">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Hidden File Input -->
+    <InputFile @ref="_fileInputRef"
+               OnChange="HandleFileSelected"
+               accept=".txt,.md,.csv,.xlsx,.xls,.cs,.java,.js,.ts,.py,.doc,.docx,.pdf,.png,.jpg,.jpeg,.gif,.webp"
+               multiple
+               style="display: none;" />
+
+    <ProviderSelector SelectedProviderId="@SelectedProviderId"
+                      SelectedProviderName="@SelectedProviderName"
+                      ExcludeTextToImage="true"
+                      OnProviderChanged="HandleProviderChangedAsync" />
+</div>

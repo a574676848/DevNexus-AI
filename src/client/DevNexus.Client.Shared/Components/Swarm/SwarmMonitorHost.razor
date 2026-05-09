@@ -1,0 +1,24 @@
+@using DevNexus.Client.Shared.Components.Icons
+
+<div class="swarm-preview-host">
+    <SwarmMonitor SessionId="@SessionId.ToString()" ShowHeader="false" />
+</div>
+
+<style>
+    .swarm-preview-host {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        background: var(--white-bg);
+    }
+    
+    /* 让内部的 SwarmMonitor 撑满整个高度 */
+    .swarm-preview-host ::deep .swarm-monitor-panel {
+        height: 100%;
+        border-left: none; /* 独立窗口不需要左边框 */
+    }
+</style>
+
+@code {
+    [Parameter] public Guid SessionId { get; set; }
+}

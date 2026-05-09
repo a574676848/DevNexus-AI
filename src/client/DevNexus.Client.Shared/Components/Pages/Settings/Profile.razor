@@ -1,0 +1,632 @@
+@page "/settings/profile"
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Services.State
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IErrorTranslationService ErrorTranslation
+@inject IUserStateService UserState
+
+<div class="profile-page">
+    @if (isLoading)
+    {
+        <LoadingSpinner Message="加载中" Size="md" />
+    }
+    else if (userInfo != null)
+    {
+        @* 用户信息头部卡片 *@
+        <div class="profile-header">
+            <div class="header-bg"></div>
+            <div class="header-content">
+                @* 头像上传区域 *@
+                <div class="avatar-upload-wrapper" @onclick="TriggerFileUpload">
+                    <UserAvatar DisplayName="@(userInfo.DisplayName ?? userInfo.Username)" 
+                                AvatarUrl="@userInfo.AvatarUrl" 
+                                Size="lg" 
+                                CustomStyle="width: 80px; height: 80px; font-size: 32px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" />
+                    <div class="avatar-overlay">
+                        @if (isUploadingAvatar)
+                        {
+                            <div class="upload-spinner"></div>
+                        }
+                        else
+                        {
+                            <CameraIcon Size="20" Stroke="white" />
+                        }
+                    </div>
+                </div>
+                <InputFile @ref="fileInput" OnChange="HandleAvatarUpload" accept="image/*" style="display: none;" />
+                
+                <div class="user-info">
+                    <h1 class="username">@(userInfo.DisplayName ?? userInfo.Username)</h1>
+                    <div class="user-meta">
+                        <span class="role-badge">
+                            <ShieldIcon Size="10" Stroke="currentColor" />
+                            @(userInfo.Roles.FirstOrDefault() ?? "User")
+                        </span>
+                        <span class="email-badge">
+                            <MailIcon Size="11" Stroke="currentColor" />
+                            @userInfo.Email
+                        </span>
+                    </div>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(avatarMessage))
+            {
+                <div class="avatar-message @(avatarSuccess ? "success" : "error")">
+                    @avatarMessage
+                </div>
+            }
+        </div>
+
+        @* 设置分组 *@
+        <div class="settings-container">
+            <div class="settings-group">
+                <div class="group-header">
+                    <UserIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>账户信息</span>
+                </div>
+                <div class="settings-card">
+                    <div class="info-row">
+                        <span class="info-label">用户 ID</span>
+                        <span class="info-value mono selectable" 
+                              @oncontextmenu="OnUserIdContextMenu" 
+                              @oncontextmenu:preventDefault="true">@userInfo.Id</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">用户名</span>
+                        <span class="info-value selectable" 
+                              @oncontextmenu="OnUsernameContextMenu" 
+                              @oncontextmenu:preventDefault="true">@userInfo.Username</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">用户角色</span>
+                         <span class="role-badge" style="margin: 0;">
+                            @(userInfo.Roles.FirstOrDefault() ?? "User")
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            @* 基本资料 (可编辑) *@
+            <div class="settings-group">
+                <div class="group-header">
+                    <EditIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>基本资料</span>
+                </div>
+                <div class="settings-card">
+                    <div class="form-row">
+                        <label>显示名称</label>
+                        <input type="text" @bind="profileForm.DisplayName" placeholder="设置个性化昵称" class="form-input" />
+                    </div>
+                    <div class="form-row">
+                        <label>邮箱地址</label>
+                        <input type="email" @bind="profileForm.Email" placeholder="绑定邮箱" class="form-input" />
+                    </div>
+                    <div class="form-row">
+                        <label>手机号码</label>
+                        <input type="tel" @bind="profileForm.PhoneNumber" placeholder="绑定手机号" class="form-input" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(profileMessage))
+                    {
+                        <div class="message @(profileSuccess ? "success" : "error")">
+                            @if (profileSuccess)
+                            {
+                                <CheckCircleIcon Size="14" />
+                            }
+                            else
+                            {
+                                <AlertCircleIcon Size="14" />
+                            }
+                            @profileMessage
+                        </div>
+                    }
+
+                    <div class="form-actions">
+                        <button class="btn-primary" @onclick="UpdateProfile" disabled="@isUpdatingProfile">
+                            @if (isUpdatingProfile)
+                            {
+                                <span class="btn-spinner"></span>
+                            }
+                            @(isUpdatingProfile ? "保存更改..." : "保存更改")
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @* AI 使用与审计 *@
+            <div class="settings-group">
+                <div class="group-header">
+                    <PieChartIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>AI 使用与审计</span>
+                </div>
+                <div class="settings-card stats-card">
+                    @if (tokenStats != null)
+                    {
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value">@FormatNumber(tokenStats.TotalRequests)</span>
+                                <span class="stat-label">总请求数</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">@FormatNumber(tokenStats.TotalTokens)</span>
+                                <span class="stat-label">Token 消耗</span>
+                            </div>
+                            <div class="stat-item highlight">
+                                <span class="stat-value">$@tokenStats.TotalCost.ToString("F2")</span>
+                                <span class="stat-label">总成本</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value">@tokenStats.AverageDurationMs.ToString("F0")ms</span>
+                                <span class="stat-label">平均延迟</span>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="no-data">暂无统计数据</div>
+                    }
+                </div>
+            </div>
+
+            @* 修改密码 *@
+            <div class="settings-group">
+                <div class="group-header">
+                    <KeyIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>修改密码</span>
+                </div>
+                <div class="settings-card">
+                    <div class="form-row">
+                        <label>当前密码</label>
+                        <input type="password" @bind="passwordForm.CurrentPassword" placeholder="输入当前密码" />
+                    </div>
+                    <div class="form-row">
+                        <label>新密码</label>
+                        <input type="password" @bind="passwordForm.NewPassword" placeholder="输入新密码（至少6位）" />
+                    </div>
+                    <div class="form-row">
+                        <label>确认密码</label>
+                        <input type="password" @bind="passwordForm.ConfirmPassword" placeholder="再次输入新密码" />
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(passwordMessage))
+                    {
+                        <div class="message @(passwordSuccess ? "success" : "error")">
+                            @if (passwordSuccess)
+                            {
+                                <CheckCircleIcon Size="14" />
+                            }
+                            else
+                            {
+                                <AlertCircleIcon Size="14" />
+                            }
+                            @passwordMessage
+                        </div>
+                    }
+
+                    <button class="btn-primary" @onclick="ChangePassword" disabled="@isChangingPassword">
+                        @if (isChangingPassword)
+                        {
+                            <span class="btn-spinner"></span>
+                        }
+                        @(isChangingPassword ? "修改中..." : "确认修改")
+                    </button>
+                </div>
+            </div>
+
+            @* 安全设置 *@
+            <div class="settings-group">
+                <div class="group-header">
+                    <ShieldIcon Size="14" Stroke="var(--brand-green)" />
+                    <span>安全设置</span>
+                </div>
+                <div class="settings-card">
+                    <div class="security-row">
+                        <div class="security-info">
+                            <h4>登出所有设备</h4>
+                            <p>将您的账户从所有已登录的设备上强制登出</p>
+                        </div>
+                        <button class="btn-danger" @onclick="LogoutAllDevices" disabled="@isLoggingOutAll">
+                            @(isLoggingOutAll ? "登出中..." : "立即登出")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@* 可复用的右键菜单组件 *@
+<CopyContextMenu @bind-IsVisible="showContextMenu" 
+                 X="contextMenuX" 
+                 Y="contextMenuY" 
+                 CopyText="@contextMenuCopyText" />
+
+@code {
+    private bool isLoading = true;
+    private UserInfo? userInfo;
+    private TokenUsageStatsDto? tokenStats;
+
+    private UpdateProfileForm profileForm = new();
+    private ChangePasswordForm passwordForm = new();
+    
+    private bool isUpdatingProfile = false;
+    private string? profileMessage;
+    private bool profileSuccess;
+
+    private bool isChangingPassword = false;
+    private bool isLoggingOutAll = false;
+    private string? passwordMessage;
+    private bool passwordSuccess;
+
+    // 右键菜单状态
+    private bool showContextMenu = false;
+    private double contextMenuX = 0;
+    private double contextMenuY = 0;
+    private string contextMenuCopyText = "";
+
+    // 头像上传状态
+    private InputFile? fileInput;
+    private bool isUploadingAvatar = false;
+    private string? avatarMessage;
+    private bool avatarSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserInfo();
+    }
+
+    private async Task LoadUserInfo()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var userTask = ApiService.GetCurrentUserAsync();
+            var tokenTask = ApiService.GetMyTokenStatsAsync();
+
+            await Task.WhenAll(userTask, tokenTask);
+
+            userInfo = await userTask;
+            tokenStats = await tokenTask;
+
+            if (userInfo != null)
+            {
+                // 初始化编辑表单
+                profileForm = new UpdateProfileForm
+                {
+                    DisplayName = userInfo.DisplayName,
+                    Email = userInfo.Email,
+                    PhoneNumber = userInfo.PhoneNumber
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            var translatedError = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Profile.LoadUserInfo", new() { ["TranslatedError"] = translatedError });
+            // No UI message for LoadUserInfo, just log.
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 触发文件选择对话框
+    /// </summary>
+    private async Task TriggerFileUpload()
+    {
+        if (fileInput?.Element != null)
+        {
+            await JS.InvokeVoidAsync("triggerFileInput", fileInput.Element);
+        }
+    }
+
+    /// <summary>
+    /// 处理头像上传
+    /// </summary>
+    private async Task UpdateProfile()
+    {
+        if (userInfo == null) return;
+
+        isUpdatingProfile = true;
+        profileMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new UpdateProfileRequest
+            {
+                DisplayName = profileForm.DisplayName,
+                Email = profileForm.Email,
+                PhoneNumber = profileForm.PhoneNumber,
+                AvatarUrl = userInfo.AvatarUrl // 保持原头像
+            };
+
+            var result = await ApiService.UpdateProfileAsync(request);
+
+            if (result.Succeeded)
+            {
+                // 刷新用户信息
+                userInfo = await ApiService.GetCurrentUserAsync();
+                
+                // 通知全局状态更新
+                await UserState.UpdateUserAsync(userInfo);
+
+                profileMessage = "基本资料已更新";
+                profileSuccess = true;
+            }
+            else
+            {
+                profileMessage = result.Message ?? string.Join(", ", result.Errors);
+                profileSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            var translatedError = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Profile.UpdateProfile", new() { ["TranslatedError"] = translatedError });
+            profileMessage = translatedError;
+            profileSuccess = false;
+        }
+        finally
+        {
+            isUpdatingProfile = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleAvatarUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file == null) return;
+
+        // 验证文件类型
+        if (!file.ContentType.StartsWith("image/"))
+        {
+            avatarMessage = "请选择图片文件";
+            avatarSuccess = false;
+            return;
+        }
+
+        // 验证文件大小（最大 5MB）
+        const long maxSize = 5 * 1024 * 1024;
+        if (file.Size > maxSize)
+        {
+            avatarMessage = "图片大小不能超过 5MB";
+            avatarSuccess = false;
+            return;
+        }
+
+        isUploadingAvatar = true;
+        avatarMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // 生成唯一的对象键
+            var extension = Path.GetExtension(file.Name);
+            var objectKey = $"avatars/{userInfo!.Id}{extension}";
+
+            // 使用智能上传（自动根据存储模式选择正确的上传方式）
+            await using var stream = file.OpenReadStream(maxSize);
+            var uploadResult = await ApiService.SmartUploadFileAsync(stream, file.Name, file.ContentType, "avatars");
+
+            if (uploadResult.Confirmed && !string.IsNullOrEmpty(uploadResult.FileUrl))
+            {
+                // 更新用户资料
+                var updateRequest = new UpdateProfileRequest
+                {
+                    AvatarUrl = uploadResult.FileUrl
+                    // 其他字段这里不填，但在后端看来如果为null则不更新，这是安全的
+                };
+
+                var result = await ApiService.UpdateProfileAsync(updateRequest);
+
+                if (result.Succeeded)
+                {
+                    // 刷新用户信息
+                    userInfo = await ApiService.GetCurrentUserAsync();
+                    
+                    // 通知全局用户状态更新
+                    await UserState.UpdateUserAsync(userInfo);
+                    
+                    avatarMessage = "头像更新成功！";
+                    avatarSuccess = true;
+                }
+                else
+                {
+                    avatarMessage = result.Message ?? "更新头像失败";
+                    avatarSuccess = false;
+                }
+            }
+            else
+            {
+                avatarMessage = "上传头像失败";
+                avatarSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            var translatedError = ErrorTranslation.Translate(ex);
+            await RemoteLog.LogErrorAsync(ex, "Profile.HandleAvatarUpload", new() { ["TranslatedError"] = translatedError });
+            avatarMessage = translatedError;
+            avatarSuccess = false;
+        }
+        finally
+        {
+            isUploadingAvatar = false;
+            StateHasChanged();
+
+            // 3秒后清除消息
+            await Task.Delay(3000);
+            avatarMessage = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ChangePassword()
+    {
+        if (string.IsNullOrEmpty(passwordForm.CurrentPassword) ||
+            string.IsNullOrEmpty(passwordForm.NewPassword))
+        {
+            passwordMessage = "请填写所有字段";
+            passwordSuccess = false;
+            return;
+        }
+
+        if (passwordForm.NewPassword != passwordForm.ConfirmPassword)
+        {
+            passwordMessage = "两次输入的新密码不一致";
+            passwordSuccess = false;
+            return;
+        }
+
+        if (passwordForm.NewPassword.Length < 6)
+        {
+            passwordMessage = "新密码长度不能少于6位";
+            passwordSuccess = false;
+            return;
+        }
+
+        isChangingPassword = true;
+        passwordMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new ChangePasswordRequest
+            {
+                CurrentPassword = passwordForm.CurrentPassword,
+                NewPassword = passwordForm.NewPassword,
+                ConfirmNewPassword = passwordForm.ConfirmPassword
+            };
+
+            var result = await ApiService.ChangePasswordAsync(request);
+
+            if (result.Succeeded)
+            {
+                passwordMessage = "密码修改成功！";
+                passwordSuccess = true;
+                passwordForm = new();
+            }
+            else
+            {
+                var errorMsg = result.Errors.FirstOrDefault() ?? result.Message ?? "密码修改失败";
+                passwordMessage = ErrorTranslation.TranslatePasswordError(errorMsg);
+                passwordSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "Profile.ChangePassword");
+            passwordMessage = "修改密码失败，请重试";
+            passwordSuccess = false;
+        }
+        finally
+        {
+            isChangingPassword = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LogoutAllDevices()
+    {
+        isLoggingOutAll = true;
+        StateHasChanged();
+
+        try
+        {
+            await ApiService.LogoutAllDevicesAsync();
+            await AuthService.LogoutAsync();
+            Navigation.NavigateTo("/login", true);
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "Profile.LogoutAllDevices");
+        }
+        finally
+        {
+            isLoggingOutAll = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 用户ID右键菜单
+    /// </summary>
+    private void OnUserIdContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.Id.ToString() ?? "");
+    }
+
+    /// <summary>
+    /// 用户名右键菜单
+    /// </summary>
+    private void OnUsernameContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.Username ?? "");
+    }
+
+    /// <summary>
+    /// 显示名称右键菜单
+    /// </summary>
+    private void OnDisplayNameContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.DisplayName ?? "-");
+    }
+
+    /// <summary>
+    /// 邮箱右键菜单
+    /// </summary>
+    private void OnEmailContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.Email ?? "");
+    }
+
+    /// <summary>
+    /// 显示右键上下文菜单
+    /// </summary>
+    private void ShowContextMenu(MouseEventArgs e, string textToCopy)
+    {
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        contextMenuCopyText = textToCopy;
+        showContextMenu = true;
+    }
+
+    private static string FormatNumber(long number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString()
+        };
+    }
+
+    private class ChangePasswordForm
+    {
+        public string CurrentPassword { get; set; } = "";
+        public string NewPassword { get; set; } = "";
+        public string ConfirmPassword { get; set; } = "";
+    }
+
+    private class UpdateProfileForm
+    {
+        public string? DisplayName { get; set; }
+        public string? Email { get; set; }
+        public string? PhoneNumber { get; set; }
+    }
+}
+

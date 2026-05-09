@@ -1,0 +1,240 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Components.Icons
+@inject IWindowService WindowService
+@inject ISignalRService SignalRService
+@inject IChatState ChatState
+@implements IDisposable
+
+<div class="custom-titlebar @(IsMaximized ? "maximized" : "")">
+    @* 左侧：应用图标和标题 *@
+    <div class="titlebar-left">
+        <DevNexusLogo Size="18" GlowIntensity="0.5" CssClass="titlebar-logo" />
+        @if (!string.IsNullOrEmpty(Title))
+        {
+            <span class="titlebar-title">@Title</span>
+        }
+    </div>
+
+    @* 中间：可选内容区域 *@
+    <div class="titlebar-center">
+        @ChildContent
+    </div>
+
+    @* 网络状态指示器 *@
+    <div class="@($"network-status {GetNetworkStatusClass()}")" title="@GetNetworkTooltip()">
+        <button class="@($"connect-btn {(_isConnecting ? "busy" : "")}")" @onclick="HandleConnect" title="@GetConnectButtonTooltip()" disabled="@_isConnecting">
+            @if (_isConnecting)
+            {
+                <div class="connect-spinner"></div>
+            }
+            else
+            {
+                <AutoReconnectIcon Size="14" Stroke="currentColor" />
+            }
+        </button>
+        <span class="status-dot"></span>
+        @if (!string.IsNullOrEmpty(_connectionStatus) || !string.IsNullOrEmpty(_connectionError))
+        {
+            <!-- 显示临时连接状态提示 -->
+            @if (!string.IsNullOrEmpty(_connectionStatus))
+            {
+                <span class="connection-status success">@_connectionStatus</span>
+            }
+            @if (!string.IsNullOrEmpty(_connectionError))
+            {
+                <span class="connection-status error">@_connectionError</span>
+            }
+        }
+        else
+        {
+            <!-- 显示正常状态文本 -->
+            <span class="status-text">@GetNetworkStatusText()</span>
+        }
+    </div>
+
+    @* 右侧：窗口控制按钮（不可拖动区域） *@
+    <div class="titlebar-controls">
+        <button class="titlebar-btn minimize" @onclick="HandleMinimize" @onclick:stopPropagation="true" title="最小化">
+            <svg width="12" height="12" viewBox="0 0 12 12">
+                <rect x="1" y="5.5" width="10" height="1" fill="currentColor"/>
+            </svg>
+        </button>
+        <button class="titlebar-btn maximize" @onclick="HandleMaximizeToggle" @onclick:stopPropagation="true" title="@(IsMaximized ? "还原" : "最大化")">
+            @if (IsMaximized)
+            {
+                @* 还原图标 *@
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                    <rect x="2.5" y="4" width="6" height="5" stroke="currentColor" stroke-width="1" fill="none"/>
+                    <path d="M4 4V2.5H10V7.5H8.5" stroke="currentColor" stroke-width="1" fill="none"/>
+                </svg>
+            }
+            else
+            {
+                @* 最大化图标 *@
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                    <rect x="1.5" y="1.5" width="9" height="9" stroke="currentColor" stroke-width="1" fill="none"/>
+                </svg>
+            }
+        </button>
+        <button class="titlebar-btn close" @onclick="HandleClose" @onclick:stopPropagation="true" title="关闭">
+            <svg width="12" height="12" viewBox="0 0 12 12">
+                <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "DevNexus AI";
+    [Parameter] public bool IsMaximized { get; set; }
+    [Parameter] public bool IsConnected { get; set; }
+    [Parameter] public bool IsArtifactConnected { get; set; }
+    [Parameter] public int Latency { get; set; } = 0; // 毫秒
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _isConnecting = false;
+    private string? _connectionStatus; // 连接状态提示
+    private string? _connectionError; // 连接错误信息
+    private CancellationTokenSource? _statusCts;
+    private CancellationTokenSource? _errorCts;
+
+    private string GetNetworkStatusText()
+    {
+        if (_isConnecting) return "连接中";
+        if (!IsConnected) return "未连接";
+        if (ChatState.CurrentSessionId != Guid.Empty
+            && ChatState.GetSessionRunPresentation(ChatState.CurrentSessionId).ConnectionLabel is string runStateLabel)
+        {
+            return runStateLabel;
+        }
+        if (!IsArtifactConnected) return "部分连接";
+        if (Latency > 0) return $"{Latency}ms";
+        return "已连接";
+    }
+
+    private string GetNetworkStatusClass()
+    {
+        if (_isConnecting) return "connecting";
+        return IsConnected ? "connected" : "disconnected";
+    }
+
+    private string GetNetworkTooltip()
+    {
+        if (_isConnecting) return "正在连接服务器";
+        if (!IsConnected) return "服务器未连接";
+        if (ChatState.CurrentSessionId != Guid.Empty && !ChatState.GetSessionRunPresentation(ChatState.CurrentSessionId).IsIdle)
+        {
+            return ChatState.CurrentSessionRunStatusText;
+        }
+        if (!IsArtifactConnected) return "聊天通道已连接，Artifact 通道未连接";
+        if (Latency > 0) return $"网络延迟: {Latency}ms";
+        return "服务器已连接";
+    }
+
+    private string GetConnectButtonTooltip()
+    {
+        if (_isConnecting) return "正在连接...";
+        if (IsConnected) return "重新连接";
+        return "尝试连接";
+    }
+
+    private async Task HandleMinimize()
+    {
+        await WindowService.MinimizeAsync();
+    }
+
+    private async Task HandleMaximizeToggle()
+    {
+        await WindowService.ToggleMaximizeAsync();
+    }
+
+    private async Task HandleClose()
+    {
+        await WindowService.CloseAsync();
+    }
+
+    private async Task HandleConnect()
+    {
+        // 清除之前的状态
+        _connectionStatus = null;
+        _connectionError = null;
+        CancelAndDispose(ref _statusCts);
+        CancelAndDispose(ref _errorCts);
+        _isConnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            await SignalRService.ConnectAsync();
+            _connectionStatus = "已连接";
+            ScheduleClearStatus(delayMs: 3000);
+        }
+        catch (Exception ex)
+        {
+            _connectionError = "连接失败: " + ex.Message;
+            ScheduleClearError(delayMs: 5000);
+        }
+        finally
+        {
+            _isConnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ScheduleClearStatus(int delayMs)
+    {
+        CancelAndDispose(ref _statusCts);
+        _statusCts = new CancellationTokenSource();
+        _ = ClearAfterDelayAsync(
+            delayMs,
+            _statusCts.Token,
+            () => _connectionStatus = null);
+    }
+
+    private void ScheduleClearError(int delayMs)
+    {
+        CancelAndDispose(ref _errorCts);
+        _errorCts = new CancellationTokenSource();
+        _ = ClearAfterDelayAsync(
+            delayMs,
+            _errorCts.Token,
+            () => _connectionError = null);
+    }
+
+    private async Task ClearAfterDelayAsync(int delayMs, CancellationToken cancellationToken, Action clearAction)
+    {
+        try
+        {
+            await Task.Delay(delayMs, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                clearAction();
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private static void CancelAndDispose(ref CancellationTokenSource? cts)
+    {
+        if (cts == null) return;
+        try { cts.Cancel(); } catch { }
+        cts.Dispose();
+        cts = null;
+    }
+
+    public void Dispose()
+    {
+        CancelAndDispose(ref _statusCts);
+        CancelAndDispose(ref _errorCts);
+    }
+}
+

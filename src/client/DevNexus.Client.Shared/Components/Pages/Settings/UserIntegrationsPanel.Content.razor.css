@@ -1,0 +1,81 @@
+/* UserIntegrationsPanel.Content.razor.css - 内容区域样式 */
+
+/* ===== 网格容器 - 仅作为流式布局容器 ===== */
+/* 注意：AdminView 组件有自己内部的 grid 布局 */
+/* Content 的 .provider-grid 只是一个普通容器，不需要 CSS grid */
+.provider-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+
+
+/* ===== 空状态容器 ===== */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    text-align: center;
+    background: transparent;
+    animation: fadeIn 0.4s ease-out;
+}
+
+/* ===== 空状态图标 ===== */
+.empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    margin-bottom: 24px;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-sm), inset 0 1px 1px #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.empty-icon svg {
+    color: var(--text-placeholder, #b2b2b2);
+    width: 40px;
+    height: 40px;
+    transition: color 0.3s ease;
+}
+
+.empty-state:hover .empty-icon svg {
+    color: var(--brand-green, #07c160);
+}
+
+/* ===== 标题 ===== */
+.empty-title {
+    font-size: var(--font-lg, 16px);
+    font-weight: 600;
+    color: var(--text-primary, #000000);
+    margin: 0 0 8px 0;
+    letter-spacing: -0.2px;
+}
+
+/* ===== 描述文本 ===== */
+.empty-desc {
+    font-size: var(--font-sm, 12px);
+    color: var(--text-secondary, #999999);
+    margin: 0;
+    max-width: 300px;
+    line-height: 1.6;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

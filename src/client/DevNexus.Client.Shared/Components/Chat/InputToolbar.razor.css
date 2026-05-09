@@ -1,0 +1,203 @@
+/* InputToolbar.razor.css - 现代极简风格工具栏 */
+
+.input-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 2px var(--spacing-md);
+    gap: 8px;
+    /* 移除 border-bottom，整体统一 */
+    border-bottom: none;
+    background: transparent;
+    transition: all var(--transition-normal);
+}
+
+.toolbar-primary-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.toolbar-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.toolbar-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    transform: none;
+}
+
+.toolbar-btn:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.toolbar-btn.busy {
+    color: var(--brand-green);
+    background: var(--brand-green-lighter);
+}
+
+.toolbar-btn:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.toolbar-upload-btn.busy:hover {
+    background: var(--brand-green-lighter);
+    color: var(--brand-green);
+}
+
+.toolbar-more-btn {
+    color: var(--dnx-brand-green, var(--brand-green));
+    background: var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08));
+}
+
+.toolbar-more-btn:hover,
+.toolbar-rag-btn:hover {
+    color: var(--dnx-brand-green-hover, #06ad56);
+    background: rgba(7, 193, 96, 0.14);
+}
+
+.toolbar-rag-btn.active {
+    color: var(--dnx-brand-green, var(--brand-green));
+    background: var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08));
+}
+
+.toolbar-sidekick-btn.active {
+    color: var(--dnx-brand-green, var(--brand-green));
+    background: var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08));
+}
+
+.toolbar-selection-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin-left: 2px;
+    padding-right: 4px;
+    border-right: 1px solid var(--border-subtle);
+}
+
+.toolbar-selection-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    max-width: 220px;
+    padding: 0 6px 0 4px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+    animation: toolbar-selection-chip-enter 180ms var(--ease-smooth);
+}
+
+.toolbar-selection-chip.tool {
+    border-color: var(--brand-green);
+    background: var(--brand-green-lighter);
+}
+
+.toolbar-selection-chip.skill {
+    border-color: var(--brand-info);
+    background: var(--bg-primary);
+}
+
+.toolbar-selection-chip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--brand-green);
+    flex-shrink: 0;
+}
+
+.toolbar-selection-chip.skill .toolbar-selection-chip-icon {
+    color: var(--brand-info);
+}
+
+.toolbar-selection-chip-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+}
+
+.toolbar-selection-chip-close {
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.toolbar-selection-chip-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.toolbar-selection-chip-close:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+}
+
+@keyframes toolbar-selection-chip-enter {
+    from {
+        opacity: 0;
+        transform: translateY(2px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 960px) {
+    .input-toolbar {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+
+    .toolbar-selection-group {
+        order: 11;
+        width: 100%;
+        margin-left: 0;
+        padding-top: 4px;
+        padding-right: 0;
+        border-right: none;
+    }
+
+    .toolbar-primary-group {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .toolbar-selection-chip {
+        max-width: min(100%, 240px);
+    }
+
+}

@@ -1,0 +1,255 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Shared.Enums
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (Show)
+{
+    <div class="dialog-overlay" @onclick="OnClose">
+        <div class="dialog-container" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>添加外部系统集成</h3>
+                <button class="btn-close" @onclick="OnClose" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                @* 管理员可见的用户选择器 *@
+                @if (IsAdmin)
+                {
+                    <div class="form-section">
+                        <label class="form-label">选择用户 <span class="required">*</span></label>
+                        <select class="form-select" @onchange="OnUserIdChangedHandler">
+                            <option value="" selected="@(string.IsNullOrEmpty(SelectedUserId))">请选择用户</option>
+                            @foreach (var user in AvailableUsers)
+                            {
+                                <option value="@user.Id" selected="@(SelectedUserId == user.Id.ToString())">@user.Username (@user.Email)</option>
+                            }
+                        </select>
+                        <span class="form-hint">选择要为其创建集成的用户</span>
+                    </div>
+                }
+                
+                <div class="form-section">
+                    <label class="form-label">集成类型 <span class="required">*</span></label>
+                    <select class="form-select" @onchange="OnIntegrationTypeChangedHandler" value="@SelectedIntegrationType">
+                        <option value="">请选择集成类型</option>
+                        @foreach (var type in Enum.GetValues<IntegrationType>())
+                        {
+                            <option value="@type.ToString()">@(GetIntegrationTypeDisplayName?.Invoke(type) ?? type.ToString())</option>
+                        }
+                    </select>
+                </div>
+
+                @if (!string.IsNullOrEmpty(SelectedIntegrationType))
+                {
+                    @if (SelectedIntegrationType == nameof(IntegrationType.NoteSystem) && NoteProviders.Any())
+                    {
+                        <div class="form-section">
+                            <label class="form-label">笔记供应商</label>
+                            <select class="form-select" @onchange="OnProviderIdChangedHandler">
+                                <option value="" selected="@(string.IsNullOrEmpty(SelectedProviderId))">选择已配置的供应商（可选）</option>
+                                @foreach (var provider in NoteProviders)
+                                {
+                                    <option value="@provider.Id" selected="@(SelectedProviderId == provider.Id.ToString())">@provider.DisplayName (@provider.Type)</option>
+                                }
+                            </select>
+                            <span class="form-hint">选择管理员配置的笔记供应商，或自定义端点</span>
+                        </div>
+                    }
+
+                    <div class="form-section">
+                        <label class="form-label">显示名称 <span class="required">*</span></label>
+                        <input type="text" class="form-input" @bind="NewIntegration.DisplayName"
+                               placeholder="例如: 我的笔记" />
+                    </div>
+
+                    <div class="form-section">
+                        <label class="form-label">端点地址</label>
+                        <input type="text" class="form-input" @bind="NewIntegration.Endpoint"
+                               placeholder="留空使用供应商默认端点" />
+                        <span class="form-hint">如果选择了供应商，此字段可留空</span>
+                    </div>
+
+                    <div class="form-section">
+                        <label class="form-label">认证方式 <span class="required">*</span></label>
+                        <select class="form-select" @onchange="OnAuthTypeChangedHandler" value="@SelectedAuthType">
+                            <option value="">请选择认证方式</option>
+                            @foreach (var authType in Enum.GetValues<IntegrationAuthType>())
+                            {
+                                <option value="@authType.ToString()">@(GetAuthTypeDisplayName?.Invoke(authType) ?? authType.ToString())</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(SelectedAuthType))
+                    {
+                        <div class="form-section">
+                            <label class="form-label">@(GetCredentialLabel?.Invoke() ?? "凭证") <span class="required">*</span></label>
+                            <input type="password" class="form-input" @bind="NewIntegration.Credential"
+                                   placeholder="@(GetCredentialPlaceholder?.Invoke() ?? "输入凭证")" />
+                        </div>
+
+                        @if (RequiresSecondaryCredential?.Invoke() ?? false)
+                        {
+                            <div class="form-section">
+                                <label class="form-label">@(GetSecondaryCredentialLabel?.Invoke() ?? "次要凭证")</label>
+                                <input type="password" class="form-input" @bind="NewIntegration.SecondaryCredential"
+                                       placeholder="@(GetSecondaryCredentialPlaceholder?.Invoke() ?? "输入次要凭证")" />
+                            </div>
+                        }
+                    }
+
+                    <div class="form-section-checkbox">
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="form-checkbox" @bind="NewIntegration.IsActive" />
+                            <span>启用此集成</span>
+                        </label>
+                    </div>
+
+                    <div class="form-section-checkbox">
+                        <label class="checkbox-label">
+                            <input type="checkbox" class="form-checkbox" @bind="NewIntegration.IsDefault" />
+                            <span>设为默认集成</span>
+                        </label>
+                    </div>
+                }
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="OnClose">取消</button>
+                <button class="btn-primary" @onclick="OnCreateIntegration"
+                        disabled="@(IsSubmitting || string.IsNullOrEmpty(SelectedIntegrationType) || string.IsNullOrEmpty(SelectedAuthType))">
+                    @if (IsSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>创建中..</span>
+                    }
+                    else
+                    {
+                        <span>创建</span>
+                    }
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(DialogMessage))
+            {
+                <div class="dialog-message @(DialogSuccess ? "success" : "error")">
+                    @if (DialogSuccess)
+                    {
+                        <CheckCircleIcon Size="16" />
+                    }
+                    else
+                    {
+                        <AlertCircleIcon Size="16" />
+                    }
+                    <span>@DialogMessage</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public bool Show { get; set; }
+
+    [Parameter]
+    public bool IsAdmin { get; set; }
+
+    [Parameter]
+    public List<UserListItem> AvailableUsers { get; set; } = new();
+
+    [Parameter]
+    public List<NoteProviderResponse> NoteProviders { get; set; } = new();
+
+    [Parameter]
+    public CreateUserIntegrationRequest NewIntegration { get; set; } = new();
+
+    [Parameter]
+    public string SelectedIntegrationType { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> SelectedIntegrationTypeChanged { get; set; }
+
+    [Parameter]
+    public string SelectedAuthType { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> SelectedAuthTypeChanged { get; set; }
+
+    [Parameter]
+    public string SelectedProviderId { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> SelectedProviderIdChanged { get; set; }
+
+    [Parameter]
+    public string SelectedUserId { get; set; } = "";
+
+    [Parameter]
+    public EventCallback<string> SelectedUserIdChanged { get; set; }
+
+    [Parameter]
+    public string? DialogMessage { get; set; }
+
+    [Parameter]
+    public bool DialogSuccess { get; set; }
+
+    [Parameter]
+    public bool IsSubmitting { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public EventCallback OnIntegrationTypeChanged { get; set; }
+
+    [Parameter]
+    public EventCallback OnCreateIntegration { get; set; }
+
+    [Parameter]
+    public Func<IntegrationType, string>? GetIntegrationTypeDisplayName { get; set; }
+
+    [Parameter]
+    public Func<IntegrationAuthType, string>? GetAuthTypeDisplayName { get; set; }
+
+    [Parameter]
+    public Func<string>? GetCredentialLabel { get; set; }
+
+    [Parameter]
+    public Func<string>? GetCredentialPlaceholder { get; set; }
+
+    [Parameter]
+    public Func<string>? GetSecondaryCredentialLabel { get; set; }
+
+    [Parameter]
+    public Func<string>? GetSecondaryCredentialPlaceholder { get; set; }
+
+    [Parameter]
+    public Func<bool>? RequiresSecondaryCredential { get; set; }
+
+    private async Task OnIntegrationTypeChangedHandler(ChangeEventArgs e)
+    {
+        SelectedIntegrationType = e.Value?.ToString() ?? "";
+        await SelectedIntegrationTypeChanged.InvokeAsync(SelectedIntegrationType);
+        await OnIntegrationTypeChanged.InvokeAsync();
+    }
+
+    private async Task OnAuthTypeChangedHandler(ChangeEventArgs e)
+    {
+        SelectedAuthType = e.Value?.ToString() ?? "";
+        await SelectedAuthTypeChanged.InvokeAsync(SelectedAuthType);
+        // 清空凭证
+        NewIntegration.Credential = "";
+        NewIntegration.SecondaryCredential = "";
+    }
+
+    private async Task OnProviderIdChangedHandler(ChangeEventArgs e)
+    {
+        SelectedProviderId = e.Value?.ToString() ?? "";
+        await SelectedProviderIdChanged.InvokeAsync(SelectedProviderId);
+    }
+
+    private async Task OnUserIdChangedHandler(ChangeEventArgs e)
+    {
+        SelectedUserId = e.Value?.ToString() ?? "";
+        await SelectedUserIdChanged.InvokeAsync(SelectedUserId);
+    }
+}

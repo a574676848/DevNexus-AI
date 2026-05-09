@@ -1,0 +1,26 @@
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="devnexusGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#6366F1" />
+            <stop offset="50%" stop-color="#8B5CF6" />
+            <stop offset="100%" stop-color="#A855F7" />
+        </linearGradient>
+        <filter id="devnexusGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+    <path d="M24 4L42 14V34L24 44L6 34V14L24 4Z" stroke="url(#devnexusGradient)" stroke-width="2" fill="none" opacity="0.6" />
+    <circle cx="24" cy="24" r="6" fill="url(#devnexusGradient)" filter="url(#devnexusGlow)" />
+    <circle cx="24" cy="24" r="3" fill="white" opacity="0.9" />
+    <path d="M14 20L8 24L14 28" stroke="url(#devnexusGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M34 20L40 24L34 28" stroke="url(#devnexusGradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="18" y1="24" x2="30" y2="24" stroke="url(#devnexusGradient)" stroke-width="2" />
+    <line x1="24" y1="12" x2="24" y2="18" stroke="url(#devnexusGradient)" stroke-width="2" opacity="0.7" />
+    <line x1="24" y1="30" x2="24" y2="36" stroke="url(#devnexusGradient)" stroke-width="2" opacity="0.7" />
+    <circle cx="24" cy="10" r="2" fill="url(#devnexusGradient)" opacity="0.8" />
+    <circle cx="24" cy="38" r="2" fill="url(#devnexusGradient)" opacity="0.8" />
+</svg>

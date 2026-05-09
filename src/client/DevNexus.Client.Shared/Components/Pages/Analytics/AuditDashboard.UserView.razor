@@ -1,0 +1,231 @@
+@using DevNexus.Client.Shared.DTOs
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (IsEmptyData)
+{
+    <!-- 全局空状态 -->
+    <div class="global-empty-state">
+        <div class="empty-state-card">
+            <div class="empty-state-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74" />
+                    <path d="M21 3v6h-6" />
+                </svg>
+            </div>
+            <h3 class="empty-state-title">暂无审计记录</h3>
+            <p class="empty-state-description">
+                在选定时间范围内没有可展示的模型调用记录。<br />
+                开始使用 AI 后，这里会展示最近的调用与消耗。
+            </p>
+            <p class="empty-state-hint">
+                可尝试放宽时间范围查看历史记录
+            </p>
+        </div>
+    </div>
+}
+else
+{
+    <!-- 统计卡片 -->
+    <div class="stats-cards">
+        <div class="stat-card">
+            <div class="stat-icon-wrapper">
+                <UploadIcon Size="16" />
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@FormatNumber(Stats.TotalInputTokens)</div>
+                <div class="stat-label">输入 Token</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon-wrapper">
+                <DownloadIcon Size="16" />
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@FormatNumber(Stats.TotalOutputTokens)</div>
+                <div class="stat-label">输出 Token</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon-wrapper">
+                <ListIcon Size="16" />
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@FormatNumber(Stats.TotalTokens)</div>
+                <div class="stat-label">总 Token</div>
+            </div>
+        </div>
+        <div class="stat-card highlight">
+            <div class="stat-icon-wrapper">
+                <DollarIcon Size="24" Stroke="currentColor" />
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">$@Stats.TotalCost.ToString("F4")</div>
+                <div class="stat-label">预估成本</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon-wrapper">
+                <PieChartIcon Size="20" Stroke="currentColor" />
+            </div>
+            <div class="stat-content">
+                <div class="stat-value">@(Stats.SceneStats.FirstOrDefault()?.DisplayName ?? "无")</div>
+                <div class="stat-label">主要场景</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图表区域 -->
+    <div class="charts-section">
+        <div class="chart-container">
+            <h3>
+                <BarChartIcon Size="20" Stroke="currentColor" />
+                消耗趋势 (每日成本)
+            </h3>
+            <div class="canvas-wrapper">
+                @if (Stats.DailyStats == null || !Stats.DailyStats.Any())
+                {
+                    <div class="chart-empty-state">
+                        <BarChartIcon Size="20" />
+                        <span class="chart-empty-text">暂无趋势数据</span>
+                    </div>
+                }
+                else
+                {
+                    <canvas id="userTrendChart"></canvas>
+                }
+            </div>
+        </div>
+        <div class="chart-container">
+            <h3>
+                <PieChartIcon Size="20" Stroke="currentColor" />
+                模型分布 (Token)
+            </h3>
+            <div class="canvas-wrapper">
+                @if (Stats.ModelStats == null || !Stats.ModelStats.Any())
+                {
+                    <div class="chart-empty-state">
+                        <PieChartIcon Size="20" />
+                        <span class="chart-empty-text">暂无模型数据</span>
+                    </div>
+                }
+                else
+                {
+                    <canvas id="userModelChart"></canvas>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- 使用明细表格 -->
+    <div class="records-section">
+        <h2>使用明细</h2>
+
+        @if (Records.Items.Count == 0)
+        {
+            <div class="empty-state">
+                <BarChartIcon Size="16" />
+                <p>暂无使用记录</p>
+            </div>
+        }
+        else
+        {
+            <div class="records-table-wrapper">
+                <table class="records-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>场景</th>
+                            <th>资源</th>
+                            <th>供应商</th>
+                            <th>模型</th>
+                            <th>输入</th>
+                            <th>输出</th>
+                            <th>成本</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in Records.Items)
+                        {
+                            <tr>
+                                <td class="time-cell">@record.CreatedAt.ToString("MM-dd HH:mm")</td>
+                                <td class="scene-cell" title="@record.SceneCode">@GetSceneLabel(record)</td>
+                                <td class="session-cell" title="@(record.SessionId?.ToString() ?? record.ResourceId ?? record.SceneCode)">
+                                    @GetResourceLabel(record)
+                                </td>
+                                <td class="provider-cell">@record.ProviderName</td>
+                                <td class="model-cell">@record.ModelId</td>
+                                <td class="number-cell">@FormatNumber(record.InputTokens ?? 0)</td>
+                                <td class="number-cell">@FormatNumber(record.OutputTokens ?? 0)</td>
+                                <td class="cost-cell">$@(record.Cost?.ToString("F4") ?? "0.0000")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页 -->
+            @if (Records.TotalPages > 1)
+            {
+                <div class="pagination">
+                    <button class="page-btn" disabled="@(CurrentPage == 1)" @onclick="OnPreviousPage">
+                        ← 上一页
+                    </button>
+                    <span class="page-info">第 @CurrentPage / @Records.TotalPages 页 (共 @Records.TotalCount 条记录)</span>
+                    <button class="page-btn" disabled="@(CurrentPage >= Records.TotalPages)" @onclick="OnNextPage">
+                        下一页 →
+                    </button>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public TokenUsageStatsDto Stats { get; set; } = new();
+    [Parameter] public PagedResultDto<TokenUsageDto> Records { get; set; } = new();
+    [Parameter] public int CurrentPage { get; set; } = 1;
+    [Parameter] public EventCallback OnPreviousPage { get; set; }
+    [Parameter] public EventCallback OnNextPage { get; set; }
+    [Parameter] public AuditDictionaryDto Dictionary { get; set; } = new();
+
+    /// <summary>
+    /// 判断是否所有数据都为空，用于显示全局空状态
+    /// </summary>
+    private bool IsEmptyData =>
+        Stats.TotalRequests == 0 &&
+        Stats.TotalTokens == 0 &&
+        (Records.Items == null || Records.Items.Count == 0);
+
+    private static string FormatNumber(long number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString("N0")
+        };
+    }
+
+    private static string FormatNumber(int number) => FormatNumber((long)number);
+
+    private static string GetResourceLabel(TokenUsageDto record)
+    {
+        if (record.SessionId.HasValue)
+        {
+            return $"会话 {record.SessionId.Value.ToString()[..8]}...";
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.ResourceId))
+        {
+            return $"{record.ResourceType} {record.ResourceId}";
+        }
+
+        return record.SceneCode;
+    }
+
+    private string GetSceneLabel(TokenUsageDto record)
+    {
+        return Dictionary.Scenes.FirstOrDefault(item => item.Code == record.SceneCode)?.DisplayName ?? record.SceneCode;
+    }
+}

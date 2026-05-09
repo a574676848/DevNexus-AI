@@ -1,0 +1,141 @@
+@* QuickCommandModal.razor - 工具箱 *@
+@* 提供与后端能力对齐的工具入口 *@
+
+@using DevNexus.Client.Shared.Models
+
+<div class="quick-command-overlay" @onclick="HandleOverlayClick">
+    <div class="quick-command-modal" @onclick:stopPropagation>
+        @* 模态框头部 *@
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-screwdriver-wrench"></i> 工具箱</h3>
+            <button class="modal-close-btn" @onclick="Close" title="关闭">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        
+        @* 搜索框 *@
+        <div class="modal-search">
+            <span class="search-icon">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+            <input type="text" 
+                   @bind="_searchQuery" 
+                   @bind:event="oninput"
+                     placeholder="搜索工具..." 
+                   class="input input-search" />
+            @if (!string.IsNullOrEmpty(_searchQuery))
+            {
+                <button class="search-clear" @onclick="ClearSearch">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            }
+        </div>
+        
+        @* 工具列表 *@
+        <div class="modal-content">
+            @if (FilteredCommands.Any())
+            {
+                @foreach (var group in FilteredCommands.GroupBy(c => c.Category))
+                {
+                    var first = group.First();
+                    <div class="command-category">
+                        <div class="category-header">
+                            <span class="category-icon"><i class="@first.CategoryIcon"></i></span>
+                            <span class="category-name">@first.CategoryName</span>
+                        </div>
+                        <div class="command-list">
+                            @foreach (var cmd in group)
+                            {
+                                <div class="command-item" @onclick="() => SelectCommand(cmd)">
+                                    <div class="command-icon">
+                                        <i class="@cmd.Icon"></i>
+                                    </div>
+                                    <div class="command-info">
+                                        <span class="command-name">@cmd.Name</span>
+                                        <span class="command-description">@cmd.Description</span>
+                                        <span class="command-code">@cmd.Command</span>
+                                    </div>
+                                    <div class="command-action">@cmd.ActionLabel</div>
+                                    <div class="command-arrow">
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="empty-state">
+                    <i class="fa-solid fa-search"></i>
+                    <span>未找到匹配的工具</span>
+                </div>
+            }
+        </div>
+        
+        @* 底部提示 *@
+        <div class="modal-footer">
+            <span class="footer-tip">
+                <i class="fa-solid fa-circle-info"></i>
+                选择工具后会直接切换对应能力或激活当前输入模式
+            </span>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 指令选择事件
+    /// </summary>
+    [Parameter]
+    public EventCallback<QuickCommand> OnSelect { get; set; }
+    
+    /// <summary>
+    /// 关闭事件
+    /// </summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+    private string _searchQuery = "";
+    
+    /// <summary>
+    /// 过滤后的工具列表
+    /// </summary>
+    private IEnumerable<QuickCommand> FilteredCommands => 
+        QuickCommands.Search(_searchQuery);
+    
+    /// <summary>
+    /// 选择工具
+    /// </summary>
+    private async Task SelectCommand(QuickCommand command)
+    {
+        await OnSelect.InvokeAsync(command);
+    }
+    
+    /// <summary>
+    /// 关闭模态框
+    /// </summary>
+    private async Task Close()
+    {
+        _searchQuery = "";
+        await OnClose.InvokeAsync();
+    }
+    
+    /// <summary>
+    /// 点击遮罩关闭
+    /// </summary>
+    private async Task HandleOverlayClick()
+    {
+        await Close();
+    }
+    
+    /// <summary>
+    /// 清空搜索
+    /// </summary>
+    private void ClearSearch()
+    {
+        _searchQuery = "";
+    }
+
+    /// <summary>
+}

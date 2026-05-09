@@ -1,0 +1,82 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IChatState ChatState
+
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (Artifacts != null && Artifacts.Any())
+{
+    <div class="message-artifacts ai-artifacts">
+        @* 折叠/展开按钮 *@
+        <button class="artifact-toggle-btn" @onclick="ToggleCollapse" @onclick:stopPropagation
+                title="@(_isCollapsed ? "展开附件" : "折叠附件")">
+            <span class="toggle-icon">@(_isCollapsed ? "▶" : "▼")</span>
+            <span class="toggle-text">附件 (@Artifacts.Count)</span>
+        </button>
+
+        @* Artifact 卡片列表 *@
+        @if (!_isCollapsed)
+        {
+            <div class="artifact-cards-container">
+                @foreach (var artifact in Artifacts)
+                {
+                    <button class="artifact-card" @onclick="() => OpenArtifact(artifact)" @onclick:stopPropagation title="点击在侧边栏查看">
+                        <span class="artifact-icon">@GetArtifactIcon(artifact)</span>
+                        <span class="artifact-name">@(artifact.Name ?? "代码")</span>
+                        <span class="artifact-type-tag">@GetArtifactTypeTag(artifact)</span>
+                    </button>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public List<ArtifactDto> Artifacts { get; set; } = new();
+    [Parameter] public bool InitiallyCollapsed { get; set; }
+
+    private bool _isCollapsed;
+
+    protected override void OnParametersSet()
+    {
+        _isCollapsed = InitiallyCollapsed;
+    }
+
+    private void ToggleCollapse()
+    {
+        _isCollapsed = !_isCollapsed;
+    }
+
+    private void OpenArtifact(ArtifactDto artifact)
+    {
+        ChatState.SetArtifact(artifact);
+    }
+
+    private RenderFragment GetArtifactIcon(ArtifactDto artifact) => artifact.Type?.ToLower() switch
+    {
+        "html" => @<GlobeIcon Size="16" />,
+        "chart" => @<BarChartIcon Size="16" />,
+        "mermaid" => @<DiagramIcon Size="16" />,
+        "sql" => @<DatabaseIcon Size="16" />,
+        "json" => @<ListIcon Size="16" />,
+        "markdown" or "md" => @<TypeIcon Size="16" />,
+        _ => @<FileIcon Size="16" />
+    };
+
+    private string GetArtifactTypeTag(ArtifactDto artifact) => artifact.Type?.ToLower() switch
+    {
+        "csharp" or "cs" => "C#",
+        "javascript" or "js" => "JS",
+        "typescript" or "ts" => "TS",
+        "python" or "py" => "Python",
+        "java" => "Java",
+        "go" => "Go",
+        "rust" => "Rust",
+        "html" => "HTML",
+        "sql" => "SQL",
+        "json" => "JSON",
+        "markdown" or "md" => "MD",
+        "code" => "CODE",
+        _ => artifact.Type?.ToUpper() ?? "CODE"
+    };
+}

@@ -1,0 +1,16 @@
+@namespace DevNexus.Client.Shared.Components.Icons
+@inherits IconBase
+
+<svg width="@Size" height="@Size" viewBox="0 0 24 24" fill="@Fill" stroke="@Stroke"
+     stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round"
+     class="@CssClass" style="@Style">
+    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+</svg>
+
+@code {
+    public CopyIcon()
+    {
+        Fill = "currentColor";
+        Stroke = "none";
+    }
+}

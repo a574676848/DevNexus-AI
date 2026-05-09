@@ -1,0 +1,345 @@
+@page "/settings/model-pricing"
+@using DevNexus.Shared.DTOs
+@using Microsoft.AspNetCore.Authorization
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject ILogoService LogoService
+@inject NavigationManager Navigation
+
+<div class="model-pricing-panel">
+    <!-- 头部：标题 + 添加按钮 -->
+    <div class="panel-header">
+        <div class="header-info">
+            <h2 class="panel-title">模型定价管理</h2>
+            <p class="panel-desc">统一配置 LLM 与向量模型的 Token 定价（每百万 Token）</p>
+        </div>
+        <button class="btn-add-pricing" @onclick="ShowAddDialog">
+            <PlusIcon Size="16" />
+            <span>添加定价</span>
+        </button>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="content-area">
+        @if (isLoading)
+        {
+            <LoadingSpinner Message="加载中" Size="md" />
+        }
+        else if (pricings.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#b2b2b2" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 6v6l4 2" />
+                    </svg>
+                </div>
+                <h3 class="empty-title">暂无定价配置</h3>
+                <p class="empty-desc">添加 LLM 或向量供应商的 Token 定价配置来开始追踪成本</p>
+                <button class="btn-primary" @onclick="ShowAddDialog">
+                    <PlusIcon Size="16" />
+                    <span>添加第一个定价</span>
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="pricing-grid">
+                @foreach (var pricing in pricings)
+                {
+                    <div class="pricing-card @(pricing.IsEnabled ? "" : "disabled")">
+                        <!-- 卡片头部 -->
+                        <div class="pricing-card-header">
+                            <div class="provider-info">
+                                <div class="provider-logo-wrapper">
+                                    <img class="provider-logo" 
+                                         src="@GetProviderLogoUrl(pricing)" 
+                                         alt="@pricing.ProviderDisplayName"
+                                         @onerror="@(() => HandleLogoError(pricing.ProviderId))" />
+                                </div>
+                                <div class="provider-details">
+                                    <div class="provider-name">@(pricing.ProviderDisplayName ?? "未知供应商")</div>
+                                    <div class="provider-id">@GetProviderTypeLabel(pricing.ProviderType) · @(pricing.ProviderProviderId ?? "")</div>
+                                </div>
+                            </div>
+                            <div class="pricing-status">
+                                <span class="status-dot @(pricing.IsEnabled ? "enabled" : "disabled")"
+                                      title="@(pricing.IsEnabled ? "已启用" : "已禁用")"></span>
+                            </div>
+                        </div>
+
+                        <!-- 卡片主体：价格信息 -->
+                        <div class="pricing-card-body">
+                            <div class="cost-row">
+                                <div class="cost-item input">
+                                    <span class="cost-label">输入</span>
+                                    <span class="cost-value">¥@pricing.InputCostPerMillion.ToString("N2")</span>
+                                </div>
+                                <div class="cost-divider"></div>
+                                <div class="cost-item output">
+                                    <span class="cost-label">输出</span>
+                                    <span class="cost-value">¥@pricing.OutputCostPerMillion.ToString("N2")</span>
+                                </div>
+                            </div>
+                            <div class="cost-unit-badge">
+                                <span class="unit-text">/百万Token</span>
+                                <span class="currency-tag">@pricing.Currency</span>
+                            </div>
+                        </div>
+
+                        <!-- 卡片底部：操作按钮 -->
+                        <div class="pricing-card-footer">
+                            <button class="btn-action edit" @onclick="() => ShowEditDialog(pricing)" title="编辑">
+                                <EditIcon Size="14" />
+                                <span>编辑</span>
+                            </button>
+                            <button class="btn-action delete" @onclick="() => ShowDeleteConfirm(pricing)" title="删除">
+                                <TrashIcon Size="14" />
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                <!-- 添加定价占位卡片 -->
+                <div class="add-pricing-card" @onclick="ShowAddDialog">
+                    <div class="add-icon-wrapper">
+                        <PlusIcon Size="24" Stroke="#9ca3af" />
+                    </div>
+                    <span class="add-text">添加定价</span>
+                </div>
+            </div>
+        }
+    </div>
+
+@* 添加对话框 *@
+@if (showAddDialog)
+{
+    <div class="model-pricing-dialog-overlay" @onclick="CloseAddDialog">
+        <div class="model-pricing-dialog-container" @onclick:stopPropagation>
+            <div class="model-pricing-dialog-header">
+                <h3>@GetAddDialogTitle()</h3>
+                <button class="model-pricing-dialog-close" @onclick="CloseAddDialog" title="关闭">×</button>
+            </div>
+            <div class="model-pricing-dialog-body">
+                @if (!string.IsNullOrWhiteSpace(GetAddDialogHint()))
+                {
+                    <div class="form-message success">
+                        <CheckCircleIcon Size="14" />
+                        <span>@GetAddDialogHint()</span>
+                    </div>
+                }
+                <div class="form-group">
+                    <label>模型类型 <span class="required">*</span></label>
+                    <select @bind="newPricing.ProviderType" @bind:after="OnProviderTypeChanged">
+                        <option value="@ModelInvocationProviderTypes.Llm">LLM 模型</option>
+                        <option value="@ModelInvocationProviderTypes.Embedding">向量模型</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>模型供应商 <span class="required">*</span></label>
+                    <div class="provider-selector-container">
+                        <button class="provider-selector-button" @onclick="ToggleProviderDropdown">
+                            @if (newPricing.ProviderId != Guid.Empty)
+                            {
+                                var selectedProvider = GetSelectedProviderOption(newPricing.ProviderType, newPricing.ProviderId);
+                                if (selectedProvider != null)
+                                {
+                                    <div class="provider-selector-content">
+                                        <img src="@selectedProvider.LogoUrl" 
+                                             class="provider-selector-logo" 
+                                             alt="@selectedProvider.DisplayName" />
+                                        <span class="provider-selector-name">@selectedProvider.DisplayName</span>
+                                    </div>
+                                }
+                            }
+                            else
+                            {
+                                <div class="provider-selector-content">
+                                    <span class="provider-selector-placeholder">请选择供应商...</span>
+                                </div>
+                            }
+                            <ChevronDownIcon Size="14" Stroke="currentColor" CssClass="provider-selector-arrow" />
+                        </button>
+                    </div>
+                </div>
+
+                @if (showProviderDropdown)
+                {
+                    <div class="provider-dropdown-overlay" @onclick="CloseProviderDropdown">
+                        <div class="provider-dropdown" @onclick:stopPropagation>
+                            <div class="provider-dropdown-header">
+                                <h4>选择模型供应商</h4>
+                                <button class="provider-dropdown-close" @onclick="CloseProviderDropdown">×</button>
+                            </div>
+                            <div class="provider-dropdown-search">
+                                <SearchIcon Size="14" Stroke="currentColor" CssClass="provider-dropdown-search-icon" />
+                                <input type="text" 
+                                       @bind="providerSearchQuery" 
+                                       @bind:event="oninput"
+                                       placeholder="搜索供应商..." 
+                                       class="provider-dropdown-search-input" />
+                            </div>
+                            <div class="provider-dropdown-list">
+                                @foreach (var provider in FilteredProviderOptions)
+                                {
+                                    <div class="provider-dropdown-item @(newPricing.ProviderId == provider.Id ? "selected" : "")"
+                                         @onclick="() => SelectProvider(provider.Id)">
+                                        <img src="@provider.LogoUrl" 
+                                             class="provider-dropdown-item-logo" 
+                                             alt="@provider.DisplayName" />
+                                        <span class="provider-dropdown-item-name">@provider.DisplayName</span>
+                                        @if (newPricing.ProviderId == provider.Id)
+                                        {
+                                            <CheckIcon Size="14" Stroke="currentColor" CssClass="provider-dropdown-item-check" />
+                                        }
+                                    </div>
+                                }
+                                @if (!FilteredProviderOptions.Any() && !string.IsNullOrEmpty(providerSearchQuery))
+                                {
+                                    <div class="provider-dropdown-empty">
+                                        未找到匹配的供应商
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>输入成本 (¥/百万Token) <span class="required">*</span></label>
+                        <input type="number" step="0.01" @bind="newPricing.InputCostPerMillion" placeholder="例如: 1.00" />
+                    </div>
+                    <div class="form-group">
+                        <label>输出成本 (¥/百万Token) <span class="required">*</span></label>
+                        <input type="number" step="0.01" @bind="newPricing.OutputCostPerMillion" placeholder="例如: 2.00" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>货币单位</label>
+                    <input type="text" @bind="newPricing.Currency" placeholder="CNY" />
+                </div>
+                <div class="form-group-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="newPricing.IsEnabled" />
+                        <span>启用此定价配置</span>
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(dialogMessage))
+                {
+                    <div class="form-message @(dialogSuccess ? "success" : "error")">
+                        @if (dialogSuccess)
+                        {
+                            <CheckCircleIcon Size="14" />
+                        }
+                        else
+                        {
+                            <AlertCircleIcon Size="14" />
+                        }
+                        <span>@dialogMessage</span>
+                    </div>
+                }
+            </div>
+            <div class="model-pricing-dialog-footer">
+                <button class="btn-secondary" @onclick="CloseAddDialog">取消</button>
+                <button class="btn-primary" @onclick="CreatePricing" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>创建中...</span>
+                    }
+                    else
+                    {
+                        <span>创建</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* 编辑对话框 *@
+@if (showEditDialog)
+{
+    <div class="model-pricing-dialog-overlay" @onclick="CloseEditDialog">
+        <div class="model-pricing-dialog-container" @onclick:stopPropagation>
+            <div class="model-pricing-dialog-header">
+                <h3>编辑定价配置</h3>
+                <button class="model-pricing-dialog-close" @onclick="CloseEditDialog" title="关闭">×</button>
+            </div>
+            <div class="model-pricing-dialog-body">
+                <div class="form-group">
+                    <label>模型类型</label>
+                    <input type="text" value="@GetProviderTypeLabel(pricingToEdit?.ProviderType)" disabled />
+                </div>
+                <div class="form-group">
+                    <label>模型供应商</label>
+                    <input type="text" value="@pricingToEdit?.ProviderDisplayName" disabled />
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>输入成本 (¥/百万Token) <span class="required">*</span></label>
+                        <input type="number" step="0.01" @bind="editPricing.InputCostPerMillion" />
+                    </div>
+                    <div class="form-group">
+                        <label>输出成本 (¥/百万Token) <span class="required">*</span></label>
+                        <input type="number" step="0.01" @bind="editPricing.OutputCostPerMillion" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>货币单位</label>
+                    <input type="text" @bind="editPricing.Currency" />
+                </div>
+                <div class="form-group-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" @bind="editPricing.IsEnabled" />
+                        <span>启用此定价配置</span>
+                    </label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(editDialogMessage))
+                {
+                    <div class="form-message @(editDialogSuccess ? "success" : "error")">
+                        @if (editDialogSuccess)
+                        {
+                            <CheckCircleIcon Size="14" />
+                        }
+                        else
+                        {
+                            <AlertCircleIcon Size="14" />
+                        }
+                        <span>@editDialogMessage</span>
+                    </div>
+                }
+            </div>
+            <div class="model-pricing-dialog-footer">
+                <button class="btn-secondary" @onclick="CloseEditDialog">取消</button>
+                <button class="btn-primary" @onclick="UpdatePricing" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>保存中...</span>
+                    }
+                    else
+                    {
+                        <span>保存</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+</div>
+
+@* 删除确认对话框 *@
+<ConfirmDialog @bind-IsVisible="showDeleteConfirmDialog"
+               Title="确认删除"
+               Message="@deleteConfirmMessage"
+               Icon="🗑️"
+               IconClass="danger"
+               ConfirmText="删除"
+               ConfirmButtonClass="danger"
+               OnConfirm="ConfirmDelete" />
+
+

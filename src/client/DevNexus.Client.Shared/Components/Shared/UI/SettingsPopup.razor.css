@@ -1,0 +1,268 @@
+/* SettingsPopup 组件样式 - 现代极简风格 版风格 */
+
+/* 遮罩层 */
+.settings-popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    padding-left: var(--nav-sidebar-width, 60px);
+    padding-bottom: 70px;
+}
+
+/* 弹窗容器 - 极简白色风格 */
+.settings-popup {
+    background: var(--white-bg);
+    border-radius: 8px;
+    min-width: 220px;
+    max-width: 280px;
+    max-height: calc(100vh - 150px);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+    overflow-x: hidden;
+    animation: slideUp 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+    scroll-behavior: smooth;
+}
+
+/* 自定义滚动条 - 优雅的细滚动条 */
+.settings-popup::-webkit-scrollbar {
+    width: 5px;
+}
+
+.settings-popup::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.settings-popup::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+}
+
+.settings-popup::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* 鼠标移入时才显示滚动条 */
+.settings-popup {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 菜单区块 */
+.menu-section {
+    padding: 8px 0;
+}
+
+/* 菜单项 - 极简白色风格 */
+.menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    text-align: left;
+}
+
+.menu-item:hover:not(:disabled) {
+    background: var(--bg-secondary);
+}
+
+.menu-item:disabled,
+.menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.menu-item.danger {
+    color: var(--brand-red);
+    background: var(--brand-red-light);
+    border-radius: 8px;
+    margin: 0;
+    padding: 12px 20px;
+}
+
+.menu-item.danger:hover {
+    background: var(--brand-red-alpha-08);
+}
+
+/* 菜单图标 */
+.menu-icon {
+    width: 20px;
+    margin-right: 12px;
+    font-size: 16px;
+    color: var(--text-secondary);
+}
+
+.menu-item.danger .menu-icon {
+    color: var(--brand-red);
+}
+
+/* 菜单文本 */
+.menu-text {
+    flex: 1;
+}
+
+/* 菜单箭头 */
+.menu-arrow {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    transition: transform 0.2s ease;
+}
+
+.menu-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+/* 菜单徽章 */
+.menu-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: 10px;
+}
+
+/* 分隔线 */
+.menu-divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 4px 0;
+}
+
+/* 子菜单 */
+.submenu {
+    background: var(--bg-secondary);
+    padding: 4px 0;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.submenu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 20px 12px 52px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+}
+
+.submenu-item.clickable {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.submenu-item.clickable:hover:not(:disabled) {
+    background: var(--bg-tertiary);
+}
+
+.submenu-item.clickable:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.submenu-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.submenu-value {
+    color: var(--text-tertiary);
+    font-size: 12px;
+}
+
+.submenu-value.highlight {
+    color: var(--brand-green);
+    font-weight: 500;
+}
+
+.submenu-value.healthy {
+    color: var(--brand-green);
+}
+
+.submenu-value.unhealthy {
+    color: var(--brand-red);
+}
+
+/* 小型加载动画 */
+.spinner-sm {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--brand-green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* 服务器信息详情 */
+.server-info-details {
+    padding: 10px 20px 10px 52px;
+    background: var(--bg-secondary);
+    font-size: 12px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    color: var(--text-tertiary);
+}
+
+.info-row span:first-child {
+    color: var(--text-tertiary);
+}
+
+.info-row span:last-child {
+    color: var(--text-primary);
+}
+
+/* 响应式适配 */
+@media (max-width: 600px) {
+    .settings-popup-overlay {
+        padding-left: 0;
+        padding-bottom: 0;
+        align-items: flex-end;
+        justify-content: center;
+    }
+
+    .settings-popup {
+        width: 100%;
+        max-width: none;
+        border-radius: 16px 16px 0 0;
+    }
+}
+

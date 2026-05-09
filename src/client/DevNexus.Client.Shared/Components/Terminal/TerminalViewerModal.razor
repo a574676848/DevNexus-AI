@@ -1,0 +1,38 @@
+@namespace DevNexus.Client.Shared.Components.Terminal
+@using DevNexus.Client.Shared.Components.Shared.UI
+@using DevNexus.Client.Shared.Models
+
+<ModalBase IsVisible="@IsVisible"
+           IsVisibleChanged="HandleVisibleChanged"
+           Title="终端"
+           Size="@(ModalBase.ModalSize.FullScreen)"
+           OverlayClass="terminal-viewer-modal__overlay"
+           ContainerClass="terminal-viewer-modal"
+           BodyClass="terminal-viewer-modal__body"
+           ShowFooter="false"
+           OnClose="OnClose">
+    <TerminalSessionPanel Title="@Title"
+                          Eyebrow="@Eyebrow"
+                          Records="@Records"
+                          SelectedRecord="@SelectedRecord"
+                          OnSelectRecord="@OnSelectRecord"
+                          ShowOpenInModalButton="false"
+                          EnableTerminate="@EnableTerminate" />
+</ModalBase>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string Title { get; set; } = "终端";
+    [Parameter] public string Eyebrow { get; set; } = "终端详情";
+    [Parameter] public IReadOnlyList<TerminalRecordState> Records { get; set; } = Array.Empty<TerminalRecordState>();
+    [Parameter] public TerminalRecordState? SelectedRecord { get; set; }
+    [Parameter] public EventCallback<Guid> OnSelectRecord { get; set; }
+    [Parameter] public bool EnableTerminate { get; set; } = true;
+
+    private async Task HandleVisibleChanged(bool visible)
+    {
+        await IsVisibleChanged.InvokeAsync(visible);
+    }
+}

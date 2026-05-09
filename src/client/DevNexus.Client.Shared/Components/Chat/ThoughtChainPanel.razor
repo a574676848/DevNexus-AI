@@ -1,0 +1,329 @@
+@* ThoughtChainPanel.razor - Gemini 风格思考过程面板 *@
+@* 特点：胶囊式按钮，点击展开/收起，简洁的动画效果 *@
+@using DevNexus.Client.Shared.Models
+
+<div class="thought-chain-panel @(_isExpanded ? "expanded" : "") @(GetMotionStateClass())">
+    <button class="thought-header" @onclick="Toggle" @onclick:stopPropagation="true" @onclick:preventDefault="true">
+        <span class="thought-icon-wrapper">
+            @if (_isExpanded)
+            {
+                // 展开时：思考气泡图标
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="thought-icon">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            }
+            else
+            {
+                // 收起时：根据状态切换图标动效，避免生成中和已完成共用同一套动画语义。
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="thought-icon @GetCollapsedIconClass()">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                </svg>
+            }
+        </span>
+        
+        @if (!_isExpanded && IsStreamingRun && Thoughts.Any())
+        {
+            <div class="thought-ticker">
+                <span class="ticker-text" @key="Thoughts.Count">@DisplayThoughtText(Thoughts.Last())</span>
+            </div>
+        }
+        else
+        {
+            <span class="thought-label">思考过程</span>
+        }
+
+        <span class="thought-count">@Thoughts.Count 步</span>
+        <span class="thought-chevron">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" 
+                 class="chevron-icon @(_isExpanded ? "rotated" : "")">
+                <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+        </span>
+    </button>
+
+    <div class="thought-content-wrapper" aria-hidden="@(!_isExpanded)">
+        <div class="thought-content-inner">
+            <div class="thought-content">
+                @foreach (var attemptSection in BuildAttemptSections())
+                {
+                    <div class="attempt-section">
+                        <div class="attempt-header">
+                            <span class="attempt-title">@attemptSection.Title</span>
+                            @if (!string.IsNullOrEmpty(attemptSection.Summary))
+                            {
+                                <span class="attempt-summary">@attemptSection.Summary</span>
+                            }
+                        </div>
+                        <div class="thought-list">
+                            @foreach (var (thought, index) in attemptSection.Items.Select((t, i) => (t, i)))
+                            {
+                                <div class="thought-item" style="animation-delay: @(index * 0.05)s">
+                                    <span class="thought-index">@(index + 1)</span>
+                                    <span class="thought-text">@DisplayThoughtText(thought)</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 思考步骤列表
+    /// </summary>
+    [Parameter] public List<string> Thoughts { get; set; } = new();
+    
+    /// <summary>
+    /// 当前运行态。
+    /// </summary>
+    [Parameter] public ChatSessionRunState RunState { get; set; }
+
+    private bool IsStreamingRun => RunState is ChatSessionRunState.Generating or ChatSessionRunState.Recovering;
+
+    private bool _isExpanded = false;
+
+    private sealed class AttemptSection
+    {
+        public AttemptSection(int? attemptNumber, string title)
+        {
+            AttemptNumber = attemptNumber;
+            Title = title;
+        }
+
+        public int? AttemptNumber { get; }
+        public string Title { get; }
+        public string? Summary { get; set; }
+        public List<string> Items { get; } = new();
+    }
+
+    /// <summary>
+    /// 切换展开/收起状态
+    /// </summary>
+    private void Toggle()
+    {
+        _isExpanded = !_isExpanded;
+    }
+
+    private string GetCollapsedIconClass()
+    {
+        if (IsStreamingRun)
+        {
+            return "thought-icon--streaming";
+        }
+
+        return Thoughts.Count > 0 ? "thought-icon--completed" : string.Empty;
+    }
+
+    private string GetMotionStateClass()
+    {
+        if (IsStreamingRun)
+        {
+            return "thought-chain-panel--streaming";
+        }
+
+        return Thoughts.Count > 0 ? "thought-chain-panel--completed" : string.Empty;
+    }
+
+    private List<AttemptSection> BuildAttemptSections()
+    {
+        var sections = new List<AttemptSection>();
+        AttemptSection? current = null;
+
+        void EnsureCurrent()
+        {
+            if (current != null) return;
+            current = new AttemptSection(null, "初始生成");
+            sections.Add(current);
+        }
+
+        foreach (var thought in Thoughts)
+        {
+            if (TryParseAttemptMarker(thought, out var attemptNumber))
+            {
+                current = new AttemptSection(attemptNumber, $"自动修复尝试 #{attemptNumber}");
+                sections.Add(current);
+                continue;
+            }
+
+            EnsureCurrent();
+
+            if (IsSummaryLine(thought))
+            {
+                current!.Summary = thought;
+                continue;
+            }
+
+            current!.Items.Add(thought);
+        }
+
+        return sections;
+    }
+
+    private static bool TryParseAttemptMarker(string thought, out int attemptNumber)
+    {
+        attemptNumber = 0;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            thought ?? string.Empty,
+            "^🔄\\s*第\\s*(\\d+)\\s*次自动修复尝试");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        return int.TryParse(match.Groups[1].Value, out attemptNumber);
+    }
+
+    private static bool IsSummaryLine(string thought)
+    {
+        if (string.IsNullOrEmpty(thought))
+        {
+            return false;
+        }
+
+        return thought.StartsWith("✅ 评估通过", StringComparison.OrdinalIgnoreCase)
+            || thought.StartsWith("⚠️ 评估未通过", StringComparison.OrdinalIgnoreCase)
+            || thought.StartsWith("🛑 AI 判断", StringComparison.OrdinalIgnoreCase)
+            || thought.StartsWith("🛑 自动修复", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string DisplayThoughtText(string? thought)
+    {
+        if (string.IsNullOrWhiteSpace(thought))
+        {
+            return string.Empty;
+        }
+
+        // 先把显式的工具执行消息翻成中文，再保留原始语义与耗时信息。
+        var text = thought;
+        text = TranslateToolExecutionText(text);
+        text = TranslateStandaloneToolReferences(text);
+        text = TranslateLegacyAttemptText(text);
+        return text;
+    }
+
+    private static string TranslateToolExecutionText(string text)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"^(?<prefix>[🔧✅❌]\s*)(?:正在执行:\s*)?(?<tool>[A-Za-z0-9_]+\.[A-Za-z0-9_]+)(?<suffix>.*)$",
+            match =>
+            {
+                var prefix = match.Groups["prefix"].Value;
+                var tool = match.Groups["tool"].Value;
+                var suffix = match.Groups["suffix"].Value;
+
+                var readableTool = ToReadableToolName(tool);
+                if (text.Contains("正在执行", StringComparison.Ordinal))
+                {
+                    return $"{prefix}正在执行：{readableTool}{suffix}";
+                }
+
+                return $"{prefix}{readableTool}{suffix}";
+            },
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+    }
+
+    private static string TranslateLegacyAttemptText(string text)
+    {
+        // 兜底处理历史残留的英文阶段标题，避免旧消息继续显示英文。
+        return text
+            .Replace("Initial generation", "初始生成", StringComparison.OrdinalIgnoreCase)
+            .Replace("Auto repair attempt", "自动修复尝试", StringComparison.OrdinalIgnoreCase)
+            .Replace("executing", "正在执行", StringComparison.OrdinalIgnoreCase)
+            .Replace("executed", "已执行", StringComparison.OrdinalIgnoreCase)
+            .Replace("completed", "已完成", StringComparison.OrdinalIgnoreCase)
+            .Replace("failed", "失败", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string TranslateStandaloneToolReferences(string text)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(
+            text,
+            @"\b(?<tool>[A-Za-z0-9_]+\.[A-Za-z0-9_]+)\b",
+            match => ToReadableToolName(match.Groups["tool"].Value),
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+    }
+
+    private static string ToReadableToolName(string toolReference)
+    {
+        var parts = toolReference.Split('.', 2);
+        if (parts.Length != 2)
+        {
+            return toolReference;
+        }
+
+        var pluginName = parts[0];
+        var functionName = parts[1];
+        var readablePluginName = TranslatePluginName(pluginName);
+        var readableFunctionName = TranslateFunctionName(pluginName, functionName);
+
+        return $"{readablePluginName}·{readableFunctionName}";
+    }
+
+    private static string TranslatePluginName(string pluginName)
+    {
+        return pluginName switch
+        {
+            "NotePlugin" => "笔记工具",
+            "WebSearchPlugin" => "网络搜索工具",
+            "CodeExecutionPlugin" => "代码执行工具",
+            "KnowledgeBasePlugin" => "知识库工具",
+            "SessionMemoryPlugin" => "会话记忆工具",
+            "IntegrationPlugin" => "集成工具",
+            "SwarmControlPlugin" => "Swarm 控制工具",
+            _ => SplitCamelCase(pluginName)
+        };
+    }
+
+    private static string TranslateFunctionName(string pluginName, string functionName)
+    {
+        return (pluginName, functionName) switch
+        {
+            ("NotePlugin", "SearchNotesAsync") => "搜索笔记",
+            ("NotePlugin", "CreateNoteAsync") => "新建笔记",
+            ("NotePlugin", "CreateNoteWithAttachmentsAsync") => "新建带附件笔记",
+            ("NotePlugin", "UpdateNoteAsync") => "更新笔记",
+            ("NotePlugin", "DeleteNoteAsync") => "删除笔记",
+            ("WebSearchPlugin", "SearchAsync") => "搜索网页",
+            ("WebSearchPlugin", "AdvancedSearchAsync") => "深度搜索",
+            ("WebSearchPlugin", "ReadWebpageAsync") => "读取网页",
+            ("CodeExecutionPlugin", "RunCodeAsync") => "执行代码",
+            ("KnowledgeBasePlugin", "SearchAsync") => "检索知识库",
+            ("SessionMemoryPlugin", "save_memory") => "保存记忆",
+            ("SessionMemoryPlugin", "read_memory") => "读取记忆",
+            ("SessionMemoryPlugin", "list_memories") => "列出记忆",
+            ("SessionMemoryPlugin", "delete_memory") => "删除记忆",
+            ("IntegrationPlugin", "LinkAsync") => "关联集成",
+            ("IntegrationPlugin", "UnlinkAsync") => "解除集成",
+            _ => SplitMethodName(functionName)
+        };
+    }
+
+    private static string SplitCamelCase(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return System.Text.RegularExpressions.Regex.Replace(
+            value,
+            "([a-z0-9])([A-Z])",
+            "$1 $2",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+    }
+
+    private static string SplitMethodName(string value)
+    {
+        var normalized = value.EndsWith("Async", StringComparison.OrdinalIgnoreCase)
+            ? value[..^5]
+            : value;
+
+        normalized = SplitCamelCase(normalized);
+        return normalized.Replace('_', ' ');
+    }
+}

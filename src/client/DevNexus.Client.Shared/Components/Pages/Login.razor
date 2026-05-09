@@ -1,0 +1,174 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@inject IAuthService AuthService
+@inject IWindowService WindowService
+@inject NavigationManager NavigationManager
+@inject INotificationService NotificationService
+
+<div class="login-container animate-fade-in">
+    <div class="login-card @(_isLoading ? "login-card--busy" : "")" aria-busy="@_isLoading">
+        <!-- Logo 和标题 -->
+        <div class="login-header">
+            <div class="logo">
+                <DevNexusLogo Size="64" GlowIntensity="2" />
+            </div>
+            <h1 class="title">DevNexus AI</h1>
+            <p class="subtitle">智能研发工作站</p>
+        </div>
+
+        <!-- 登录表单 -->
+        <EditForm Model="_model" OnValidSubmit="HandleLogin" class="login-form">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="username">用户名</label>
+                <input @ref="_usernameInput" id="username" @bind="_model.Username" class="form-input" placeholder="请输入用户名"
+                    disabled="@_isLoading" />
+                <ValidationMessage For="@(() => _model.Username)" class="validation-error" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">密码</label>
+                <InputText id="password" type="password" @bind-Value="_model.Password" class="form-input"
+                    placeholder="请输入密码" disabled="@_isLoading" />
+                <ValidationMessage For="@(() => _model.Password)" class="validation-error" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <div class="error-message animate-slide-up">
+                    <svg class="error-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1ZM7 4h2v5H7V4Zm1 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" />
+                    </svg>
+                    <span>@_errorMessage</span>
+                </div>
+            }
+
+            <button type="submit" class="login-button" disabled="@_isLoading" title="@(_isLoading ? "正在验证账号" : "点击登录")">
+                @if (_isLoading)
+                {
+                    <span class="spinner"></span>
+                    <span>正在验证账号...</span>
+                }
+                else
+                {
+                    <span>登录</span>
+                }
+            </button>
+        </EditForm>
+
+        @if (_isLoading)
+        {
+            <div class="login-loading-hint" role="status" aria-live="polite">
+                <span class="login-loading-hint__dot"></span>
+                <span>@LoginProgressText</span>
+            </div>
+        }
+
+        <!-- 底部信息 -->
+        <div class="login-footer">
+            <p>© 2025 DevNexus AI. All rights reserved.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel _model = new();
+    private bool _isLoading = false;
+    private string? _errorMessage = null;
+    private ElementReference _usernameInput;
+    private string LoginProgressText => _isLoading ? "正在验证账号与会话..." : "准备登录";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 根据屏幕分辨率自适应设置登录窗口尺寸
+        WindowService.SetAdaptiveSize("login");
+        WindowService.CenterOnScreen();
+
+        // 如果已登录，直接跳转到首页
+        // 注意：会话恢复由 DevNexusAuthenticationStateProvider 在后台处理
+        // 当恢复成功时，会触发 AuthStateChanged 事件，此时页面会自动重定向
+        if (AuthService.IsAuthenticated)
+        {
+            await RestoreMainWindowSize();
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 页面加载后自动聚焦到用户名输入框
+            await _usernameInput.FocusAsync();
+        }
+    }
+
+    /// <summary>
+    /// 处理登录提交
+    /// </summary>
+    private async Task HandleLogin()
+    {
+        if (_isLoading) return;
+
+        _isLoading = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var success = await AuthService.LoginAsync(_model.Username, _model.Password);
+
+            if (success)
+            {
+                await NotificationService.ShowAsync("登录成功", "欢迎回来！");
+                await RestoreMainWindowSize();
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                _errorMessage = "用户名或密码错误，请重试";
+                await NotificationService.ShowAsync("登录失败", _errorMessage);
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _errorMessage = "网络连接失败，请检查网络设置";
+            await NotificationService.ShowAsync("登录失败", _errorMessage);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"登录失败: {ex.Message}";
+            await NotificationService.ShowAsync("登录失败", _errorMessage);
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// 恢复主窗口尺寸（默认为最大化）
+    /// </summary>
+    private async Task RestoreMainWindowSize()
+    {
+        await WindowService.MaximizeAsync();
+    }
+
+    /// <summary>
+    /// 登录表单模型
+    /// </summary>
+    private sealed class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "请输入用户名")]
+        [System.ComponentModel.DataAnnotations.MinLength(3, ErrorMessage = "用户名至少3个字符")]
+        public string Username { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "请输入密码")]
+        [System.ComponentModel.DataAnnotations.MinLength(6, ErrorMessage = "密码至少6个字符")]
+        public string Password { get; set; } = string.Empty;
+    }
+}
+

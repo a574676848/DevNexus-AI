@@ -1,0 +1,276 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+@using DevNexus.Client.Shared.Components.Cards
+@using DevNexus.Client.Shared.Models
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.Enums
+@using DevNexus.Shared.DTOs
+@using System.Text.Json
+
+<div class="user-content-wrapper">
+    @if (HasInvocationChips)
+    {
+        <div class="message-invocation-chips" aria-label="本轮工具与技能上下文">
+            @if (!string.IsNullOrWhiteSpace(ToolChipLabel))
+            {
+                <span class="message-invocation-chip tool">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                    @ToolChipLabel
+                </span>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(SkillChipLabel))
+            {
+                <span class="message-invocation-chip skill">
+                    <i class="fa-solid fa-sparkles"></i>
+                    @SkillChipLabel
+                </span>
+            }
+        </div>
+    }
+
+    @if (TaskArtifacts.Any())
+    {
+        <div class="message-task-cards">
+            @foreach (var taskArtifact in TaskArtifacts)
+            {
+                <div class="message-task-entry">
+                    @if (IsInteractiveFileTaskArtifact(taskArtifact))
+                    {
+                        <FileTaskResultCards TaskArtifact="@taskArtifact" />
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    @if (FileArtifacts.Any())
+    {
+        <div class="message-artifacts">
+            @foreach (var artifact in FileArtifacts)
+            {
+                <PastedDocumentChip Document="@GetPastedDocument(artifact)" ReadOnly="true" />
+            }
+        </div>
+    }
+
+    @if (IsEditing)
+    {
+        <div class="edit-mode-container">
+            <div class="edit-input-shell">
+                <textarea class="edit-textarea" @bind="EditContent" rows="3" placeholder="编辑消息..."></textarea>
+            </div>
+            <div class="edit-actions">
+                <button class="action-btn cancel-btn" @onclick="CancelEdit">取消</button>
+                <button class="action-btn save-btn" @onclick="SaveEdit">更新</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @if (ShouldTruncate && !IsExpanded)
+        {
+            <p class="user-text">@TruncatedContent</p>
+            <button class="expand-btn" @onclick="ToggleExpand">
+                <span class="expand-icon">↓</span> 展开
+            </button>
+        }
+        else
+        {
+            <p class="user-text">@Content</p>
+            @if (ShouldTruncate)
+            {
+                <button class="expand-btn" @onclick="ToggleExpand">
+                    <span class="expand-icon">↑</span> 收起
+                </button>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string Content { get; set; } = default!;
+    [Parameter] public List<ArtifactDto>? Artifacts { get; set; }
+    [Parameter] public Dictionary<string, object>? Metadata { get; set; }
+    [Parameter] public EventCallback<string> OnEditSubmit { get; set; }
+
+    private const int MaxLength = 300;
+    
+    private bool IsEditing { get; set; }
+    private bool IsExpanded { get; set; }
+    private string EditContent { get; set; } = "";
+    private IEnumerable<ArtifactDto> FileArtifacts =>
+        Artifacts?.Where(artifact => !IsInteractiveTaskArtifact(artifact)) ?? Enumerable.Empty<ArtifactDto>();
+    private IEnumerable<ArtifactDto> TaskArtifacts =>
+        Artifacts?.Where(IsInteractiveTaskArtifact) ?? Enumerable.Empty<ArtifactDto>();
+    private bool HasInvocationChips => !string.IsNullOrWhiteSpace(ToolChipLabel) || !string.IsNullOrWhiteSpace(SkillChipLabel);
+    private string? ToolChipLabel => ResolveToolChipLabel();
+    private string? SkillChipLabel => ResolveSkillChipLabel();
+
+    private bool ShouldTruncate => Content?.Length > MaxLength;
+    
+    private string TruncatedContent
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Content) || Content.Length <= MaxLength)
+                return Content ?? "";
+            
+            return Content.Substring(0, MaxLength) + "...";
+        }
+    }
+
+    private void ToggleExpand()
+    {
+        IsExpanded = !IsExpanded;
+    }
+
+    public void StartEdit()
+    {
+        EditContent = Content ?? "";
+        IsEditing = true;
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        IsEditing = false;
+        EditContent = "";
+    }
+
+    private async Task SaveEdit()
+    {
+        if (string.IsNullOrWhiteSpace(EditContent))
+        {
+            CancelEdit();
+            return;
+        }
+
+        IsEditing = false;
+        await OnEditSubmit.InvokeAsync(EditContent);
+    }
+
+    private static bool IsInteractiveFileTaskArtifact(ArtifactDto artifact)
+    {
+        return string.Equals(artifact.Type, "interactive-file-task", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsInteractiveTaskArtifact(ArtifactDto artifact)
+    {
+        return IsInteractiveFileTaskArtifact(artifact);
+    }
+
+    private string? ResolveToolChipLabel()
+    {
+        var toolDisplayName = TryReadMetadataString("toolDisplayName");
+        if (!string.IsNullOrWhiteSpace(toolDisplayName))
+        {
+            return toolDisplayName;
+        }
+
+        var toolCommand = TryReadMetadataString("toolCommand");
+        if (!string.IsNullOrWhiteSpace(toolCommand))
+        {
+            return toolCommand.StartsWith("/", StringComparison.Ordinal) ? toolCommand : $"/{toolCommand}";
+        }
+
+        var toolId = TryReadMetadataString("toolId");
+        return string.IsNullOrWhiteSpace(toolId) ? null : toolId;
+    }
+
+    private string? ResolveSkillChipLabel()
+    {
+        var selectedSkillName = TryReadMetadataString("selectedSkillName");
+        if (string.IsNullOrWhiteSpace(selectedSkillName))
+        {
+            return null;
+        }
+
+        return selectedSkillName.StartsWith("/", StringComparison.Ordinal)
+            ? selectedSkillName
+            : $"/{selectedSkillName}";
+    }
+
+    private string? TryReadMetadataString(string key)
+    {
+        if (Metadata == null || !Metadata.TryGetValue(key, out var rawValue) || rawValue == null)
+        {
+            return null;
+        }
+
+        if (rawValue is JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.String => element.GetString(),
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => element.GetRawText()
+            };
+        }
+
+        var text = rawValue.ToString();
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private PastedDocument GetPastedDocument(ArtifactDto artifact)
+    {
+        if (!string.IsNullOrEmpty(artifact.Content))
+        {
+            try
+            {
+                var smartDoc = JsonSerializer.Deserialize<SmartDocument>(artifact.Content);
+                if (smartDoc != null)
+                {
+                    if (artifact.FileAssetId.HasValue && !smartDoc.Metadata.ContainsKey(SmartDocumentConstants.MetadataKeys.FileAssetId))
+                    {
+                        smartDoc.Metadata[SmartDocumentConstants.MetadataKeys.FileAssetId] = artifact.FileAssetId.Value;
+                    }
+
+                    if (artifact.FileVersionId.HasValue && !smartDoc.Metadata.ContainsKey(SmartDocumentConstants.MetadataKeys.CurrentVersionId))
+                    {
+                        smartDoc.Metadata[SmartDocumentConstants.MetadataKeys.CurrentVersionId] = artifact.FileVersionId.Value;
+                    }
+
+                    if (artifact.Metadata != null)
+                    {
+                        foreach (var kvp in artifact.Metadata)
+                        {
+                            if (!smartDoc.Metadata.ContainsKey(kvp.Key) && kvp.Value != null)
+                            {
+                                smartDoc.Metadata[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+
+                    return new PastedDocument
+                    {
+                        Id = artifact.ArtifactId,
+                        SmartDocument = smartDoc,
+                        SourceType = smartDoc.Content switch
+                        {
+                            CodeDocumentContent => DocumentSourceType.Code,
+                            _ => DocumentSourceType.Uploaded
+                        }
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UserMessageContent] 解析 SmartDocument 失败: {ex.Message}");
+            }
+        }
+        
+        return new PastedDocument
+        {
+            Id = artifact.ArtifactId,
+            SmartDocument = new SmartDocument
+            {
+                FileName = artifact.Name ?? "unknown",
+                MimeType = "text/plain",
+                Content = new TextDocumentContent { Text = artifact.Content ?? string.Empty }
+            }
+        };
+    }
+}

@@ -1,0 +1,522 @@
+/* Markdown 渲染样式 - 全局样式表
+   严格遵循 Modern Minimalist UI 设计规范 (极简、无阴影、4px 圆角)
+   Reference: docs/CLIENT-UI-DESIGN-DOCUMENT.md
+*/
+
+/* === 2.1 & 2.2 视觉规范变量 === */
+:root {
+    /* 字体 */
+    --md-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --md-font-mono: "JetBrains Mono", "Fira Code", Consolas, monospace;
+
+    /* 极简配色 */
+    --md-text-primary: var(--text-primary);
+    --md-text-secondary: var(--text-secondary);
+    --md-text-muted: var(--text-secondary);
+    --md-border-color: var(--border-subtle);
+    /* 分割线 */
+    --md-accent-color: var(--brand-green);
+    /* 品牌绿 */
+    --md-bg-block: var(--bg-secondary);
+    /* 块级背景 */
+    --md-code-bg: var(--bg-tertiary);
+    /* 代码块浅色背景 */
+    --md-code-header-bg: var(--bg-secondary);
+    --md-code-border: var(--border-subtle);
+    --md-code-border-subtle: var(--border-subtle);
+    --md-code-text: #1a1a1a;
+    --md-code-text-muted: #4a4a4a;
+    --md-code-action-hover-bg: var(--bg-hover);
+    --md-blockquote-border: var(--border-strong);
+    --md-inline-code-bg: var(--bg-tertiary);
+    --md-inline-code-text: var(--text-primary);
+    --md-table-header-bg: var(--bg-secondary);
+    --md-mermaid-bg: var(--white-bg);
+    --md-thinking-bg: #f0f4f9;
+    --md-thinking-hover-bg: #e1e5ea;
+    --md-thinking-text: #444746;
+    --md-thinking-hover-text: #1f1f1f;
+    --md-thinking-status-text: #747775;
+    --md-thinking-status-bg: rgba(0, 0, 0, 0.05);
+    --md-thinking-border: #a8c7fa;
+    --md-image-link-border: rgba(7, 193, 96, 0.3);
+
+    /* 规范几何 */
+    --md-radius: var(--radius-md);
+    /* 统一升级为中大圆角 */
+
+    /* 状态色 */
+    --md-link-color: var(--brand-green);
+}
+
+/* 覆盖链接颜色为品牌绿，遵循文档 */
+:root {
+    --md-link-color: var(--brand-green);
+}
+
+.markdown-content {
+    font-family: var(--md-font-sans);
+    line-height: 1.6;
+    /* 极简通常较紧凑，1.6 适中 */
+    word-break: break-word;
+    font-size: 14px;
+    /* --font-base: 14px */
+    color: var(--md-text-primary);
+}
+
+/* === 排版 (Typography) === */
+.markdown-content p {
+    margin: 0 0 12px 0;
+    /* 稍微减小间距 */
+    line-height: 1.6;
+}
+
+.markdown-content p:last-child {
+    margin-bottom: 0;
+}
+
+/* 标题 - 极简风格 */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    margin: 1.5em 0 0.8em 0;
+    font-weight: 600;
+    color: var(--md-text-primary);
+    line-height: 1.4;
+}
+
+.markdown-content h1:first-child,
+.markdown-content h2:first-child {
+    margin-top: 0;
+}
+
+.markdown-content h1 {
+    font-size: 18px;
+    border-bottom: 1px solid var(--md-border-color);
+    padding-bottom: 8px;
+}
+
+.markdown-content h2 {
+    font-size: 16px;
+    border-bottom: 1px solid var(--md-border-color);
+    padding-bottom: 6px;
+}
+
+.markdown-content h3 {
+    font-size: 15px;
+    margin-top: 1.2em;
+}
+
+.markdown-content h4 {
+    font-size: 14px;
+}
+
+/* === 列表 (Lists) === */
+.markdown-content ul,
+.markdown-content ol {
+    margin: 8px 0 8px 20px;
+    padding: 0;
+    color: var(--md-text-primary);
+}
+
+.markdown-content li {
+    margin: 4px 0;
+}
+
+/* === 引用 (Blockquotes) === */
+/* 去除渐变，保持极简但增加高级透材质 */
+.markdown-content blockquote {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.02);
+    border-left: 4px solid var(--brand-green);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    color: var(--md-text-muted);
+    font-size: 13px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.markdown-content blockquote p {
+    margin: 0;
+}
+
+/* === 链接 (Links) === */
+.markdown-content a {
+    color: var(--md-link-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+}
+
+.markdown-content a:hover {
+    border-bottom-color: var(--md-link-color);
+}
+
+/* === 行内代码 (Inline Code) === */
+.markdown-content code:not(pre code) {
+    padding: 2px 6px;
+    margin: 0 2px;
+    background: rgba(0, 0, 0, 0.05);
+    /* 高级半透明灰背景 */
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius-sm);
+    font-family: var(--md-font-mono);
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #1a1a1a;
+}
+
+/* === 表格 (Tables) === */
+/* 无阴影，1px 边框 */
+.markdown-content table {
+    width: 100%;
+    margin: 16px 0;
+    border-collapse: separate;
+    /* Required for border-radius on table */
+    border-spacing: 0;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    font-size: 13px;
+}
+
+.markdown-content thead {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.markdown-content th,
+.markdown-content td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    border-right: 1px solid rgba(0, 0, 0, 0.05);
+    text-align: left;
+}
+
+.markdown-content th:last-child,
+.markdown-content td:last-child {
+    border-right: none;
+}
+
+.markdown-content tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.markdown-content th {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+/* === 代码块 (Code Blocks) - Code-First UX === */
+.code-block-wrapper {
+    margin: 16px 0;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+}
+
+/* Mac 风格头部保留（符合编辑器隐喻），但扁平化 */
+.code-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.code-language {
+    font-size: 12px;
+    color: var(--md-text-secondary);
+}
+
+.code-block-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.code-action-btn {
+    width: 24px;
+    height: 24px;
+    color: var(--md-text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.code-action-btn:hover {
+    background: var(--md-code-action-hover-bg);
+    color: var(--md-code-text);
+}
+
+.markdown-content pre {
+    margin: 0;
+    padding: 16px;
+    background: transparent !important;
+    color: var(--md-code-text) !important;
+    font-family: var(--md-font-mono);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.7;
+    overflow-x: auto;
+}
+
+.code-block-wrapper pre {
+    border-radius: 0;
+}
+
+.markdown-content pre code {
+    background: transparent !important;
+    padding: 0;
+    font-size: inherit;
+    color: inherit;
+    border: none;
+}
+
+/* === 代码块通用样式 - 确保高对比度可读性 === */
+/* 适用于所有容器（.markdown-content, .silky-markdown-content 等） */
+pre[class*="language-"],
+pre.enhanced {
+    background: var(--md-code-bg) !important;
+    color: var(--md-code-text) !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    line-height: 1.7 !important;
+}
+
+pre[class*="language-"] code,
+pre.enhanced code,
+code[class*="language-"] {
+    color: var(--md-code-text) !important;
+    background: transparent !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+}
+
+/* Prism 高亮后的代码保持可见 */
+code.prism-highlighted {
+    color: var(--md-code-text-muted) !important;
+}
+
+/* === Prism 语法高亮颜色覆盖 - 浅色主题 === */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+    color: #6a737d !important;
+}
+
+.token.punctuation {
+    color: #24292e !important;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol,
+.token.deleted {
+    color: #005cc5 !important;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+    color: #22863a !important;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+    color: #d73a49 !important;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+    color: #d73a49 !important;
+}
+
+.token.function,
+.token.class-name {
+    color: #6f42c1 !important;
+}
+
+.token.regex,
+.token.important,
+.token.variable {
+    color: #e36209 !important;
+}
+
+/* === Mermaid 图表 === */
+.mermaid-container {
+    margin: 16px 0;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius-lg);
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+/* === 思考过程 (Gemini 风格同步) === */
+.thinking-process {
+    margin: 8px 0;
+    /* 模拟 ThoughtChainPanel 的背景和圆角，但由于这是块级元素包含 header 和 content，我们需要分别处理 */
+    border: none;
+    background: transparent;
+}
+
+.thinking-process[open] {
+    /* 展开时无特殊背景，内容区域会有背景 */
+}
+
+/* 摘要行 - 对应 .thought-header */
+.thinking-summary {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    user-select: none;
+    list-style: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    margin-bottom: 12px;
+    /* 与内容隔开 */
+}
+
+.thinking-summary:hover {
+    background: #ffffff;
+    box-shadow: var(--shadow-sm), inset 0 1px 1px #ffffff;
+    transform: translateY(-1px);
+}
+
+.thinking-summary::-webkit-details-marker {
+    display: none;
+}
+
+.thinking-icon {
+    margin-right: 8px;
+    font-size: 14px;
+    /* 尝试用 emoji 模拟 sparkles，或者 content 本身可能包含 svg */
+}
+
+.thinking-title {
+    font-weight: 500;
+}
+
+.thinking-status {
+    font-size: 11px;
+    color: var(--md-thinking-status-text);
+    margin-left: 6px;
+    background: var(--md-thinking-status-bg);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* 箭头 */
+.thinking-summary::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background-color: var(--md-thinking-status-text);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat center / cover;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat center / cover;
+    margin-left: 6px;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+.thinking-process[open] .thinking-summary::after {
+    transform: rotate(180deg);
+}
+
+/* 思考内容 - 对应 .thought-content */
+.thinking-content {
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    font-family: var(--md-font-mono);
+    white-space: pre-wrap;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: var(--radius-lg);
+    border-left: 3px solid rgba(0, 0, 0, 0.1);
+    margin-top: 0;
+}
+
+/* === 实用 === */
+.cursor-blink {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background-color: var(--md-accent-color);
+    vertical-align: middle;
+    margin-left: 1px;
+    border-radius: 1px;
+    animation: cursor-breath 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes cursor-breath {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.2;
+    }
+}
+
+/* === 内联图片 (Inline Images) === */
+.markdown-content img {
+    max-width: 100%;
+    /* 图片不超过容器宽度 */
+    height: auto;
+    /* 按比例缩放 */
+    margin: 16px 0;
+    /* 上下间距 */
+    border-radius: var(--radius-lg);
+    /* 大圆角 */
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    /* 微弱边框 */
+    box-shadow: var(--shadow-sm);
+    /* 微弱阴影 */
+    display: block;
+    /* 独占一行 */
+}
+
+.markdown-content a img {
+    /* 如果图片是链接的一部分，边框改为品牌绿 */
+    border-color: var(--md-image-link-border);
+    transition: border-color 0.2s ease;
+}
+
+.markdown-content a:hover img {
+    border-color: var(--md-accent-color);
+}

@@ -1,0 +1,232 @@
+/* AiStatusIndicator.razor.css */
+
+.message-item {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    opacity: 0;
+    animation: fadeIn 0.2s ease-out forwards;
+    width: 100%;
+    will-change: transform, opacity;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: var(--white-bg);
+    color: var(--brand-green);
+    border: 1px solid var(--border-subtle);
+}
+
+.message-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-width: 0;
+    max-width: 65%;
+}
+
+.ai-thinking-capsule {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--dnx-bg-surface, #ffffff);
+    border: 1px solid var(--dnx-border-default, #d5dbe0);
+    border-radius: var(--dnx-radius-md, 10px);
+    color: var(--dnx-text-primary, #182026);
+    font-size: 13px;
+    font-weight: 500;
+    box-shadow: var(--dnx-shadow-sm, 0 1px 2px rgba(16, 24, 40, 0.06));
+    position: relative;
+    overflow: hidden;
+}
+
+.ai-thinking-capsule--streaming::after {
+    content: "";
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+        100deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0) 30%,
+        rgba(7, 193, 96, 0.08) 48%,
+        rgba(255, 255, 255, 0.55) 52%,
+        rgba(7, 193, 96, 0.08) 56%,
+        transparent 100%
+    );
+    transform: translateX(-140%);
+    animation: capsule-sheen 2.4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.thinking-icon-sparkle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brand-green);
+}
+
+.thinking-icon-sparkle--streaming {
+    animation: thinking-icon-breathe 1.7s ease-in-out infinite;
+    transform-origin: center;
+    filter: drop-shadow(0 0 0 rgba(7, 193, 96, 0));
+}
+
+.thinking-icon-sparkle--swarm {
+    color: var(--dnx-text-secondary, #5f6b76);
+    animation: swarm-icon-drift 1.8s ease-in-out infinite;
+}
+
+@keyframes thinking-icon-breathe {
+    0% {
+        transform: scale(0.94);
+        opacity: 0.72;
+        filter: drop-shadow(0 0 0 rgba(7, 193, 96, 0));
+    }
+
+    50% {
+        transform: scale(1.03);
+        opacity: 1;
+        filter: drop-shadow(0 0 5px rgba(7, 193, 96, 0.18));
+    }
+
+    100% {
+        transform: scale(0.94);
+        opacity: 0.72;
+        filter: drop-shadow(0 0 0 rgba(7, 193, 96, 0));
+    }
+}
+
+@keyframes swarm-icon-drift {
+    0%, 100% {
+        transform: translateY(0);
+        opacity: 0.78;
+    }
+
+    50% {
+        transform: translateY(-1px);
+        opacity: 1;
+    }
+}
+
+.thinking-text {
+    color: var(--dnx-text-secondary, #5f6b76);
+}
+
+.thinking-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 2px;
+}
+
+.thinking-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(7, 193, 96, 0.78);
+    animation: dot-breathe 1.5s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.thinking-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes capsule-sheen {
+    0% {
+        transform: translateX(-140%);
+        opacity: 0;
+    }
+
+    18% {
+        opacity: 1;
+    }
+
+    46% {
+        transform: translateX(140%);
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateX(140%);
+        opacity: 0;
+    }
+}
+
+.view-details-link {
+    font-size: 12px;
+    color: var(--brand-green);
+    margin-left: 4px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.view-details-link:hover {
+    opacity: 0.8;
+    text-decoration: underline;
+}
+
+.swarm-capsule {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 4px !important;
+    box-shadow: none !important;
+}
+
+.swarm-capsule .thinking-text {
+    color: var(--text-secondary);
+}
+
+.swarm-capsule .thinking-dots span {
+    background: rgba(148, 163, 184, 0.8);
+}
+
+@keyframes dot-breathe {
+    0%, 100% {
+        transform: translateY(0);
+        opacity: 0.32;
+    }
+
+    50% {
+        transform: translateY(-1px);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .message-item,
+    .thinking-icon-sparkle,
+    .thinking-text,
+    .ai-thinking-capsule,
+    .thinking-dots span,
+    .ai-thinking-capsule--streaming::after {
+        animation: none !important;
+    }
+}

@@ -1,0 +1,200 @@
+/* ProfilePopup.razor.css - 极简风格个人资料弹窗 */
+
+/* 遮罩层 - 用于点击外部关闭 */
+.profile-popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2000;
+    /* 确保高于侧边栏和其他浮层 */
+    background: transparent;
+}
+
+/* 弹窗主体 */
+.profile-popup {
+    position: fixed;
+    top: 12px;
+    /* 与头像大致对齐 */
+    left: 64px;
+    /* 侧边栏宽度 54px + 10px 间距 */
+    width: 300px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08), inset 0 1px 1px #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    animation: popupSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 2001;
+    /* 比遮罩层高 */
+}
+
+@keyframes popupSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+    }
+}
+
+/* 加载状态 */
+.popup-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 180px;
+}
+
+.popup-loading .spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--bg-tertiary);
+    border-top-color: var(--brand-green);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 用户信息区域 */
+.user-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 20px;
+    background: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-info .username {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.user-info .user-id {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Consolas', 'Monaco', monospace;
+    opacity: 0.8;
+}
+
+/* 可选择文本样式 */
+.selectable {
+    user-select: text;
+    cursor: text;
+}
+
+/* Token 统计区域 */
+.stats-section {
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.stats-title {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.stats-title i {
+    color: var(--brand-green, #07c160);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.stat-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+    font-family: 'Rubik', sans-serif;
+    /* 如果有数字字体 */
+}
+
+.stat-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* 操作按钮区域 */
+.action-section {
+    padding: 12px 20px 20px;
+    background: rgba(0, 0, 0, 0.02);
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.action-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: 9999px;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.action-btn:hover {
+    background: #ffffff;
+    border-color: rgba(7, 193, 96, 0.2);
+    color: var(--brand-green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.action-btn:active {
+    background: rgba(0, 0, 0, 0.02);
+    transform: scale(0.96);
+    box-shadow: none;
+}
+
+.action-btn i {
+    font-size: 14px;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+}
+
+.action-btn:hover i {
+    color: var(--brand-green);
+}

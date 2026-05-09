@@ -1,0 +1,53 @@
+/* UserIntegrationsPanel.razor.css - 用户集成管理面板样式 */
+
+/* ===== 面板容器 ===== */
+.provider-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+    background: var(--stage-bg);
+}
+
+/* ===== 面板工具栏 ===== */
+.panel-actions {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(0, 0, 0, 0.03);
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm), inset 0 1px 1px #ffffff;
+}
+
+/* ===== 按钮样式 (面板用) ===== */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 24px;
+    background: var(--gradient-primary);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-full);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    min-height: 32px;
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.25);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--brand-green-hover, #06ad56);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: scale(0.98);
+}

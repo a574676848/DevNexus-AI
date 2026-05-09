@@ -1,0 +1,59 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IJSRuntime JS
+
+@using DevNexus.Client.Shared.Components.Icons
+
+<div class="message-actions @(IsUserMessage ? "user-actions" : "")">
+    <button class="action-btn" @onclick="CopyContent" title="@(_copied ? "已复制" : "复制")">
+        @if (_copied)
+        {
+            <CheckIcon Size="18" CssClass="icon-svg" />
+        }
+        else
+        {
+            <CopyIcon Size="18" CssClass="icon-svg" />
+        }
+    </button>
+    
+    @if (!IsUserMessage && ShowRegenerateButton)
+    {
+        <button class="action-btn" @onclick="OnRegenerate" title="重新生成">
+            <RegenerateIcon Size="18" CssClass="icon-svg" />
+        </button>
+    }
+    
+    @if (IsUserMessage)
+    {
+        <button class="action-btn" @onclick="OnEdit" title="编辑">
+            <EditPencilIcon Size="18" CssClass="icon-svg" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Content { get; set; } = default!;
+    [Parameter] public bool IsUserMessage { get; set; }
+    [Parameter] public bool ShowRegenerateButton { get; set; }
+    [Parameter] public EventCallback OnEdit { get; set; }
+    [Parameter] public EventCallback OnRegenerate { get; set; }
+
+    private bool _copied = false;
+
+    private async Task CopyContent()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Content ?? "");
+            _copied = true;
+            StateHasChanged();
+            
+            await Task.Delay(2000);
+            _copied = false;
+            StateHasChanged();
+        }
+        catch (Exception)
+        {
+            // 复制失败时忽略错误
+        }
+    }
+}

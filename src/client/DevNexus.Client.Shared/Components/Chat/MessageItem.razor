@@ -1,0 +1,444 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IUserStateService UserState
+@inject IUrlService UrlService
+@inject IChatState ChatState
+
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Shared.Enums
+@using Microsoft.AspNetCore.Components
+
+@if (ShouldRenderMessageShell())
+{
+    <div class="message-item @GetMessageClass() @GetEntryAnimationClass()">
+        <div class="message-avatar @GetAvatarClass()">
+            @if (IsUserSender())
+            {
+                <UserAvatar DisplayName="@GetUserDisplayName()" AvatarUrl="@GetUserAvatarUrl()" Size="sm" />
+            }
+            else
+            {
+                <DevNexusLogo Size="32" GlowIntensity="0.6" />
+            }
+        </div>
+
+        <div class="message-body">
+            <MessageHeader SenderName="@GetSenderName()"
+                           CreatedAt="@Message.CreatedAt"
+                           StatusLabel="@GetMessageStatusLabel()"
+                           StatusTone="@GetMessageStatusTone()" />
+            
+            @if (ShouldRenderMessageContent())
+            {
+                <div class="message-content">
+                    @if (IsUserSender())
+                    {
+                        <UserMessageContent @ref="_userContent"
+                                           Content="@GetUserMessageContent()" 
+                                           Artifacts="@Message.Artifacts"
+                                           Metadata="@Message.Metadata"
+                                           OnEditSubmit="HandleEditSubmit" />
+                    }
+                    else
+                    {
+                        @if (string.Equals(Message.MessageType, "image", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(_imageUrl))
+                        {
+                            <ImageMessageContent ImageUrl="@_imageUrl" />
+                        }
+                        
+                        @if (HasRenderableAssistantContent())
+                        {
+                            <AssistantMessageContent DisplayedContent="@_displayedContent" 
+                                                    Thoughts="@_thoughts" 
+                                                    OrderedBlocks="@(Message.OrderedBlocks ?? new())" 
+                                                    ChartBlocks="@_chartBlocks" 
+                                                    InteractiveBlocks="@_interactiveBlocks" 
+                                                    FilteredArtifacts="@_filteredArtifacts"
+                                                    IsSidekickVisible="@IsSidekickVisible"
+                                                    ShowRegenerateButton="@IsLastAssistantMessage"
+                                                    AreArtifactsCollapsed="@_areArtifactsCollapsed"
+                                                    RunState="@CurrentAssistantRunState"
+                                                    OnRegenerate="Regenerate"
+                                                    OnContinue="ContinueGeneration"
+                                                    OnToggleCollapse="ToggleArtifactsCollapse" />
+                        }
+                        @if (IsStreamingMessage && HasVisibleAssistantBodySignal())
+                        {
+                            <div class="streaming-indicator">
+                                <div class="gradient-flow"></div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+
+            @if (ShouldRenderMessageActions())
+            {
+                @if (IsUserSender())
+                {
+                    <div class="message-actions-container">
+                        <MessageActions Content="@Message.Content" 
+                                       IsUserMessage="true" 
+                                       ShowRegenerateButton="false" 
+                                       OnEdit="() => _userContent?.StartEdit()" />
+                    </div>
+                }
+                else
+                {
+                    <div class="message-actions-container">
+                        <MessageActions Content="@_displayedContent" 
+                                       IsUserMessage="false" 
+                                       ShowRegenerateButton="@IsLastAssistantMessage" 
+                                       OnRegenerate="Regenerate" />
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public ChatMessageDto Message { get; set; } = default!;
+    [Parameter] public string? UserDisplayName { get; set; }
+    [Parameter] public string? UserAvatarUrl { get; set; }
+    [Parameter] public bool IsLastAssistantMessage { get; set; }
+    [Parameter] public bool IsSidekickVisible { get; set; }
+    [Parameter] public EventCallback<string> OnEdit { get; set; }
+    [Parameter] public EventCallback OnRegenerate { get; set; }
+    [Parameter] public EventCallback<BlockDto> OnContinue { get; set; }
+
+    private SessionMessagePresentationState MessagePresentation =>
+        ChatState.GetSessionMessagePresentation(Message.ChatSessionId);
+
+    private bool IsStreamingMessage
+    {
+        get
+        {
+            if (Message == null
+                || !IsLastAssistantMessage
+                || !string.Equals(Message.SenderType, ChatConstants.RoleAssistant, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return MessagePresentation.IsStreaming;
+        }
+    }
+
+    private ChatSessionRunState CurrentAssistantRunState => MessagePresentation.RunState;
+
+    // 内部状态
+    private UserMessageContent? _userContent;
+    private string _displayedContent = "";
+    private string _imageUrl = "";
+    private List<string> _thoughts = new();
+    private List<BlockDto> _chartBlocks = new();
+    private List<BlockDto> _interactiveBlocks = new();
+    private List<ArtifactDto> _filteredArtifacts = new();
+    private bool _areArtifactsCollapsed = false;
+    private Guid _lastMessageId;
+    private string? _lastContent;
+    private string? _lastMessageType;
+    private string? _lastSenderType;
+    private string? _lastUserDisplayName;
+    private string? _lastUserAvatarUrl;
+    private bool _lastIsLastAssistantMessage;
+    private bool _lastIsSidekickVisible;
+    private int _lastArtifactsSignature = -1;
+    private int _lastOrderedBlocksSignature = -1;
+    private bool _shouldRender = true;
+
+    protected override void OnParametersSet()
+    {
+        var messageChanged = _lastMessageId != Message.Id
+            || !string.Equals(_lastContent, Message.Content, StringComparison.Ordinal)
+            || !string.Equals(_lastMessageType, Message.MessageType, StringComparison.Ordinal)
+            || !string.Equals(_lastSenderType, Message.SenderType, StringComparison.Ordinal)
+            || !string.Equals(_lastUserDisplayName, UserDisplayName, StringComparison.Ordinal)
+            || !string.Equals(_lastUserAvatarUrl, UserAvatarUrl, StringComparison.Ordinal)
+            || _lastArtifactsSignature != GetArtifactsSignature()
+            || _lastOrderedBlocksSignature != GetOrderedBlocksSignature()
+            || _lastIsLastAssistantMessage != IsLastAssistantMessage;
+
+        var sidekickChanged = _lastIsSidekickVisible != IsSidekickVisible;
+        _shouldRender = messageChanged || sidekickChanged;
+
+        if (messageChanged)
+        {
+            ParseMessageContent();
+            _lastMessageId = Message.Id;
+            _lastContent = Message.Content;
+            _lastMessageType = Message.MessageType;
+            _lastSenderType = Message.SenderType;
+            _lastUserDisplayName = UserDisplayName;
+            _lastUserAvatarUrl = UserAvatarUrl;
+            _lastArtifactsSignature = GetArtifactsSignature();
+            _lastOrderedBlocksSignature = GetOrderedBlocksSignature();
+            _lastIsLastAssistantMessage = IsLastAssistantMessage;
+        }
+
+        if (messageChanged || sidekickChanged)
+        {
+            UpdateArtifactsCollapseState();
+            _lastIsSidekickVisible = IsSidekickVisible;
+        }
+    }
+
+    protected override bool ShouldRender() => _shouldRender;
+
+    private void ParseMessageContent()
+    {
+        string rawContent = Message.Content ?? "";
+        _imageUrl = "";
+        
+        // 如果是图片类型的消息，提取图片 URL
+        if (string.Equals(Message.MessageType, "image", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrEmpty(rawContent))
+            {
+                _imageUrl = UrlService.GetFullUrl(rawContent) ?? rawContent;
+                // 清空 rawContent，因为我们将使用专门的组件渲染图片
+                rawContent = "";
+            }
+        }
+
+        var (content, thoughts) = MessageContentParser.ParseContent(
+            rawContent, 
+            Message.SenderType ?? "");
+        
+        _displayedContent = content;
+        _thoughts = thoughts;
+        _chartBlocks = MessageContentParser.GetChartBlocksFromArtifacts(Message);
+        _interactiveBlocks = MessageContentParser.GetInteractiveBlocksFromArtifacts(Message);
+        _filteredArtifacts = MessageContentParser.GetFilteredArtifactsForDisplay(Message);
+    }
+
+    private void UpdateArtifactsCollapseState()
+    {
+        _areArtifactsCollapsed = IsSidekickVisible && Message.Artifacts != null && Message.Artifacts.Any();
+    }
+
+    private int GetArtifactsSignature()
+    {
+        var artifacts = Message.Artifacts;
+        if (artifacts == null || artifacts.Count == 0)
+        {
+            return 0;
+        }
+
+        var lastArtifact = artifacts[^1];
+        return HashCode.Combine(
+            artifacts.Count,
+            lastArtifact.ArtifactId,
+            lastArtifact.Version,
+            lastArtifact.Content?.Length ?? 0,
+            lastArtifact.UpdatedAt);
+    }
+
+    private int GetOrderedBlocksSignature()
+    {
+        var orderedBlocks = Message.OrderedBlocks;
+        if (orderedBlocks == null || orderedBlocks.Count == 0)
+        {
+            return 0;
+        }
+
+        var lastBlock = orderedBlocks[^1];
+        return HashCode.Combine(
+            orderedBlocks.Count,
+            lastBlock.BlockId,
+            lastBlock.BlockType,
+            lastBlock.Content?.Length ?? 0,
+            lastBlock.IsLast,
+            lastBlock.Version,
+            lastBlock.Action);
+    }
+
+    private void ToggleArtifactsCollapse()
+    {
+        _areArtifactsCollapsed = !_areArtifactsCollapsed;
+    }
+
+    private string GetUserMessageContent()
+    {
+        return Message.Content ?? string.Empty;
+    }
+
+    private bool ShouldRenderMessageShell()
+    {
+        return IsUserSender() || HasVisibleAssistantBodySignal() || HasRenderableAssistantContent();
+    }
+
+    private bool ShouldRenderMessageContent()
+    {
+        return IsUserSender() || HasVisibleAssistantBodySignal() || HasRenderableAssistantContent();
+    }
+
+    private bool ShouldRenderMessageActions()
+    {
+        return IsUserSender() || HasRenderableAssistantContent();
+    }
+
+    private bool HasVisibleAssistantBodySignal()
+    {
+        return !string.IsNullOrEmpty(_imageUrl)
+            || !string.IsNullOrEmpty(_displayedContent)
+            || _thoughts.Any()
+            || _chartBlocks.Any()
+            || _interactiveBlocks.Any()
+            || _filteredArtifacts.Any()
+            || HasRenderableOrderedBlocks();
+    }
+
+    private bool HasRenderableAssistantContent()
+    {
+        return HasVisibleAssistantBodySignal();
+    }
+
+    private bool HasRenderableOrderedBlocks()
+    {
+        return Message.OrderedBlocks?.Any(IsRenderableOrderedBlock) ?? false;
+    }
+
+    private static bool IsRenderableOrderedBlock(BlockDto block)
+    {
+        return block.BlockType is BlockType.Thinking
+            or BlockType.TextDelta
+            or BlockType.Chart
+            or BlockType.InteractiveCard
+            or BlockType.ToolResult
+            or BlockType.Warning
+            or BlockType.Reference
+            or BlockType.RagContext
+            or BlockType.ArtifactStart
+            or BlockType.ArtifactDelta
+            or BlockType.ArtifactEnd
+            or BlockType.Truncated;
+    }
+
+    private async Task HandleEditSubmit(string editedContent)
+    {
+        await OnEdit.InvokeAsync(editedContent);
+    }
+
+    private async Task Regenerate()
+    {
+        await OnRegenerate.InvokeAsync();
+    }
+
+    private async Task ContinueGeneration(BlockDto block)
+    {
+        await OnContinue.InvokeAsync(block);
+    }
+
+    // UI辅助方法
+    private string GetMessageClass() => IsUserSender() ? "user-message" : "ai-message";
+    private string GetAvatarClass() => IsUserSender() ? "user-avatar" : "ai-avatar";
+    private bool IsUserSender() => string.Equals(Message.SenderType, "user", StringComparison.OrdinalIgnoreCase);
+
+    private string GetUserDisplayName()
+    {
+        if (!string.IsNullOrEmpty(UserDisplayName)) return UserDisplayName;
+        var user = UserState.CurrentUser;
+        return user?.DisplayName ?? user?.Username ?? "用户";
+    }
+
+    private string? GetUserAvatarUrl()
+    {
+        if (!string.IsNullOrEmpty(UserAvatarUrl)) return UserAvatarUrl;
+        return UserState.CurrentUser?.AvatarUrl;
+    }
+
+    private string? GetMessageStatusLabel()
+    {
+        if (IsUserSender())
+        {
+            if (TryGetMetadataString("clientDeliveryState", out var deliveryState))
+            {
+                return deliveryState;
+            }
+
+            return Message.Status switch
+            {
+                "sending" => "发送中",
+                "failed" => "发送失败",
+                "error" => "发送失败",
+                _ => null
+            };
+        }
+
+        if (IsStreamingMessage)
+        {
+            return MessagePresentation.CompactStatusText;
+        }
+
+        return Message.Status switch
+        {
+            "failed" or "error" => "生成失败",
+            _ => null
+        };
+    }
+
+    private string GetMessageStatusTone()
+    {
+        if (IsUserSender())
+        {
+            if (TryGetMetadataString("clientDeliveryTone", out var deliveryTone))
+            {
+                return deliveryTone ?? "neutral";
+            }
+
+            return Message.Status is "failed" or "error" ? "danger" : "neutral";
+        }
+
+        return Message.Status is "failed" or "error"
+            ? "danger"
+            : IsStreamingMessage ? "warning" : "neutral";
+    }
+
+    private bool TryGetMetadataString(string key, out string? value)
+    {
+        value = null;
+
+        if (Message.Metadata == null || !Message.Metadata.TryGetValue(key, out var raw) || raw == null)
+        {
+            return false;
+        }
+
+        value = raw.ToString();
+        return !string.IsNullOrWhiteSpace(value);
+    }
+
+    private string GetSenderName()
+    {
+        if (Message.SenderType == "user")
+        {
+            if (!string.IsNullOrEmpty(UserDisplayName)) return UserDisplayName;
+            var user = UserState.CurrentUser;
+            return user?.DisplayName ?? user?.Username ?? "你";
+        }
+        return "DevNexus AI";
+    }
+
+    private string GetEntryAnimationClass()
+    {
+        if (TryGetMetadataString("clientEntryAnimation", out var animation))
+        {
+            return animation switch
+            {
+                "replay" => "message-item--entry-replay",
+                "fresh" => "message-item--entry-fresh",
+                _ => string.Empty
+            };
+        }
+
+        return string.Empty;
+    }
+}
+
+
+
+
+

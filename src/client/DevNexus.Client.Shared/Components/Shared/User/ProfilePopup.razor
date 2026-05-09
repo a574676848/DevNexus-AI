@@ -1,0 +1,229 @@
+@namespace DevNexus.Client.Shared.Components.Shared
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Client.Shared.Services.State
+@inject IApiService ApiService
+@inject NavigationManager Nav
+@inject IUserStateService UserState
+@implements IDisposable
+
+@if (IsVisible)
+{
+    <div class="profile-popup-overlay" @onclick="Close" @onclick:stopPropagation="false">
+        <div class="profile-popup" @onclick:stopPropagation="true" style="@PopupStyle">
+            @* 加载状态 *@
+            @if (isLoading)
+            {
+                <div class="popup-loading">
+                    <LoadingSpinner Size="sm" />
+                </div>
+            }
+            else
+            {
+                @* 用户信息区域 *@
+                <div class="user-section">
+                    <UserAvatar DisplayName="@(userInfo?.DisplayName ?? userInfo?.Username)" 
+                                AvatarUrl="@userInfo?.AvatarUrl" 
+                                Size="lg" />
+                    <div class="user-info">
+                        <div class="username selectable" 
+                             @oncontextmenu="OnUsernameContextMenu" 
+                             @oncontextmenu:preventDefault="true">
+                            @(userInfo?.DisplayName ?? userInfo?.Username ?? "用户")
+                        </div>
+                        <div class="user-id selectable" 
+                             @oncontextmenu="OnUserIdContextMenu" 
+                             @oncontextmenu:preventDefault="true">
+                            ID: @(userInfo?.Id.ToString() ?? "---")
+                        </div>
+                    </div>
+                </div>
+
+                @* Token 消耗统计 *@
+                <div class="stats-section">
+                    <div class="stats-title">
+                        <i class="fa-solid fa-chart-line"></i>
+                        Token 消耗统计
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-value">@FormatNumber(tokenStats?.TotalRequests ?? 0)</span>
+                            <span class="stat-label">总请求</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">@FormatNumber(tokenStats?.TotalTokens ?? 0)</span>
+                            <span class="stat-label">Token 数</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">$@((tokenStats?.TotalCost ?? 0).ToString("F2"))</span>
+                            <span class="stat-label">总成本</span>
+                        </div>
+                    </div>
+                </div>
+
+                @* 操作按钮 *@
+                <div class="action-section">
+                    <button class="action-btn" @onclick="NavigateToProfile">
+                        <i class="fa-regular fa-pen-to-square"></i>
+                        修改资料
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@* 使用可复用的右键菜单组件 *@
+<CopyContextMenu @bind-IsVisible="showContextMenu" 
+                 X="contextMenuX" 
+                 Y="contextMenuY" 
+                 CopyText="@contextMenuCopyText" />
+
+@code {
+    /// <summary>
+    /// 弹窗是否可见
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// 弹窗可见状态变化回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// 弹窗样式（用于定位）
+    /// </summary>
+    [Parameter]
+    public string PopupStyle { get; set; } = "";
+
+    private UserInfo? userInfo;
+    private TokenUsageStatsDto? tokenStats;
+    private bool isLoading = true;
+
+    // 右键菜单状态
+    private bool showContextMenu = false;
+    private double contextMenuX = 0;
+    private double contextMenuY = 0;
+    private string contextMenuCopyText = "";
+
+    private bool previousIsVisible;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // 当弹窗从未显示变为显示时，执行数据加载（刷新统计信息）
+        if (IsVisible && !previousIsVisible)
+        {
+            await LoadDataAsync();
+        }
+        previousIsVisible = IsVisible;
+    }
+
+    protected override void OnInitialized()
+    {
+        // 订阅用户状态变更
+        UserState.OnUserChanged += HandleUserChanged;
+        
+        // 初始化当前用户信息
+        userInfo = UserState.CurrentUser;
+    }
+
+    /// <summary>
+    /// 处理用户状态变更
+    /// </summary>
+    private async Task HandleUserChanged(UserInfo? user)
+    {
+        userInfo = user;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // 如果内存中没有用户信息，先尝试从 UserState 获取或 API 获取
+            userInfo ??= UserState.CurrentUser;
+            
+            // 开发统计信息获取
+            tokenStats = await ApiService.GetMyTokenStatsAsync();
+            
+            // 确保用户信息是最新的
+            if (userInfo == null)
+            {
+                userInfo = await ApiService.GetCurrentUserAsync();
+                await UserState.UpdateUserAsync(userInfo);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ProfilePopup] 加载数据失败: {ex.Message}");
+            // 获取失败时尝试使用 UserState 中的备份
+            userInfo ??= UserState.CurrentUser;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Close()
+    {
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+
+    private async Task NavigateToProfile()
+    {
+        await Close();
+        Nav.NavigateTo("/settings/profile");
+    }
+
+    /// <summary>
+    /// 用户名右键菜单事件
+    /// </summary>
+    private void OnUsernameContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.DisplayName ?? userInfo?.Username ?? "用户");
+    }
+
+    /// <summary>
+    /// 用户ID右键菜单事件
+    /// </summary>
+    private void OnUserIdContextMenu(MouseEventArgs e)
+    {
+        ShowContextMenu(e, userInfo?.Id.ToString() ?? "");
+    }
+
+    /// <summary>
+    /// 显示右键上下文菜单
+    /// </summary>
+    private void ShowContextMenu(MouseEventArgs e, string textToCopy)
+    {
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        contextMenuCopyText = textToCopy;
+        showContextMenu = true;
+    }
+
+    private static string FormatNumber(long number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString()
+        };
+    }
+
+    /// <summary>
+    /// 释放资源
+    /// </summary>
+    public void Dispose()
+    {
+        UserState.OnUserChanged -= HandleUserChanged;
+    }
+}

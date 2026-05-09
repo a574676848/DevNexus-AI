@@ -1,0 +1,405 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject IAuthService AuthService
+@inject ISignalRService SignalR
+@inject IWindowService WindowService
+@inject ISessionState SessionState
+@inject IChatState ChatState
+@inject IApiService ApiService
+@inject NavigationManager NavigationManager
+@inject IUserStateService UserStateService
+@inject IJSRuntime JS
+@inject IRemoteLogService RemoteLogService
+@inject ToastService ToastService
+
+@using DevNexus.Client.Shared.Components.Layout.Services
+@using DevNexus.Client.Shared.Components.Terminal
+@using DevNexus.Client.Shared.Models
+
+<ErrorBoundary @ref="_errorBoundary" @key="@_layoutState.ErrorBoundaryKey">
+<ChildContent>
+<AppShell IsMaximized="@_layoutState.IsMaximized"
+          IsBorderless="@WindowService.IsBorderlessMode"
+          IsSidekickVisible="@ShouldShowSidekickShell()"
+          IsListSidebarVisible="@_layoutState.IsListSidebarVisible"
+          IsListSidebarExpanded="@_layoutState.IsListSidebarExpanded"
+          IsConnected="@SignalR.IsConnected"
+          IsArtifactConnected="@SignalR.IsArtifactConnected"
+          Latency="@_layoutState.Latency"
+          OnListSidebarToggle="ToggleListSidebarAsync">
+    
+    <NavSidebar>
+        @if (AuthService.IsAuthenticated)
+        {
+            <NavSidebar IsConnected="@SignalR.IsConnected"
+                        IsArtifactConnected="@SignalR.IsArtifactConnected"
+                        OnSettingsRequested="OpenSettingsPopup" />
+        }
+    </NavSidebar>
+
+    <ListSidebar>
+        @if (AuthService.IsAuthenticated)
+        {
+            <SessionSidebar Sessions="@GetSessionItems()" 
+                            CurrentSessionId="@ChatState.CurrentSessionId"
+                            IsLoading="@SessionState.IsLoading"
+                            OnSessionSelected="OnSessionSelected"
+                            OnCollapseSidebar="ToggleListSidebarAsync"
+                            OnNewSession="OnNewSession"
+                            OnSessionPin="OnSessionPin"
+                            OnSessionRename="OnSessionRename"
+                            OnSessionDelete="OnSessionDelete" />
+        }
+    </ListSidebar>
+
+    <Content>
+        @Body
+    </Content>
+    
+    <Sidekick>
+        @if (GetEffectiveSidekickPane() == SidekickPaneKind.Swarm)
+        {
+            <SwarmMonitor SessionId="@ChatState.CurrentSessionId.ToString()"
+                          OnClose="OnSidekickClose" />
+        }
+        else if (GetEffectiveSidekickPane() == SidekickPaneKind.ChatTerminal)
+        {
+            <TerminalSessionPanel Title="终端"
+                                  Eyebrow="终端详情"
+                                  Records="@ChatState.CurrentTerminalRecords"
+                                  SelectedRecord="@ChatState.CurrentFocusedTerminalRecord"
+                                  OnSelectRecord="HandleTerminalRecordSelected"
+                                  OnOpenInModal="OpenTerminalModal"
+                                  OnClose="OnSidekickClose" />
+        }
+        else if (ChatState.CurrentArtifact != null)
+        {
+            <ArtifactSplitView Artifact="@ChatState.CurrentArtifact"
+                               OnClose="OnSidekickClose"
+                               IsStreaming="@(ChatState.CurrentSessionId != Guid.Empty && ChatState.GetSessionRunPresentation(ChatState.CurrentSessionId).RunState.IsGenerationLike())" />
+        }
+    </Sidekick>
+
+</AppShell>
+
+<SettingsPopup @bind-IsVisible="_isSettingsPopupVisible" />
+
+<TerminalViewerModal IsVisible="@ChatState.IsTerminalModalVisible"
+                     IsVisibleChanged="HandleTerminalModalChanged"
+                     OnClose="CloseTerminalModal"
+                     Title="终端"
+                     Eyebrow="终端详情"
+                     Records="@ChatState.CurrentTerminalRecords"
+                     SelectedRecord="@ChatState.CurrentFocusedTerminalRecord"
+                     OnSelectRecord="HandleTerminalRecordSelected" />
+
+@* Global Toast Container *@
+<ToastContainer />
+<MudDialogProvider />
+<UpdateChecker />
+
+</ChildContent>
+<ErrorContent Context="exception">
+    <div class="error-boundary-container">
+        <AlertCircleIcon Size="24" />
+        <h3>发生了一个错误</h3>
+        <p>应用程序遇到了一个意外错误，请尝试刷新页面。</p>
+        <button class="recover-button" @onclick="() => _eventHandler?.HandleErrorRecoveryAsync(exception) ?? Task.CompletedTask">恢复</button>
+    </div>
+</ErrorContent>
+</ErrorBoundary>
+
+@code {
+    // 服务实例
+    private LayoutInitializer? _layoutInitializer;
+    private SessionManager? _sessionManager;
+    private SidekickManager? _sidekickManager;
+    private LayoutStateManager _layoutState = new();
+    private LayoutEventHandler? _eventHandler;
+    private ErrorBoundary? _errorBoundary;
+    private bool _initialized = false;
+    private bool _isSettingsPopupVisible = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // 启动阶段先恢复登录态，避免布局初始化请求在认证恢复前抢跑触发 401。
+            await AuthService.TryRestoreSessionAsync();
+
+            // 初始化各个服务
+            _layoutInitializer = new LayoutInitializer(ApiService, AuthService, SessionState, ChatState, UserStateService, RemoteLogService);
+            _sessionManager = new SessionManager(ApiService, SessionState, ChatState, NavigationManager, RemoteLogService);
+            _sidekickManager = new SidekickManager(ChatState, JS);
+            _eventHandler = new LayoutEventHandler(
+                AuthService, SignalR, _layoutInitializer, _sessionManager, _sidekickManager,
+                _layoutState, NavigationManager, ChatState, SessionState, RemoteLogService);
+
+            // 注册事件处理器
+            _eventHandler.RegisterEventHandlers();
+            _sessionManager.OnSessionsChanged += OnSessionsChanged;
+            _sidekickManager.OnStateChanged += OnSidekickStateChanged;
+            _layoutState.OnStateChanged += OnLayoutStateChanged;
+            _eventHandler.OnStateChanged += OnEventStateChanged;
+
+            WindowService.OnMaximizedChanged += HandleMaximizedChanged;
+            AuthService.OnAuthStateChanged += HandleAuthStateChangedAsync;
+            SessionState.OnStateChanged += HandleSessionStateChanged;
+            ChatState.OnStateChanged += HandleChatStateChangedAsync;
+            NavigationManager.LocationChanged += HandleLocationChanged;
+
+            // 应用初始化
+            await _layoutInitializer.InitializeAsync();
+            _layoutState.UpdateSidebarVisibility(NavigationManager.Uri);
+
+            _initialized = true;
+        }
+        catch (Exception ex)
+        {
+            await RemoteLogService.LogErrorAsync(ex, "MainLayout.OnInitializedAsync");
+            throw;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _sidekickManager != null)
+        {
+            await _sidekickManager.SyncStateToJS();
+        }
+    }
+
+    /// <summary>
+    /// 获取会话列表项（转换为组件期望的格式）
+    /// </summary>
+    private List<SessionSidebar.SessionItem> GetSessionItems()
+    {
+        if (_sessionManager == null)
+            return new();
+
+        return _sessionManager.GetSessionItems()
+            .Select(s => new SessionSidebar.SessionItem(
+                s.Id, s.Title, s.UpdatedAt, s.LastMessage, s.MessageCount, s.IsPinned, s.RunPresentation))
+            .ToList();
+    }
+
+    #region 事件处理
+
+    private void HandleMaximizedChanged(bool isMaximized)
+    {
+        _eventHandler?.HandleMaximizedChanged(isMaximized);
+    }
+
+    private async void HandleAuthStateChangedAsync(bool isAuthenticated)
+    {
+        try
+        {
+            if (_eventHandler != null)
+                await _eventHandler.HandleAuthStateChangedAsync(isAuthenticated);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"处理认证状态变更失败: {ex.Message}");
+        }
+    }
+
+    private void HandleSessionStateChanged()
+    {
+        _eventHandler?.HandleSessionStateChanged();
+    }
+
+    private async void HandleChatStateChangedAsync()
+    {
+        try
+        {
+            if (_eventHandler != null)
+                await _eventHandler.HandleChatStateChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"处理聊天状态变更失败: {ex.Message}");
+        }
+    }
+
+    private async void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        try
+        {
+            if (_eventHandler != null)
+                await _eventHandler.HandleLocationChangedAsync(e.Location);
+        }
+        catch (Exception ex)
+        {
+            // 记录异常日志，避免静默失败
+            Console.WriteLine($"处理路由变更失败: {ex.Message}");
+        }
+    }
+
+    private async Task OnSessionSelected(Guid sessionId)
+    {
+        _sessionManager?.EnterSession(sessionId);
+    }
+
+    private async Task OnNewSession()
+    {
+        if (_sessionManager != null)
+            await _sessionManager.CreateOrEnterBlankSessionAsync();
+    }
+
+    /// <summary>
+    /// 切换会话侧栏展开状态。
+    /// </summary>
+    private Task ToggleListSidebarAsync()
+    {
+        _layoutState.ToggleListSidebarExpanded();
+        return Task.CompletedTask;
+    }
+
+    private void OnSessionPin(Guid sessionId)
+    {
+        _sessionManager?.TogglePinSession(sessionId);
+    }
+
+    private async Task OnSessionRename((Guid Id, string NewTitle) args)
+    {
+        if (_sessionManager != null)
+            await _sessionManager.RenameSessionAsync(args.Id, args.NewTitle);
+    }
+
+    private async Task OnSessionDelete(Guid sessionId)
+    {
+        if (_sessionManager != null)
+            await _sessionManager.DeleteSessionAsync(sessionId);
+    }
+
+    private void OnSidekickClose()
+    {
+        _sidekickManager?.Close();
+    }
+
+    private void OnSessionsChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnSidekickStateChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnLayoutStateChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnEventStateChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private SidekickPaneKind GetEffectiveSidekickPane()
+    {
+        if (ChatState.CurrentSessionId == Guid.Empty)
+        {
+            return SidekickPaneKind.None;
+        }
+
+        var hasSwarm = ChatState.IsSwarmActive(ChatState.CurrentSessionId);
+        var hasTerminal = ChatState.CurrentTerminalRecords.Count > 0 && ChatState.CurrentFocusedTerminalRecord != null;
+        var hasArtifact = ChatState.CurrentArtifact != null;
+
+        return ChatState.CurrentSidekickPane switch
+        {
+            SidekickPaneKind.Swarm when hasSwarm => SidekickPaneKind.Swarm,
+            SidekickPaneKind.ChatTerminal when hasTerminal => SidekickPaneKind.ChatTerminal,
+            SidekickPaneKind.Artifact when hasArtifact => SidekickPaneKind.Artifact,
+            _ when hasSwarm => SidekickPaneKind.Swarm,
+            _ when hasTerminal => SidekickPaneKind.ChatTerminal,
+            _ when hasArtifact => SidekickPaneKind.Artifact,
+            _ => SidekickPaneKind.None
+        };
+    }
+
+    private bool ShouldShowSidekickShell()
+    {
+        if (!ChatState.IsSidekickVisible)
+        {
+            return false;
+        }
+
+        return GetEffectiveSidekickPane() != SidekickPaneKind.None;
+    }
+
+    private Task HandleTerminalRecordSelected(Guid recordId)
+    {
+        if (ChatState.CurrentSessionId != Guid.Empty)
+        {
+            ChatState.FocusTerminalRecord(ChatState.CurrentSessionId, recordId, openSidekick: false);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OpenTerminalModal()
+    {
+        ChatState.OpenTerminalModal();
+        return Task.CompletedTask;
+    }
+
+    private Task CloseTerminalModal()
+    {
+        ChatState.CloseTerminalModal();
+        return Task.CompletedTask;
+    }
+
+    private Task HandleTerminalModalChanged(bool visible)
+    {
+        if (!visible)
+        {
+            ChatState.CloseTerminalModal();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task OpenSettingsPopup()
+    {
+        _isSettingsPopupVisible = true;
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    public void Dispose()
+    {
+        if (_initialized && _eventHandler != null)
+        {
+            _eventHandler.UnregisterEventHandlers();
+        }
+
+        if (_sessionManager != null)
+        {
+            _sessionManager.OnSessionsChanged -= OnSessionsChanged;
+        }
+
+        if (_sidekickManager != null)
+        {
+            _sidekickManager.OnStateChanged -= OnSidekickStateChanged;
+        }
+
+        _layoutState.OnStateChanged -= OnLayoutStateChanged;
+
+        if (_eventHandler != null)
+        {
+            _eventHandler.OnStateChanged -= OnEventStateChanged;
+        }
+
+        WindowService.OnMaximizedChanged -= HandleMaximizedChanged;
+        AuthService.OnAuthStateChanged -= HandleAuthStateChangedAsync;
+        SessionState.OnStateChanged -= HandleSessionStateChanged;
+        ChatState.OnStateChanged -= HandleChatStateChangedAsync;
+        NavigationManager.LocationChanged -= HandleLocationChanged;
+
+        _layoutInitializer?.Dispose();
+    }
+}

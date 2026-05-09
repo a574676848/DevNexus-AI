@@ -1,0 +1,222 @@
+@using System.Text.Json
+@using DevNexus.Client.Shared.Components.Icons
+
+<div class="web-search-grid">
+    <div class="grid-header">
+        <SearchIcon Size="16" />
+        <span class="title">搜索结果</span>
+        <span class="count">(@Results.Count 条)</span>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="search-loading">
+             <span>正在搜索 "@SearchQuery"...</span>
+        </div>
+    }
+    else if (Results.Count == 0)
+    {
+         <div class="empty-results">暂无搜索结果</div>
+    }
+    else
+    {
+        <div class="results-grid">
+            @foreach (var result in Results)
+            {
+                <a href="@result.Url" target="_blank" class="result-item">
+                    <img src="@GetFavicon(result.Url)" class="favicon" />
+                    <div class="result-content">
+                        <span class="result-title">@result.Title</span>
+                        <span class="result-url">@TruncateUrl(result.Url)</span>
+                    </div>
+                </a>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public BlockDto Block { get; set; } = default!;
+
+    private List<SearchResult> Results { get; set; } = new();
+    private string SearchQuery { get; set; } = "";
+    private bool IsLoading { get; set; } = false;
+
+    protected override void OnParametersSet()
+    {
+        ParseResults();
+    }
+
+    /// <summary>
+    /// 解析搜索结果
+    /// 优先从 Block.Content 解析，其次从 Metadata["results"] 解析
+    /// </summary>
+    private void ParseResults()
+    {
+        Results.Clear();
+        
+        // 获取搜索关键词
+        if (Block.Metadata?.TryGetValue("query", out var queryObj) == true)
+        {
+            SearchQuery = queryObj?.ToString() ?? "";
+        }
+
+        // 检查是否处于加载状态
+        if (Block.Metadata?.TryGetValue("status", out var statusObj) == true)
+        {
+            IsLoading = statusObj?.ToString()?.ToLower() == "loading";
+            if (IsLoading) return;
+        }
+
+        // 优先从 Block.Content 解析 (后端流式解析使用此方式)
+        if (!string.IsNullOrWhiteSpace(Block.Content))
+        {
+            try
+            {
+                // 首先尝试直接解析为结果数组
+                var results = JsonSerializer.Deserialize<List<SearchResult>>(Block.Content, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                if (results != null && results.Count > 0)
+                {
+                    Results = results;
+                    return;
+                }
+            }
+            catch
+            {
+                // 不是直接的数组，尝试解析为包装对象
+                try
+                {
+                    // 解析 WebSearchPlugin 返回的包装格式 { success: true, query: "", results: [...] }
+                    using var doc = JsonDocument.Parse(Block.Content);
+                    var root = doc.RootElement;
+                    
+                    // 获取 query 字段
+                    if (string.IsNullOrEmpty(SearchQuery) && root.TryGetProperty("query", out var queryProp))
+                    {
+                        SearchQuery = queryProp.GetString() ?? "";
+                    }
+                    
+                    // 获取 results 数组
+                    if (root.TryGetProperty("results", out var resultsArray))
+                    {
+                        var parsedResults = JsonSerializer.Deserialize<List<SearchResult>>(resultsArray.GetRawText(), new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+                        if (parsedResults != null)
+                        {
+                            Results = parsedResults;
+                            return;
+                        }
+                    }
+                }
+                catch
+                {
+                    // 解析失败，继续尝试其他方式
+                }
+            }
+        }
+
+        // 从 Metadata["results"] 解析 (兼容旧格式)
+        if (Block.Metadata?.TryGetValue("results", out var resultsObj) == true)
+        {
+            try
+            {
+                if (resultsObj is JsonElement jsonElement)
+                {
+                    var results = JsonSerializer.Deserialize<List<SearchResult>>(jsonElement.GetRawText(), new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    if (results != null)
+                    {
+                        Results = results;
+                    }
+                }
+                else if (resultsObj is string jsonString)
+                {
+                    var results = JsonSerializer.Deserialize<List<SearchResult>>(jsonString, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                    if (results != null)
+                    {
+                        Results = results;
+                    }
+                }
+            }
+            catch
+            {
+                // 忽略解析错误
+            }
+        }
+    }
+
+    /// <summary>
+    /// 获取网站 Favicon
+    /// </summary>
+    private string GetFavicon(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            return $"https://www.google.com/s2/favicons?domain={uri.Host}&sz=32";
+        }
+        catch
+        {
+            return "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='gray'><circle cx='8' cy='8' r='7'/></svg>";
+        }
+    }
+
+    /// <summary>
+    /// 截断 URL
+    /// </summary>
+    private string TruncateUrl(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var path = uri.AbsolutePath;
+            if (path.Length > 30)
+            {
+                path = path.Substring(0, 27) + "...";
+            }
+            return uri.Host + path;
+        }
+        catch
+        {
+            return url.Length > 50 ? url.Substring(0, 47) + "..." : url;
+        }
+    }
+
+    /// <summary>
+    /// 截断摘要
+    /// </summary>
+    private string TruncateSnippet(string snippet)
+    {
+        if (string.IsNullOrEmpty(snippet)) return "";
+        return snippet.Length > 100 ? snippet.Substring(0, 97) + "..." : snippet;
+    }
+
+    /// <summary>
+    /// 处理 Favicon 加载失败
+    /// </summary>
+    private void HandleFaviconError()
+    {
+        // 交给 CSS 处理默认图标
+    }
+
+    /// <summary>
+    /// 搜索结果模型
+    /// </summary>
+    private class SearchResult
+    {
+        public string Title { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string? Snippet { get; set; }
+        public string? Description { get; set; }
+    }
+}

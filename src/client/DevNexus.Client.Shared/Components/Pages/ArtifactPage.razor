@@ -1,0 +1,156 @@
+@page "/artifacts/{ArtifactId:guid}"
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Components.Editor
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IJSRuntime JS
+@layout EmptyLayout
+
+<div class="artifact-page">
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>正在加载资产...</p>
+        </div>
+    }
+    else if (_artifact == null)
+    {
+        <div class="error-container">
+            <AlertCircleIcon Size="48" />
+            <h2>未找到资产</h2>
+            <p>资产可能不存在、已被删除或您没有访问权限。</p>
+            <button class="btn-refresh" @onclick="LoadArtifactAsync">重试</button>
+        </div>
+    }
+    else
+    {
+        <div class="artifact-container">
+            <ArtifactSplitView Artifact="_artifact" 
+                               ShowOpenInWindowButton="false" 
+                               ShowHeader="true" 
+                               OnClose="CloseWindow" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public Guid ArtifactId { get; set; }
+
+    private ArtifactDto? _artifact;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadArtifactAsync();
+    }
+
+    private async Task LoadArtifactAsync()
+    {
+        _isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            // 1. 优先尝试从 LocalStorage 获取（为了实时性，处理未入库的临时资产）
+            var storageKey = $"artifact_temp_{ArtifactId}";
+            var json = await JS.InvokeAsync<string>("localStorage.getItem", storageKey);
+            
+            if (!string.IsNullOrEmpty(json))
+            {
+                _artifact = System.Text.Json.JsonSerializer.Deserialize<ArtifactDto>(json);
+                // 成功读取后可以标记，或者保留在 storage 中
+            }
+            
+            // 2. 如果 LocalStorage 没有，或者内容为空，则从 API 加载
+            if (_artifact == null)
+            {
+                _artifact = await ApiService.GetArtifactAsync(ArtifactId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"加载 Artifact {ArtifactId} 失败: {ex.Message}");
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CloseWindow()
+    {
+        await JS.InvokeVoidAsync("window.close");
+    }
+}
+
+<style>
+    .artifact-page {
+        width: 100vw;
+        height: 100vh;
+        background: #f8fafc;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .artifact-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .loading-container, .error-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        text-align: center;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(0,0,0,0.1);
+        border-top-color: #10b981;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .error-container h2 {
+        margin: 16px 0 8px;
+        color: #1e293b;
+    }
+
+    .error-container p {
+        color: #64748b;
+        margin-bottom: 24px;
+    }
+
+    .btn-refresh {
+        padding: 8px 24px;
+        background: #10b981;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .btn-refresh:hover {
+        background: #059669;
+        transform: translateY(-1px);
+    }
+</style>

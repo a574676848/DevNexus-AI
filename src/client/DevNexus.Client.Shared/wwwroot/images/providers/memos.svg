@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="20" fill="#10B981"/>
+  <g transform="translate(25,20) scale(0.5)" fill="white">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="20" fill="#2ECC71"/><path d="M30 40 V70 H70 V40 M30 40 Q50 20 70 40" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/><text x="50" y="88" font-family="Arial" font-size="12" fill="white" text-anchor="middle" font-weight="bold">Memos</text></svg>
+
+  </g>
+  <text x="50" y="88" font-family="Arial" font-size="12" fill="white" text-anchor="middle" font-weight="bold">Memos</text>
+</svg>

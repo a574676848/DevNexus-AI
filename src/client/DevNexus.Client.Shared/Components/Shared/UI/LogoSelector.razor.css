@@ -1,0 +1,194 @@
+/* LogoSelector 组件样式 */
+.logo-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* 模式切换标签 */
+.logo-mode-tabs {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.logo-mode-tab {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: var(--white-bg);
+    color: var(--text-secondary);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.logo-mode-tab:not(:last-child) {
+    border-right: 1px solid var(--border-default);
+}
+
+.logo-mode-tab:hover {
+    background: var(--stage-bg);
+}
+
+.logo-mode-tab.active {
+    background: var(--brand-green);
+    color: var(--text-inverse);
+}
+
+/* Logo 预设网格 - 自适应布局，支持更多Logo美观展示 */
+.logo-preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+    gap: 8px;
+    padding: 10px;
+    background: var(--stage-bg);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+/* 自定义滚动条样式 */
+.logo-preset-grid::-webkit-scrollbar {
+    width: 4px;
+}
+
+.logo-preset-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.logo-preset-grid::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 2px;
+}
+
+.logo-preset-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--text-placeholder);
+}
+
+.logo-preset-item {
+    aspect-ratio: 1;
+    background: var(--white-bg);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: var(--radius-xs, 4px);
+    padding: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.logo-preset-item:hover {
+    border-color: var(--brand-green);
+    transform: scale(1.05);
+}
+
+.logo-preset-item.selected {
+    border-color: var(--brand-green);
+    background: rgba(7, 193, 96, 0.08);
+    box-shadow: 0 0 0 2px rgba(7, 193, 96, 0.2);
+}
+
+.logo-preset-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* Logo 上传区域 */
+.logo-upload-area {
+    width: 100%;
+    height: 100px;
+    border: 2px dashed var(--border-default);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    background: var(--stage-bg);
+}
+
+.logo-upload-area:hover {
+    border-color: var(--brand-green);
+    background: rgba(7, 193, 96, 0.02);
+}
+
+.logo-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-placeholder);
+}
+
+.logo-placeholder span {
+    font-size: var(--font-base);
+}
+
+.logo-hint {
+    font-size: var(--font-xs) !important;
+    color: var(--text-placeholder);
+}
+
+.logo-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 10px;
+}
+
+.logo-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--text-inverse);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.logo-upload-area:hover .logo-overlay {
+    opacity: 1;
+}
+
+.logo-overlay span {
+    font-size: var(--font-sm);
+}
+
+/* 已选择的Logo预览 */
+.logo-selected-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(7, 193, 96, 0.05);
+    border: 1px solid rgba(7, 193, 96, 0.2);
+    border-radius: var(--radius-sm);
+}
+
+.logo-selected-preview span {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+}
+
+.logo-selected-preview img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+}

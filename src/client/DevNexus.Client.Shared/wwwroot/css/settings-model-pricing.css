@@ -1,0 +1,417 @@
+/* Model pricing shared layout styles.
+   仅迁移被 .model-pricing-panel 根节点包裹的公共页面样式。 */
+
+.model-pricing-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 20px;
+    background: var(--stage-bg);
+    overflow: hidden;
+}
+
+.model-pricing-panel .panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-shrink: 0;
+    margin-bottom: 16px;
+}
+
+.model-pricing-panel .header-info {
+    flex: 1;
+}
+
+.model-pricing-panel .panel-title {
+    font-size: var(--font-lg);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+}
+
+.model-pricing-panel .panel-desc {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.model-pricing-panel .btn-add-pricing,
+.model-pricing-panel .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--brand-green);
+    color: #ffffff;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-base);
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(7, 193, 96, 0.2);
+    min-height: 32px;
+}
+
+.model-pricing-panel .btn-add-pricing:hover,
+.model-pricing-panel .btn-primary:hover:not(:disabled) {
+    background: var(--brand-green-hover, #06ad56);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(7, 193, 96, 0.3);
+}
+
+.model-pricing-panel .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.model-pricing-panel .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: var(--white-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.model-pricing-panel .btn-secondary:hover:not(:disabled) {
+    border-color: var(--brand-green);
+    color: var(--brand-green);
+    background: rgba(7, 193, 96, 0.03);
+}
+
+.model-pricing-panel .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 12px;
+    background: var(--white-bg);
+    color: var(--brand-red);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.model-pricing-panel .btn-danger:hover:not(:disabled) {
+    border-color: var(--brand-red);
+    background: rgba(250, 81, 81, 0.05);
+}
+
+.model-pricing-panel .content-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 4px;
+}
+
+.model-pricing-panel .content-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.model-pricing-panel .content-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.model-pricing-panel .content-area::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+.model-pricing-panel .content-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+.model-pricing-panel .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 20px;
+    text-align: center;
+}
+
+.model-pricing-panel .empty-icon {
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.model-pricing-panel .empty-title {
+    font-size: var(--font-base);
+    font-weight: 500;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+}
+
+.model-pricing-panel .empty-desc {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    margin: 0 0 24px 0;
+    line-height: 1.5;
+}
+
+.model-pricing-panel .model-pricing-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: settings-model-pricing-fade-in 0.4s ease;
+}
+
+.model-pricing-panel .model-pricing-dialog-container {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border-radius: var(--radius-xl);
+    width: 90%;
+    max-width: 480px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-xl), inset 0 1px 1px #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    animation: settings-model-pricing-modal-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.model-pricing-panel .model-pricing-dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+}
+
+.model-pricing-panel .model-pricing-dialog-header h3 {
+    margin: 0;
+    font-size: var(--font-base);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.model-pricing-panel .model-pricing-dialog-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-pricing-panel .model-pricing-dialog-close:hover {
+    background: var(--stage-bg);
+    color: var(--text-primary);
+}
+
+.model-pricing-panel .model-pricing-dialog-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.model-pricing-panel .form-group {
+    margin-bottom: 16px;
+}
+
+.model-pricing-panel .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.model-pricing-panel .form-group label {
+    display: block;
+    font-size: var(--font-sm);
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.model-pricing-panel .required {
+    color: var(--brand-red);
+}
+
+.model-pricing-panel .form-group input,
+.model-pricing-panel .form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-default);
+    background: var(--white-bg);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-base);
+    outline: none;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.model-pricing-panel .form-group input:focus,
+.model-pricing-panel .form-group select:focus {
+    border-color: var(--brand-green);
+    box-shadow: 0 0 0 3px rgba(7, 193, 96, 0.1);
+}
+
+.model-pricing-panel .form-group input:disabled {
+    background: var(--stage-bg);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.model-pricing-panel .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.model-pricing-panel .form-group-checkbox {
+    margin-top: 16px;
+}
+
+.model-pricing-panel .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: var(--font-sm);
+    color: var(--text-primary);
+}
+
+.model-pricing-panel .checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--brand-green);
+}
+
+.model-pricing-panel .form-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    margin-top: 16px;
+    font-size: var(--font-sm);
+}
+
+.model-pricing-panel .form-message.success {
+    background: rgba(7, 193, 96, 0.08);
+    color: var(--brand-green);
+    border: 1px solid rgba(7, 193, 96, 0.2);
+}
+
+.model-pricing-panel .form-message.error {
+    background: rgba(250, 81, 81, 0.08);
+    color: var(--brand-red);
+    border: 1px solid rgba(250, 81, 81, 0.2);
+}
+
+.model-pricing-panel .model-pricing-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-subtle);
+    background: var(--stage-bg);
+    flex-shrink: 0;
+    border-bottom-left-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
+}
+
+.model-pricing-panel .model-pricing-dialog-footer .btn-secondary {
+    flex: none;
+    padding: 9px 20px;
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: var(--text-primary);
+    border-radius: 8px;
+    font-size: var(--font-sm);
+    font-weight: 500;
+}
+
+.model-pricing-panel .model-pricing-dialog-footer .btn-primary {
+    padding: 9px 24px;
+    box-shadow: 0 4px 6px rgba(7, 193, 96, 0.2);
+    font-size: var(--font-sm);
+    font-weight: 500;
+}
+
+.model-pricing-panel .spinner-small {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: settings-model-pricing-spin 0.6s linear infinite;
+}
+
+@media (max-width: 768px) {
+    .model-pricing-panel .pricing-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .model-pricing-panel .panel-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .model-pricing-panel .btn-add-pricing {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .model-pricing-panel .model-pricing-dialog-container {
+        max-width: 95%;
+        margin: 0 10px;
+    }
+
+    .model-pricing-panel .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@keyframes settings-model-pricing-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes settings-model-pricing-modal-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes settings-model-pricing-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}

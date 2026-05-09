@@ -1,0 +1,430 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Shared
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@inject ILogoService LogoService
+
+<div class="provider-panel" @onclick="CloseMoreMenu">
+    @if (Providers.Count == 0)
+    {
+        <div class="empty-state">
+            <div class="empty-icon">
+                <LLMIcon Size="48" Stroke="#d1d5db" />
+            </div>
+            <h3 class="empty-title">暂无 LLM 供应商</h3>
+            <p class="empty-desc">添加 OpenAI Compatible、Gemini、Kimi、MiniMax、GLM 等供应商来开始使用</p>
+            <button class="btn-primary" @onclick="ShowAddDialog">
+                <PlusIcon Size="16" />
+                <span>添加第一个供应商</span>
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="provider-grid">
+            @foreach (var provider in Providers)
+            {
+                <ProviderCard @key="@provider.Id" LogoUrl="@provider.LogoUrl"
+                              DefaultLogo="@LogoService.GetDefaultLogo(provider.ProviderId)"
+                              DisplayName="@provider.DisplayName"
+                              ProviderTypeName="@GetProviderTypeDisplayName(provider.Type)"
+                              IsEnabled="@provider.IsEnabled"
+                              IsDefault="@provider.IsDefault"
+                              OnLogoError="@(() => HandleLogoError(provider.Id))"
+                              ShowTestResult="@testResults.ContainsKey(provider.Id)"
+                              TestResultSuccess="@(testResults.TryGetValue(provider.Id, out var r) && r.IsValid)"
+                              TestResultMessage="@(testResults.TryGetValue(provider.Id, out var rm) ? rm.ErrorMessage : null)"
+                              OnDismissTestResult="@(() => DismissTestResult(provider.Id))">
+                    <BodyContent>
+                        <div class="provider-field">
+                            <span class="field-label">端点</span>
+                            <span class="field-value">@(string.IsNullOrEmpty(provider.Endpoint) ? "默认" : provider.Endpoint)</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(provider.ModelName))
+                        {
+                            <div class="provider-field">
+                                <span class="field-label">模型</span>
+                                <span class="field-value">@provider.ModelName</span>
+                            </div>
+                        }
+                    </BodyContent>
+                    <FooterContent>
+                        <button class="btn-secondary btn-icon" style="position: relative;"
+                                @onclick="() => NavigateToPricing(provider.Id)"
+                                title="定价管理">
+                            <DollarIcon Size="14" />
+                            <span>定价</span>
+                            @if (providerIdsWithPricing.Contains(provider.Id))
+                            {
+                                <span class="badge-dot success"></span>
+                            }
+                        </button>
+                        <button class="btn-secondary btn-icon"
+                                @onclick="() => ShowEditDialog(provider)"
+                                title="编辑">
+                            <EditIcon Size="14" />
+                            <span>编辑</span>
+                        </button>
+                        @if (!provider.IsDefault)
+                        {
+                            <button class="btn-secondary btn-icon"
+                                    @onclick="() => SetAsDefault(provider)"
+                                    title="设为默认">
+                                <StarIcon Size="14" />
+                                <span>设为默认</span>
+                            </button>
+                        }
+                        <div class="btn-more-wrapper">
+                            <button class="btn-secondary btn-icon"
+                                    @onclick="() => ToggleMoreMenu(provider.Id)"
+                                    @onclick:stopPropagation
+                                    title="更多操作">
+                                <MoreHorizontalIcon Size="14" />
+                                <span>更多</span>
+                            </button>
+                            @if (moreMenuOpenProviderId == provider.Id)
+                            {
+                                <div class="more-menu" @onclick:stopPropagation>
+                                    <button class="more-menu-item"
+                                            @onclick="() => TestConnectionFromMenu(provider)"
+                                            disabled="@testingProvider">
+                                        @if (testingProviderId == provider.Id)
+                                        {
+                                            <span class="spinner-small"></span>
+                                            <span>测试中...</span>
+                                        }
+                                        else
+                                        {
+                                            <TestIcon Size="14" />
+                                            <span>测试连接</span>
+                                        }
+                                    </button>
+                                    <button class="more-menu-item danger"
+                                            @onclick="() => ShowDeleteConfirmFromMenu(provider)">
+                                        <TrashIcon Size="14" />
+                                        <span>删除</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </FooterContent>
+                </ProviderCard>
+            }
+
+            <div class="add-provider-card" @onclick="ShowAddDialog">
+                <div class="add-icon-wrapper">
+                    <PlusIcon Size="32" Stroke="#9ca3af" />
+                </div>
+                <span class="add-text">添加新供应商</span>
+            </div>
+        </div>
+    }
+</div>
+
+@if (showDialog)
+{
+    <div class="dialog-overlay" @onclick="CloseDialog">
+        <div class="dialog-container" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>添加 LLM 供应商</h3>
+                <button class="btn-close" @onclick="CloseDialog" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                @* Logo 选择区域 *@
+                <div class="form-section">
+                    <label class="form-label">供应商 Logo</label>
+                    <LogoSelector @ref="addLogoSelector"
+                                  @bind-SelectedLogo="newProviderLogoPreview"
+                                  OnMessage="HandleLogoMessage"
+                                  InputId="add-llm-provider-logo" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">供应商类型<span class="required">*</span></label>
+                    <select class="form-select" @bind="_selectedProviderType" @bind:after="OnProviderTypeChanged">
+                        <option value="">请选择供应商类型</option>
+                        @foreach (var providerType in SupportedProviderTypes)
+                        {
+                            <option value="@providerType">@GetProviderTypeDisplayName(providerType)</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">显示名称 <span class="required">*</span></label>
+                    <input type="text" class="form-input" @bind="newProvider.DisplayName"
+                           placeholder="例如: 我的 OpenAI" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">API Key <span class="required">*</span></label>
+                    <input type="password" class="form-input" @bind="newProvider.ApiKey"
+                           placeholder="输入 API Key" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">API 端点</label>
+                    <input type="text" class="form-input" @bind="newProvider.Endpoint"
+                           placeholder="留空使用默认端点" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">默认模型</label>
+                    <input type="text" class="form-input" @bind="newProvider.ModelName"
+                           placeholder="例如: gpt-4o" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section form-section-half">
+                        <label class="form-label">最大 Token 数</label>
+                        <input type="number" class="form-input" @bind="newMaxTokens"
+                               min="1" max="256000" placeholder="4096" />
+                    </div>
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Temperature</label>
+                        <input type="number" class="form-input" @bind="newTemperature"
+                               min="0" max="2" step="0.1" placeholder="0.7" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Top P</label>
+                        <input type="number" class="form-input" @bind="newTopP"
+                               min="0" max="1" step="0.1" placeholder="0.9" />
+                    </div>
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Group ID</label>
+                        <input type="text" class="form-input" @bind="newGroupId"
+                               placeholder="仅 MiniMax 需要" />
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">优先级</label>
+                    <input type="number" class="form-input" @bind="newProvider.Priority"
+                           min="1" max="999" placeholder="100" />
+                    <span class="form-hint">数字越小优先级越高，默认为 100</span>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="newSupportsVision" />
+                        <span>支持视觉能力 (Vision)</span>
+                    </label>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="newSupportsTextToImage" />
+                        <span>支持文生图 (Text-to-Image)</span>
+                    </label>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="newProvider.IsEnabled" />
+                        <span>启用此供应商</span>
+                    </label>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="CloseDialog">取消</button>
+                <button class="btn-secondary" @onclick="TestNewProvider" disabled="@isSubmitting">
+                    <TestIcon Size="14" />
+                    <span>测试连接</span>
+                </button>
+                <button class="btn-primary" @onclick="CreateProvider" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>创建中..</span>
+                    }
+                    else
+                    {
+                        <span>创建</span>
+                    }
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(dialogMessage))
+            {
+                <div class="dialog-message @(dialogSuccess ? "success" : "error")">
+                    @if (dialogSuccess)
+                    {
+                        <CheckCircleIcon Size="16" />
+                    }
+                    else
+                    {
+                        <AlertCircleIcon Size="16" />
+                    }
+                    <span>@dialogMessage</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@* 编辑对话框 *@
+@if (showEditDialog && providerToEdit != null)
+{
+    <div class="dialog-overlay" @onclick="CloseEditDialog">
+        <div class="dialog-container" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>编辑 LLM 供应商</h3>
+                <button class="btn-close" @onclick="CloseEditDialog" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                @* Logo 选择区域 *@
+                <div class="form-section">
+                    <label class="form-label">供应商 Logo</label>
+                    <LogoSelector @ref="editLogoSelector"
+                                  @bind-SelectedLogo="editProviderLogoPreview"
+                                  OnMessage="HandleEditLogoMessage"
+                                  InputId="edit-llm-provider-logo" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">供应商类型</label>
+                    <input type="text" class="form-input" value="@GetProviderTypeDisplayName(providerToEdit.Type)" disabled />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">显示名称 <span class="required">*</span></label>
+                    <input type="text" class="form-input" @bind="editProvider.DisplayName"
+                           placeholder="例如: 我的 OpenAI" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">API Key</label>
+                    <input type="password" class="form-input" @bind="editProvider.ApiKey"
+                           placeholder="留空则不修改" />
+                    <span class="form-hint">留空保持原有 API Key 不变</span>
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">API 端点</label>
+                    <input type="text" class="form-input" @bind="editProvider.Endpoint"
+                           placeholder="留空使用默认端点" />
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">默认模型</label>
+                    <input type="text" class="form-input" @bind="editProvider.ModelName"
+                           placeholder="例如: gpt-4o" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section form-section-half">
+                        <label class="form-label">最大 Token 数</label>
+                        <input type="number" class="form-input" @bind="editMaxTokens"
+                               min="1" max="128000" placeholder="4096" />
+                    </div>
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Temperature</label>
+                        <input type="number" class="form-input" @bind="editTemperature"
+                               min="0" max="2" step="0.1" placeholder="0.7" />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Top P</label>
+                        <input type="number" class="form-input" @bind="editTopP"
+                               min="0" max="1" step="0.1" placeholder="0.9" />
+                    </div>
+                    <div class="form-section form-section-half">
+                        <label class="form-label">Group ID</label>
+                        <input type="text" class="form-input" @bind="editGroupId"
+                               placeholder="仅 MiniMax 需要" />
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <label class="form-label">优先级</label>
+                    <input type="number" class="form-input" @bind="editPriority"
+                           min="1" max="999" placeholder="100" />
+                    <span class="form-hint">数字越小优先级越高，默认为 100</span>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="editSupportsVision" />
+                        <span>支持视觉能力 (Vision)</span>
+                    </label>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="editSupportsTextToImage" />
+                        <span>支持文生图 (Text-to-Image)</span>
+                    </label>
+                </div>
+
+                <div class="form-section-checkbox">
+                    <label class="checkbox-label">
+                        <input type="checkbox" class="form-checkbox" @bind="editProvider.IsEnabled" />
+                        <span>启用此供应商</span>
+                    </label>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="CloseEditDialog">取消</button>
+                <button class="btn-primary" @onclick="UpdateProvider" disabled="@isSubmitting">
+                    @if (isSubmitting)
+                    {
+                        <span class="spinner-small"></span>
+                        <span>保存中..</span>
+                    }
+                    else
+                    {
+                        <span>保存</span>
+                    }
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(editDialogMessage))
+            {
+                <div class="dialog-message @(editDialogSuccess ? "success" : "error")">
+                    @if (editDialogSuccess)
+                    {
+                        <CheckCircleIcon Size="16" />
+                    }
+                    else
+                    {
+                        <AlertCircleIcon Size="16" />
+                    }
+                    <span>@editDialogMessage</span>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@* 删除确认对话框 *@
+@if (showDeleteConfirm)
+{
+    <div class="dialog-overlay" @onclick="() => showDeleteConfirm = false">
+        <div class="dialog-container dialog-small" @onclick:stopPropagation>
+            <div class="dialog-header">
+                <h3>确认删除</h3>
+                <button class="btn-close" @onclick="() => showDeleteConfirm = false" title="关闭">×</button>
+            </div>
+            <div class="dialog-body">
+                <div class="confirm-content">
+                    <div class="confirm-icon danger">
+                        <TrashIcon Size="24" />
+                    </div>
+                    <p class="confirm-message">@deleteConfirmMessage</p>
+                </div>
+            </div>
+            <div class="dialog-footer">
+                <button class="btn-secondary" @onclick="() => showDeleteConfirm = false">取消</button>
+                <button class="btn-danger" @onclick="ConfirmDelete">删除</button>
+            </div>
+        </div>
+    </div>
+}
+

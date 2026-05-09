@@ -1,0 +1,62 @@
+@namespace DevNexus.Client.Shared.Components.Shared.UI
+@implements IDisposable
+@inject IUpdateService UpdateService
+@inject IDialogService DialogService
+@inject ToastService ToastService
+
+@code {
+    private bool _dialogVisible;
+
+    protected override void OnInitialized()
+    {
+        UpdateService.UpdateAvailable += OnUpdateAvailable;
+    }
+
+    private async void OnUpdateAvailable(UpdateInfo update)
+    {
+        if (_dialogVisible)
+        {
+            return;
+        }
+
+        _dialogVisible = true;
+
+        try
+        {
+            await InvokeAsync(() => ShowUpdateDialogAsync(update));
+        }
+        finally
+        {
+            _dialogVisible = false;
+        }
+    }
+
+    private async Task ShowUpdateDialogAsync(UpdateInfo update)
+    {
+        var parameters = new DialogParameters
+        {
+            ["UpdateInfo"] = update
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = !update.IsCritical,
+            BackdropClick = !update.IsCritical,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<UpdateDialog>("新版本可用", parameters, options);
+        var result = await dialog.Result;
+
+        if (result?.Canceled == true && update.IsCritical)
+        {
+            ToastService.Warning("当前版本为必须更新，请稍后重新安装。");
+        }
+    }
+
+    public void Dispose()
+    {
+        UpdateService.UpdateAvailable -= OnUpdateAvailable;
+    }
+}

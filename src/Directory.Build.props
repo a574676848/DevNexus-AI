@@ -1,0 +1,40 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      自定义 BaseIntermediateOutputPath 时，SDK 默认只排除“当前”中间目录。
+      这里额外把项目目录下常见构建产物目录加入默认排除，避免旧的 obj/bin
+      或临时验证目录再次被默认 Compile/None/Content 通配符拾取。
+    -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);$(MSBuildProjectDirectory)\obj\**;$(MSBuildProjectDirectory)\bin\**;$(MSBuildProjectDirectory)\artifacts\**;$(MSBuildProjectDirectory)\.validation\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      显式排除项目目录内的构建输出与中间目录。
+      当外部自定义 BaseIntermediateOutputPath 时，SDK 不会再自动把原有 obj 目录
+      当作“当前中间目录”排除，旧的生成代码就会被再次当作源码编译，导致
+      AssemblyInfo / ValidatableTypeAttribute 等重复定义。
+    -->
+    <Compile Remove="obj\**\*.cs" />
+    <Compile Remove="bin\**\*.cs" />
+    <Compile Remove=".validation\**\*.cs" />
+    <Compile Remove="artifacts\**\*.cs" />
+
+    <Content Remove="obj\**\*" />
+    <Content Remove="bin\**\*" />
+    <Content Remove=".validation\**\*" />
+    <Content Remove="artifacts\**\*" />
+
+    <None Remove="obj\**\*" />
+    <None Remove="bin\**\*" />
+    <None Remove=".validation\**\*" />
+    <None Remove="artifacts\**\*" />
+
+    <EmbeddedResource Remove="obj\**\*" />
+    <EmbeddedResource Remove="bin\**\*" />
+    <EmbeddedResource Remove=".validation\**\*" />
+    <EmbeddedResource Remove="artifacts\**\*" />
+  </ItemGroup>
+
+</Project>

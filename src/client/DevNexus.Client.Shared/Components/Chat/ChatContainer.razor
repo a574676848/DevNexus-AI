@@ -1,0 +1,116 @@
+@using DevNexus.Client.Shared.Abstractions.Chat
+@page "/"
+@page "/chat"
+@page "/chat/{SessionId:guid}"
+@inject IChatState ChatState
+@inject ISessionState SessionState
+@inject ISignalRService SignalR
+@inject IUserStateService UserState
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JS
+@inject ISessionManager SessionManager
+@inject IMessageHandlingService MessageHandlingService
+@inject IMessageEditingService MessageEditingService
+@inject IGenerationControlService GenerationControlService
+@inject IStateSynchronizationService StateSynchronizationService
+@inject INotificationService NotificationService
+@inject IRemoteLogService RemoteLogService
+@inject ToastService ToastService
+@implements IAsyncDisposable
+
+<div class="chat-container">
+    @* 聊天主区域 *@
+    <div class="chat-main">
+        @* 会话标题栏 *@
+        <ChatHeader Title="@_sessionTitle"
+                ContextSummary="@GetChatContextSummary()"
+            ContextHighlights="@GetChatContextHighlights()" />
+
+        @if (HasActiveCliWorkbenchHandoff)
+        {
+            <section class="chat-workbench-handoff session @(ActiveWorkbenchTerminalWaitingForInput ? "waiting" : "running")"
+                     role="status"
+                     aria-live="polite">
+                <div class="chat-workbench-handoff__copy">
+                    <span class="chat-workbench-handoff__eyebrow">@WorkbenchTerminalEyebrow</span>
+                    <div class="chat-workbench-handoff__headline-row">
+                        <strong class="chat-workbench-handoff__headline">@WorkbenchTerminalHeadline</strong>
+                        <span class="chat-workbench-handoff__state">@WorkbenchTerminalStatus</span>
+                    </div>
+                    <p class="chat-workbench-handoff__description">@WorkbenchTerminalDescription</p>
+                </div>
+
+                <div class="chat-workbench-handoff__meta">
+                    <div class="chat-workbench-handoff__chips">
+                        <span class="chat-workbench-handoff__chip chat-workbench-handoff__chip--accent">@ActiveWorkbenchTerminalMode</span>
+                        <span class="chat-workbench-handoff__chip">@ActiveWorkbenchTerminalScope</span>
+                        @if (!string.IsNullOrWhiteSpace(ActiveWorkbenchTerminalSessionState))
+                        {
+                            <span class="chat-workbench-handoff__chip">@ActiveWorkbenchTerminalSessionState</span>
+                        }
+                    </div>
+
+                    <div class="chat-workbench-handoff__details">
+                        @if (!string.IsNullOrWhiteSpace(ActiveWorkbenchTerminalWorkingDirectory))
+                        {
+                            <span class="chat-workbench-handoff__detail">目录 · @ActiveWorkbenchTerminalWorkingDirectory</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(ActiveWorkbenchTerminalCommand))
+                        {
+                            <span class="chat-workbench-handoff__detail chat-workbench-handoff__detail--command">命令 · @ActiveWorkbenchTerminalCommand</span>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
+
+        @* 消息区域或欢迎屏幕 *@
+        @if (ChatState.CurrentSessionId == Guid.Empty && _messages.Count == 0 && CurrentRunPresentation.IsIdle)
+        {
+            @* 无会话时显示欢迎屏幕 *@
+            <WelcomeScreen />
+        }
+        else
+        {
+            @* 有会话时显示消息列表 *@
+            <MessageList @ref="_messageList"
+                         Messages="@_messages" 
+                         CurrentSessionId="@ChatState.CurrentSessionId"
+                         CurrentBlocks="@_currentBlocks" 
+                         CurrentArtifacts="@_completedArtifacts" 
+                         IsLoading="@_isLoadingMessages"
+                         UserDisplayName="@UserState.CurrentUser?.DisplayName" 
+                         UserAvatarUrl="@UserState.CurrentUser?.AvatarUrl" 
+                         OnEditMessage="HandleEditMessageAsync"
+                         OnRegenerateMessage="HandleRegenerateAsync"
+                         OnContinueGeneration="HandleContinueGenerationAsync"
+                         TerminalRecords="@ChatState.CurrentTerminalRecords"
+                         OnOpenTerminalDetail="ToggleTerminalPanelAsync" />
+        }
+
+        <PendingInteractionPanel Interactions="@ChatState.CurrentPendingInteractions"
+                                 Runtime="@(ChatState.CurrentSessionId != Guid.Empty ? ChatState.GetSessionRuntime(ChatState.CurrentSessionId) : null)"
+                                 OnResolve="HandlePendingInteractionResolveAsync" />
+
+        <InputBox OnSendWithProvider="HandleSendWithProviderAsync" OnCancel="HandleCancelAsync" 
+                  OnProviderChanged="HandleProviderChangedAsync" 
+                  OnToggleSidekick="HandleToggleSidekickAsync"
+                  OnCancelQueuedMessage="CancelQueuedMessageAsync"
+                  OnClearQueuedMessages="ClearQueuedMessagesAsync"
+                  IsDisabled="@(!SignalR.IsChatConnected)"
+                  DisabledPlaceholder="连接中..."
+                  QueuedMessages="@ChatState.CurrentQueuedMessages"
+                  SessionId="@ChatState.CurrentSessionId" />
+        
+        @* 悬浮返回按钮 - 当有其他会话正在生成时显示 *@
+        @if (HasOtherGeneratingSession())
+        {
+            <div class="floating-return-btn" @onclick="ReturnToGeneratingSession">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <span>返回生成中的会话</span>
+            </div>
+        }
+    </div>
+
+    @* 侧边栏已移至 MainLayout 统一渲染，避免重复 *@
+</div>

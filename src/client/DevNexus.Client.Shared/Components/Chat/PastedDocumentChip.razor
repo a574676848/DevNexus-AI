@@ -1,0 +1,229 @@
+<div class="pasted-document-chip @GetTypeClass()" title="@GetAccessibleTitle()">
+    @if (IsImage && !string.IsNullOrEmpty(ImageUrl))
+    {
+        <img src="@ImageUrl" class="chip-thumbnail" alt="@Document.FileName" />
+        <div class="chip-info">
+            <span class="chip-filename">@GetDisplayFileName()</span>
+        </div>
+    }
+    else
+    {
+        <div class="chip-icon-wrapper">
+             <i class="@Document.IconClass"></i>
+        </div>
+        <div class="chip-info">
+            <span class="chip-filename">@GetDisplayFileName()</span>
+            <div class="chip-meta-row">
+                <span class="chip-meta">@GetExtension()</span>
+                <span class="chip-status-chip @GetStatusClass()">@Document.SemanticPipelineStageLabel</span>
+                <span class="chip-capability-chip @GetCapabilityClass()">@Document.ExecutionStatusLabel</span>
+                <span class="chip-source-chip">@Document.SourceLabel</span>
+            </div>
+            @if (!ReadOnly && Document.HasFileAsset)
+            {
+                <div class="chip-context-actions" role="group" aria-label="文件上下文模式">
+                    <button type="button"
+                            class="chip-context-btn @(IsContextModeActive(Models.DocumentContextMode.ExecuteOnly) ? "active" : string.Empty)"
+                            @onclick="() => ChangeContextModeAsync(Models.DocumentContextMode.ExecuteOnly)">
+                        加入执行上下文
+                    </button>
+                    <button type="button"
+                            class="chip-context-btn @(IsContextModeActive(Models.DocumentContextMode.SemanticOnly) ? "active" : string.Empty)"
+                            disabled="@(!Document.IsSemanticReady)"
+                            title="@(!Document.IsSemanticReady ? "语义尚未就绪，暂不可切换为仅语义" : "只在语义引用中使用")"
+                            @onclick="() => ChangeContextModeAsync(Models.DocumentContextMode.SemanticOnly)">
+                        仅语义引用
+                    </button>
+                    <button type="button"
+                            class="chip-context-btn @(IsContextModeActive(Models.DocumentContextMode.Both) ? "active" : string.Empty)"
+                            disabled="@(!Document.IsSemanticReady)"
+                            title="@(!Document.IsSemanticReady ? "语义尚未就绪，暂不可切换为两者都用" : "语义和执行都使用")"
+                            @onclick="() => ChangeContextModeAsync(Models.DocumentContextMode.Both)">
+                        两者都用
+                    </button>
+                </div>
+            }
+            @if (Document.HasFileAsset)
+            {
+                <span class="chip-submeta">@GetStorageLabel()</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(GetInlineHint()))
+            {
+                <span class="chip-hint @GetInlineHintClass()">@GetInlineHint()</span>
+            }
+        </div>
+    }
+
+    @* Remove Button (Overlay) *@
+    @if (!ReadOnly)
+    {
+        <button class="chip-remove" @onclick="HandleRemove" @onclick:stopPropagation>
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+    }
+    
+    @* Status Overlay *@
+    @if (Document.SmartDocument.Status == DevNexus.Shared.DTOs.ParsingStatus.Processing)
+    {
+        <div class="chip-status-overlay">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+    }
+    else if (Document.SmartDocument.Status == DevNexus.Shared.DTOs.ParsingStatus.Failed)
+    {
+         <div class="chip-status-overlay error">
+            <i class="fa-solid fa-exclamation"></i>
+            @if (!ReadOnly && Document.HasFileAsset && OnRetryParse.HasDelegate)
+            {
+                <button class="chip-retry" @onclick="HandleRetry" @onclick:stopPropagation>
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span>重试解析</span>
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Models.PastedDocument Document { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Guid> OnRemove { get; set; }
+
+    [Parameter]
+    public EventCallback<Guid> OnRetryParse { get; set; }
+
+    [Parameter]
+    public EventCallback<Models.DocumentContextModeChange> OnContextModeChanged { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; } = false;
+
+    private bool IsImage => Document.SmartDocument.Content is DevNexus.Shared.DTOs.ImageDocumentContent;
+    
+    private string? ImageUrl => (Document.SmartDocument.Content as DevNexus.Shared.DTOs.ImageDocumentContent)?.Url;
+
+    private async Task HandleRemove()
+    {
+        await OnRemove.InvokeAsync(Document.Id);
+    }
+
+    private async Task HandleRetry()
+    {
+        await OnRetryParse.InvokeAsync(Document.Id);
+    }
+
+    private async Task ChangeContextModeAsync(Models.DocumentContextMode mode)
+    {
+        if (!OnContextModeChanged.HasDelegate)
+        {
+            return;
+        }
+
+        await OnContextModeChanged.InvokeAsync(new Models.DocumentContextModeChange
+        {
+            DocumentId = Document.Id,
+            Mode = mode
+        });
+    }
+    private string GetExtension()
+    {
+        if (Document.SourceType == Models.DocumentSourceType.Code) return Document.Language?.ToUpper() ?? "CODE";
+        return Path.GetExtension(Document.FileName).TrimStart('.').ToUpper();
+    }
+    
+    private string GetTypeClass() => Document.SourceType switch
+    {
+        Models.DocumentSourceType.Code => "type-code",
+        Models.DocumentSourceType.Uploaded => "type-uploaded",
+        _ => "type-pasted"
+    };
+
+    private string GetStatusClass() => Document.SmartDocument.Status switch
+    {
+        DevNexus.Shared.DTOs.ParsingStatus.Completed => "status-ready",
+        DevNexus.Shared.DTOs.ParsingStatus.Processing => "status-processing",
+        DevNexus.Shared.DTOs.ParsingStatus.Pending => "status-pending",
+        DevNexus.Shared.DTOs.ParsingStatus.Failed => "status-error",
+        _ => "status-unknown"
+    };
+
+    private string GetCapabilityClass() => Document.IsExecutableReady ? "capability-exec" : "capability-ref";
+
+    private string GetStorageLabel()
+    {
+        var provider = string.IsNullOrWhiteSpace(Document.StorageProvider) ? "资产" : Document.StorageProvider;
+        return $"{provider} 资产";
+    }
+
+    private string GetAccessibleTitle()
+    {
+        var hint = GetInlineHint();
+        return string.IsNullOrWhiteSpace(hint)
+            ? $"{Document.FileName}，{Document.SemanticPipelineStageLabel}，{Document.ExecutionStatusLabel}，来源：{Document.SourceLabel}"
+            : $"{Document.FileName}，{Document.SemanticPipelineStageLabel}，{Document.ExecutionStatusLabel}，来源：{Document.SourceLabel}，提示：{hint}";
+    }
+
+    private string? GetInlineHint()
+    {
+        if (Document.SmartDocument.Status == DevNexus.Shared.DTOs.ParsingStatus.Failed)
+        {
+            if (Document.HasFileAsset)
+            {
+                return string.IsNullOrWhiteSpace(Document.FailureReason)
+                    ? "语义解析失败，但文件已入库，可用于执行。"
+                    : $"语义解析失败：{Document.FailureReason}";
+            }
+
+            return string.IsNullOrWhiteSpace(Document.FailureReason)
+                ? "当前不会参与语义或执行，移除后可重新上传。"
+                : $"失败原因：{Document.FailureReason}";
+        }
+
+        if (Document.IsAssetOnlyContext)
+        {
+            return string.IsNullOrWhiteSpace(Document.SemanticDisabledReason)
+                ? "该文件只会进入执行，不会提供给模型阅读。"
+                : $"语义不可用：{Document.SemanticDisabledReason}";
+        }
+
+        return null;
+    }
+
+    private string GetInlineHintClass()
+    {
+        if (Document.SmartDocument.Status == DevNexus.Shared.DTOs.ParsingStatus.Failed)
+        {
+            return "error";
+        }
+
+        return Document.IsAssetOnlyContext ? "info" : string.Empty;
+    }
+
+    private bool IsContextModeActive(Models.DocumentContextMode mode) => Document.ContextMode == mode;
+
+    /// <summary>
+    /// 获取显示用的文件名（截断过长的名称）
+    /// </summary>
+    private string GetDisplayFileName()
+    {
+        var fileName = Document.FileName ?? "未命名文件";
+        const int maxLength = 18;
+        
+        if (fileName.Length <= maxLength) return fileName;
+        
+        // 保留扩展名，截断中间部分
+        var ext = Path.GetExtension(fileName);
+        var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+        var maxNameLength = maxLength - ext.Length - 3; // 3 for "..."
+        
+        if (maxNameLength > 0 && nameWithoutExt.Length > maxNameLength)
+        {
+            return nameWithoutExt.Substring(0, maxNameLength) + "..." + ext;
+        }
+        
+        return fileName.Substring(0, maxLength - 3) + "...";
+    }
+}
+

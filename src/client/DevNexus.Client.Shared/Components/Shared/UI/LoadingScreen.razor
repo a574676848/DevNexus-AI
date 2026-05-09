@@ -1,0 +1,86 @@
+<div class="auth-verifying-container">
+    <div class="auth-verifying-panel">
+        <div class="auth-verifying-logo">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <linearGradient id="auth-logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#6366F1" />
+                    <stop offset="50%" stop-color="#8B5CF6" />
+                    <stop offset="100%" stop-color="#A855F7" />
+                </linearGradient>
+                <filter id="auth-logo-glow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+                    <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                </filter>
+            </defs>
+            
+            <!-- 外圈：六边形框架 -->
+            <path d="M24 4L42 14V34L24 44L6 34V14L24 4Z" 
+                  stroke="url(#auth-logo-gradient)" stroke-width="2" 
+                  fill="none" opacity="0.6" />
+            
+            <!-- 中心核心：发光节点 -->
+            <circle cx="24" cy="24" r="6" fill="url(#auth-logo-gradient)" 
+                    filter="url(#auth-logo-glow)" />
+            <circle cx="24" cy="24" r="3" fill="white" opacity="0.9" />
+            
+            <!-- 代码符号 < > -->
+            <path d="M14 20L8 24L14 28" stroke="url(#auth-logo-gradient)" stroke-width="2.5" 
+                  stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M34 20L40 24L34 28" stroke="url(#auth-logo-gradient)" stroke-width="2.5" 
+                  stroke-linecap="round" stroke-linejoin="round" />
+            
+            <!-- 神经连接线 -->
+            <line x1="18" y1="24" x2="30" y2="24" stroke="url(#auth-logo-gradient)" stroke-width="2" />
+            <line x1="24" y1="12" x2="24" y2="18" stroke="url(#auth-logo-gradient)" stroke-width="2" opacity="0.7" />
+            <line x1="24" y1="30" x2="24" y2="36" stroke="url(#auth-logo-gradient)" stroke-width="2" opacity="0.7" />
+            
+            <!-- 顶部/底部节点 -->
+            <circle cx="24" cy="10" r="2" fill="url(#auth-logo-gradient)" opacity="0.8" />
+            <circle cx="24" cy="38" r="2" fill="url(#auth-logo-gradient)" opacity="0.8" />
+        </svg>
+    </div>
+        <div class="auth-verifying-spinner"></div>
+        <div class="auth-verifying-copy">
+            <div class="auth-verifying-text">@Text</div>
+            @if (!string.IsNullOrWhiteSpace(DetailText))
+            {
+                <div class="auth-verifying-detail">@DetailText</div>
+            }
+        </div>
+
+        @if (ShowStages && Stages.Count > 0)
+        {
+            <div class="auth-verifying-stages" aria-label="加载阶段">
+                @for (var i = 0; i < Stages.Count; i++)
+                {
+                    var stage = Stages[i];
+                    <span class="auth-verifying-stage @(i <= ActiveStageIndex ? "active" : "")">@stage</span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Text { get; set; } = "正在验证身份...";
+
+    [Parameter]
+    public string? DetailText { get; set; }
+
+    [Parameter]
+    public bool ShowStages { get; set; } = true;
+
+    [Parameter]
+    public IReadOnlyList<string> Stages { get; set; } = new[] { "验证身份", "恢复会话", "连接工作区" };
+
+    [Parameter]
+    public int ActiveStageIndex { get; set; } = 0;
+
+    [Parameter]
+    public bool ShowLogo { get; set; } = true;
+}

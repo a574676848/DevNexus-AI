@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+    <!-- DevNexus 前景图标（无背景，仅白色图形） -->
+    
+    <!-- 缩放到中心 (7x, 中心点 228) -->
+    <g transform="translate(228 228) scale(7) translate(-24 -24)">
+        <!-- 外圈：六边形框架 -->
+        <path d="M24 4L42 14V34L24 44L6 34V14L24 4Z" 
+              stroke="white" stroke-width="2" fill="none" opacity="0.8"/>
+        
+        <!-- 中心核心：发光节点 -->
+        <circle cx="24" cy="24" r="6" fill="white" opacity="0.9"/>
+        <circle cx="24" cy="24" r="3" fill="#512BD4"/>
+        
+        <!-- 代码符号 < > -->
+        <path d="M14 20L8 24L14 28" stroke="white" stroke-width="2.5" 
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M34 20L40 24L34 28" stroke="white" stroke-width="2.5" 
+              stroke-linecap="round" stroke-linejoin="round"/>
+        
+        <!-- 神经连接线 -->
+        <line x1="18" y1="24" x2="30" y2="24" stroke="white" stroke-width="2"/>
+        <line x1="24" y1="12" x2="24" y2="18" stroke="white" stroke-width="2" opacity="0.8"/>
+        <line x1="24" y1="30" x2="24" y2="36" stroke="white" stroke-width="2" opacity="0.8"/>
+        
+        <!-- 顶部/底部节点 -->
+        <circle cx="24" cy="10" r="2" fill="white" opacity="0.9"/>
+        <circle cx="24" cy="38" r="2" fill="white" opacity="0.9"/>
+    </g>
+</svg>

@@ -1,0 +1,133 @@
+@*
+    HtmlPreview.razor
+    HTML 内容预览组件
+    使用 iframe 沙箱安全渲染 HTML 内容
+*@
+@inject IJSRuntime JS
+
+<div class="html-preview-container">
+    <iframe @ref="_iframeRef"
+            class="html-preview-iframe"
+            sandbox="allow-scripts allow-same-origin"
+            title="HTML Preview">
+    </iframe>
+</div>
+
+@code {
+    /// <summary>
+    /// HTML 内容
+    /// </summary>
+    [Parameter]
+    public string Content { get; set; } = string.Empty;
+
+    private ElementReference _iframeRef;
+    private string? _lastContent;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Content != _lastContent)
+        {
+            _lastContent = Content;
+            await UpdateIframeContent();
+        }
+    }
+
+    /// <summary>
+    /// 更新 iframe 内容
+    /// </summary>
+    private async Task UpdateIframeContent()
+    {
+        if (string.IsNullOrEmpty(Content)) return;
+
+        // 包装 HTML 内容，添加基础样式
+        var wrappedHtml = WrapHtmlContent(Content);
+
+        try
+        {
+            await JS.InvokeVoidAsync("devnexus.updateIframeContent", _iframeRef, wrappedHtml);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"更新 iframe 内容失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 包装 HTML 内容，添加基础样式
+    /// </summary>
+    private string WrapHtmlContent(string content)
+    {
+        // 检查是否已经是完整的 HTML 文档
+        if (content.Contains("<html", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase))
+        {
+            return content;
+        }
+
+        // 包装为完整的 HTML 文档 - 使用浅色主题
+        return $@"<!DOCTYPE html>
+<html lang=""zh-CN"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+    <style>
+        * {{
+            box-sizing: border-box;
+        }}
+        body {{
+            margin: 0;
+            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--white-bg);
+        }}
+        img {{
+            max-width: 100%;
+            height: auto;
+        }}
+        a {{
+            color: var(--brand-info);
+        }}
+        a:hover {{
+            color: var(--brand-green);
+        }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+        }}
+        th, td {{
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 8px;
+            text-align: left;
+        }}
+        th {{
+            background: rgba(0, 0, 0, 0.03);
+            font-weight: 600;
+        }}
+        pre {{
+            background: var(--stage-bg);
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }}
+        code {{
+            font-family: 'JetBrains Mono', Consolas, monospace;
+            background: rgba(0, 0, 0, 0.05);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }}
+        pre code {{
+            background: transparent;
+            padding: 0;
+        }}
+    </style>
+</head>
+<body>
+{content}
+</body>
+</html>";
+    }
+}

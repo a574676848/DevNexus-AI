@@ -1,0 +1,362 @@
+/* PastedDocumentChip.razor.css - 附件预览样式 */
+/* 遵循 UI Spec 8.11 Input Attachments - Gemini 风格横向卡片 */
+
+.pasted-document-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 14px;
+    min-width: 120px;
+    max-width: 280px;
+    min-height: 48px;
+    border-radius: var(--radius-sm, 4px);
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.06));
+    cursor: default;
+    overflow: visible;
+    transition: background var(--transition-fast, 150ms ease-in-out), border-color var(--transition-fast, 150ms ease-in-out), box-shadow var(--transition-fast, 150ms ease-in-out);
+    user-select: none;
+    animation: chip-enter 0.2s ease-out both;
+}
+
+.pasted-document-chip:hover {
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.08));
+    border-color: rgba(7, 193, 96, 0.15);
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+}
+
+/* Image Thumbnail */
+.chip-thumbnail {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+/* File Icon Wrapper */
+.chip-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.03);
+    border-radius: var(--radius-sm, 4px);
+    flex-shrink: 0;
+}
+
+.chip-icon-wrapper i {
+    font-size: 16px;
+    color: var(--text-secondary, #666);
+}
+
+/* 文件信息区域 */
+.chip-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+.chip-filename {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary, #333);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1.3;
+}
+
+.chip-meta {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary, #888);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.chip-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.chip-status-chip,
+.chip-capability-chip,
+.chip-source-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 0 6px;
+    border-radius: var(--radius-sm, 4px);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.chip-status-chip.status-ready {
+    background: rgba(7, 193, 96, 0.12);
+    color: #0a8a49;
+}
+
+.chip-status-chip.status-processing,
+.chip-status-chip.status-pending {
+    background: rgba(30, 136, 229, 0.12);
+    color: #1769aa;
+}
+
+.chip-status-chip.status-error {
+    background: rgba(220, 53, 69, 0.12);
+    color: #b42318;
+}
+
+.chip-status-chip.status-unknown {
+    background: rgba(102, 102, 102, 0.12);
+    color: #666;
+}
+
+.chip-capability-chip.capability-exec {
+    background: rgba(86, 11, 173, 0.10);
+    color: #5b21b6;
+}
+
+.chip-capability-chip.capability-ref {
+    background: rgba(0, 0, 0, 0.06);
+    color: #555;
+}
+
+.chip-source-chip {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--text-secondary, #999999);
+}
+
+.chip-submeta {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-secondary, #8a8a8a);
+    line-height: 1.2;
+}
+
+.chip-context-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 2px;
+}
+
+.chip-context-btn {
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: rgba(255, 255, 255, 0.85);
+    color: #4b5563;
+    border-radius: 999px;
+    font-size: 10px;
+    line-height: 1;
+    padding: 3px 7px;
+    cursor: pointer;
+    transition: background var(--transition-fast, 150ms ease-in-out), border-color var(--transition-fast, 150ms ease-in-out), color var(--transition-fast, 150ms ease-in-out);
+}
+
+.chip-context-btn.active {
+    background: rgba(7, 193, 96, 0.14);
+    border-color: rgba(7, 193, 96, 0.36);
+    color: #0a8a49;
+}
+
+.chip-context-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.chip-hint {
+    display: block;
+    margin-top: 2px;
+    font-size: 10px;
+    line-height: 1.3;
+    color: var(--text-secondary, #999999);
+}
+
+.chip-hint.info {
+    color: var(--brand-green, #07c160);
+}
+
+.chip-hint.error {
+    color: var(--brand-red, #fa5151);
+}
+
+/* 旧样式兼容 */
+.chip-ext {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-secondary, #999);
+    text-transform: uppercase;
+}
+
+/* Type Variants */
+.pasted-document-chip.type-code .chip-icon-wrapper {
+    background: rgba(7, 193, 96, 0.1);
+}
+
+.pasted-document-chip.type-code .chip-icon-wrapper i {
+    color: var(--action-primary, #07c160);
+}
+
+.pasted-document-chip.type-code .chip-meta {
+    color: var(--action-primary, #07c160);
+}
+
+.pasted-document-chip.type-uploaded .chip-icon-wrapper {
+    background: rgba(30, 136, 229, 0.1);
+}
+
+.pasted-document-chip.type-uploaded .chip-icon-wrapper i {
+    color: var(--brand-info);
+}
+
+.pasted-document-chip.type-uploaded .chip-meta {
+    color: var(--brand-info);
+}
+
+/* Remove Button */
+.chip-remove {
+    position: absolute;
+    top: -2px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border-radius: var(--radius-sm, 4px);
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--text-inverse, #ffffff);
+    border: 1px solid var(--bg-secondary, #f7f7f7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0;
+    transition: background var(--transition-fast, 150ms ease-in-out), opacity var(--transition-fast, 150ms ease-in-out), border-color var(--transition-fast, 150ms ease-in-out);
+    z-index: 2;
+}
+
+.pasted-document-chip:hover .chip-remove {
+    opacity: 1;
+}
+
+.chip-remove:hover {
+    background: var(--brand-red);
+}
+
+.chip-remove:focus-visible {
+    outline: var(--focus-ring-width, 2px) solid var(--focus-ring-color, rgba(7, 193, 96, 0.4));
+    outline-offset: var(--focus-ring-offset, 1px);
+}
+
+/* Status Overlay */
+.chip-status-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--action-primary, #07c160);
+    z-index: 1;
+    border-radius: var(--radius-sm, 4px);
+    animation: chip-overlay-fade 0.2s ease-out both;
+}
+
+.chip-status-overlay.error {
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--brand-red);
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chip-status-overlay:not(.error) i {
+    animation: overlay-pulse 1.4s ease-in-out infinite;
+}
+
+.chip-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(180, 35, 24, 0.24);
+    border-radius: var(--radius-sm, 4px);
+    background: #fff;
+    color: #b42318;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.chip-retry:hover {
+    background: rgba(180, 35, 24, 0.08);
+    transform: translateY(-1px);
+}
+
+.chip-retry:focus-visible {
+    outline: var(--focus-ring-width, 2px) solid rgba(180, 35, 24, 0.3);
+    outline-offset: 1px;
+}
+
+@keyframes chip-enter {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes chip-overlay-fade {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes overlay-pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.7;
+    }
+
+    50% {
+        transform: scale(1.08);
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pasted-document-chip,
+    .chip-status-overlay,
+    .chip-retry,
+    .chip-status-overlay:not(.error) i {
+        animation: none !important;
+        transition: none !important;
+    }
+}

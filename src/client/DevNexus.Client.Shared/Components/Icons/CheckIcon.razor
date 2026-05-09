@@ -1,0 +1,16 @@
+@namespace DevNexus.Client.Shared.Components.Icons
+@inherits IconBase
+
+<svg width="@Size" height="@Size" viewBox="0 0 24 24" fill="@Fill" stroke="@Stroke"
+     stroke-width="@StrokeWidth" stroke-linecap="round" stroke-linejoin="round"
+     class="@CssClass" style="@Style">
+    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+</svg>
+
+@code {
+    public CheckIcon()
+    {
+        Fill = "currentColor";
+        Stroke = "none";
+    }
+}

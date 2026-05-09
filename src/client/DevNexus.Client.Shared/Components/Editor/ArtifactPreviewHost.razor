@@ -1,0 +1,26 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+<div class="artifact-preview-host">
+    @if (Artifact != null)
+    {
+        <ArtifactSplitView Artifact="@Artifact"
+                           IsStreaming="false"
+                           ShowHeader="false"
+                           ShowOpenInWindowButton="false"
+                           OnClose="@(() => {})" />
+    }
+</div>
+
+<style>
+    .artifact-preview-host {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        background: var(--bg-secondary);
+    }
+</style>
+
+@code {
+    [Parameter] public ArtifactDto? Artifact { get; set; }
+}

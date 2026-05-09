@@ -1,0 +1,403 @@
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Terminal
+
+<div class="swarm-panel">
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="error-banner">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>@_errorMessage</span>
+            <button class="close-error" @onclick="() => _errorMessage = null">&times;</button>
+            <button class="close-panel" @onclick="ClosePanelAsync">关闭面板</button>
+        </div>
+    }
+
+    @if (ShowHeader)
+    {
+        <div class="panel-header">
+            @* 第一行：标题 + 图标按钮 *@
+            <div class="header-row header-row-top">
+                <div class="header-title-group">
+                    <i class="fa-solid fa-robot"></i>
+                    <span class="panel-title">Swarm 集群监控</span>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-action"
+                            @onclick="OnOpenInWindow"
+                            title="在独立窗口中打开"
+                            aria-label="在独立窗口中打开 Swarm 面板">
+                        <ExternalLinkIcon Size="14" />
+                    </button>
+                    <button class="btn-action btn-close"
+                            @onclick="ClosePanelAsync"
+                            title="关闭面板"
+                            aria-label="关闭 Swarm 面板">
+                        <XIcon Size="14" />
+                    </button>
+                </div>
+            </div>
+
+            @* 第二行：会话徽章 + 统计 + 控制按钮 *@
+            <div class="header-row header-row-bottom">
+                <div class="swarm-badge">@(SessionId.Length > 18 ? SessionId[..18] + "…" : SessionId)</div>
+                <div class="header-stats-controls">
+                    <div class="stat-item">
+                        <span class="stat-label">工作包</span>
+                        <span class="stat-value">@ContextPackages.Count</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">智能体</span>
+                        <span class="stat-value">@ActiveAgents.Count</span>
+                    </div>
+                    <div class="control-group">
+                        @if (IsPaused)
+                        {
+                            <button class="ctrl-btn resume" @onclick="OnResume" aria-label="继续 Swarm 执行">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+                                继续
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="ctrl-btn pause" @onclick="OnPause" aria-label="暂停 Swarm 执行">
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>
+                                暂停
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="panel-content">
+        <section class="section">
+            <div class="swarm-stage-banner swarm-stage-banner--@GetSwarmPhaseTone()">
+                <div class="swarm-stage-banner__copy">
+                    <div class="section-title">当前阶段</div>
+                    <div class="swarm-stage-banner__title">@GetSwarmPhaseLabel()</div>
+                    <div class="swarm-stage-banner__desc">@GetSwarmPhaseDescription()</div>
+                </div>
+
+                <div class="swarm-stage-rail">
+                    @foreach (var stage in GetSwarmStageMetrics())
+                    {
+                        <div class="swarm-stage-step swarm-stage-step--@stage.Tone @(stage.Active ? "is-active" : "")">
+                            <span class="swarm-stage-step__dot"></span>
+                            <span class="swarm-stage-step__label">@stage.Label</span>
+                            <span class="swarm-stage-step__count">@stage.Count</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </section>
+
+        @* 安全确认弹窗 *@
+        @if (_pendingConfirmations.Any())
+        {
+            var req = _pendingConfirmations.First();
+            <div class="modal-overlay">
+                <div class="modal-content warning">
+                    <div class="modal-header">
+                        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" class="warning-icon">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                            <line x1="12" y1="9" x2="12" y2="13"></line>
+                            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                        </svg>
+                        <h3>需要安全确认</h3>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>操作：</strong><span class="op-name">@req.Operation</span></p>
+                        <div class="payload-preview">
+                            <pre>@req.Payload</pre>
+                        </div>
+                        <p class="warning-text">该操作被评定为 <strong>高风险</strong>，请仔细核查后再决定。</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn-reject" @onclick="() => RejectAction(req.Id)">拒绝</button>
+                        <button class="btn-approve" @onclick="() => ApproveAction(req.Id)">批准执行</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* 智能体状态区 *@
+        <section class="section">
+            <h3 class="section-title">在线智能体</h3>
+            <div class="agent-grid">
+                @foreach (var agent in ActiveAgents)
+                {
+                    <AgentStatusCard
+                        Name="@agent.Name"
+                        Role="@agent.Role"
+                        IsActive="true"
+                        StatusMessage="@agent.CurrentAction"
+                        IsRecentChange="@IsRecentlyChangedAgent(agent.Name)" />
+                }
+                @if (!ActiveAgents.Any())
+                {
+                    <div class="empty-state">暂无活跃的智能体。</div>
+                }
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="section-head">
+                <h3 class="section-title">最近事件</h3>
+                <div class="timeline-filters">
+                    <button class="timeline-filter @(IsTimelineFilterActive("all") ? "is-active" : "")" @onclick="SetTimelineFilterAll">全部</button>
+                    <button class="timeline-filter @(IsTimelineFilterActive("system") ? "is-active" : "")" @onclick="SetTimelineFilterSystem">系统</button>
+                    <button class="timeline-filter @(IsTimelineFilterActive("task") ? "is-active" : "")" @onclick="SetTimelineFilterPackage">工作包</button>
+                    <button class="timeline-filter @(IsTimelineFilterActive("agent") ? "is-active" : "")" @onclick="SetTimelineFilterAgent">智能体</button>
+                </div>
+            </div>
+
+            <div class="timeline-panel">
+                @if (GetFilteredTimelineEntries().Any())
+                {
+                    @foreach (var entry in GetFilteredTimelineEntries())
+                    {
+                        <div class="timeline-item timeline-item--@entry.Tone">
+                            <span class="timeline-dot"></span>
+                            <div class="timeline-copy">
+                                <div class="timeline-text">@entry.Text</div>
+                                <div class="timeline-time">@entry.Timestamp.ToLocalTime():HH:mm:ss</div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="timeline-empty">等待 Swarm 产生第一条事件。</div>
+                }
+            </div>
+        </section>
+
+        @if (HasSwarmTerminalRecords)
+        {
+            <section class="section">
+                <div class="section-head">
+                    <h3 class="section-title">终端执行</h3>
+                    <span class="section-hint">Swarm 里的终端输出会汇总到这里，便于集中查看和回放。</span>
+                </div>
+
+                <TerminalSessionPanel Title="Swarm 终端"
+                                      Eyebrow="Swarm 执行"
+                                      Records="@SwarmTerminalRecords"
+                                      SelectedRecord="@SelectedTerminalRecord"
+                                      OnSelectRecord="HandleTerminalRecordSelected"
+                                      OnOpenInModal="OpenTerminalModal"
+                                      ShowOpenInModalButton="true"
+                                      EnableTerminate="false" />
+            </section>
+        }
+
+        <section class="section">
+            <div class="section-head">
+                <h3 class="section-title">上下文工作包</h3>
+                <span class="section-hint">当前主视图已切换为工作包视角，用于观察上下文边界、依赖与执行策略。</span>
+            </div>
+
+            @if (ContextPackages.Any())
+            {
+                <div class="package-toolbar">
+                    <div class="timeline-filters">
+                        <button class="timeline-filter @(IsPackageFilterActive("all") ? "is-active" : "")" @onclick="SetPackageFilterAll">全部</button>
+                        <button class="timeline-filter @(IsPackageFilterActive("failed") ? "is-active" : "")" @onclick="SetPackageFilterFailed">异常</button>
+                        <button class="timeline-filter @(IsPackageFilterActive("active") ? "is-active" : "")" @onclick="SetPackageFilterActive">进行中</button>
+                        <button class="timeline-filter @(IsPackageFilterActive("completed") ? "is-active" : "")" @onclick="SetPackageFilterCompleted">已完成</button>
+                    </div>
+
+                    <div class="package-toolbar__actions">
+                        @if (GetFailedPackageCount() > 0)
+                        {
+                            <button class="package-action package-action--danger" @onclick="FocusFirstFailedPackageAsync">
+                                优先查看异常
+                            </button>
+                        }
+
+                        @if (HasSwarmTerminalRecords)
+                        {
+                            <button class="package-action" @onclick="OpenSwarmTerminalSidekickAsync">
+                                打开终端
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="task-inspector">
+                    <div class="task-inspector__grid">
+                        @foreach (var package in GetFilteredPackages())
+                        {
+                            <button class="task-inspector__meta task-inspector__package @(IsRecentlyChangedPackage(package.Id) ? "recently-updated" : string.Empty)"
+                                    @onclick="@(() => HandlePackageSelected(package))"
+                                    aria-label="查看工作包 @package.Title 的详细信息">
+                                <span class="task-inspector__label">@package.ContextType</span>
+                                <span class="task-inspector__value">@package.Title</span>
+                                <span class="task-inspector__package-status @GetSwarmTaskStatusClass(package.Status)">
+                                    @GetSwarmTaskStatusText(package.Status)
+                                </span>
+                            </button>
+                        }
+                    </div>
+
+                    @if (SelectedPackage != null)
+                    {
+                        <div class="task-inspector__header">
+                            <div>
+                                <div class="task-inspector__eyebrow">当前工作包</div>
+                                <h4 class="task-inspector__title">@SelectedPackage.Title</h4>
+                            </div>
+                            <span class="task-inspector__status @GetSelectedPackageStatusClass()">
+                                @GetSelectedPackageStatusText()
+                            </span>
+                        </div>
+
+                        <div class="task-inspector__grid">
+                            <div class="task-inspector__meta">
+                                <span class="task-inspector__label">上下文类型</span>
+                                <span class="task-inspector__value">@SelectedPackage.ContextType</span>
+                            </div>
+                            <div class="task-inspector__meta">
+                                <span class="task-inspector__label">执行策略</span>
+                                <span class="task-inspector__value">@SelectedPackage.ExecutionStrategy</span>
+                            </div>
+                            <div class="task-inspector__meta">
+                                <span class="task-inspector__label">依赖数</span>
+                                <span class="task-inspector__value">@SelectedPackage.Dependencies.Count</span>
+                            </div>
+                            <div class="task-inspector__meta">
+                                <span class="task-inspector__label">进行中工作包</span>
+                                <span class="task-inspector__value">@GetActivePackageCount()</span>
+                            </div>
+                            <div class="task-inspector__meta">
+                                <span class="task-inspector__label">风险等级</span>
+                                <span class="task-inspector__value">@SelectedPackage.RiskLevel.ToString("0.0")</span>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(SelectedPackage.Objective))
+                        {
+                            <p class="task-inspector__description">@SelectedPackage.Objective</p>
+                        }
+
+                        <div class="task-inspector__guidance">
+                            @GetSelectedPackageGuidance()
+                        </div>
+
+                        <div class="task-inspector__actions">
+                            @if (SelectedPackage.CanRetry)
+                            {
+                                <button class="package-action package-action--warning" @onclick="RetrySelectedPackageAsync">重试当前工作包</button>
+                            }
+                            @if (GetSelectedPackageTerminalRecords().Any())
+                            {
+                                <button class="package-action" @onclick="FocusSelectedPackageTerminalAsync">定位关联终端</button>
+                            }
+                            @if (SelectedPackage.ExecutionReportArtifactId != null)
+                            {
+                                <button class="package-action" @onclick="OpenSelectedPackageArtifactAsync">查看执行报告</button>
+                            }
+                        </div>
+
+                        <div class="task-inspector__meta-strip">
+                            @if (!string.IsNullOrWhiteSpace(SelectedPackage.ExecutorName))
+                            {
+                                <span class="task-meta-chip">执行体：@SelectedPackage.ExecutorName</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(SelectedPackage.WorkingDirectory))
+                            {
+                                <span class="task-meta-chip">目录：@SelectedPackage.WorkingDirectory</span>
+                            }
+                            <span class="task-meta-chip">@GetSelectedPackageUpdateText()</span>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(SelectedPackage.FailureReason))
+                        {
+                            <div class="task-inspector__failure">
+                                <span class="task-inspector__label">失败原因</span>
+                                <p>@SelectedPackage.FailureReason</p>
+                            </div>
+                        }
+
+                        @if (GetSelectedDependencies().Any())
+                        {
+                            <div class="task-inspector__dependencies">
+                                <span class="task-inspector__label">前置依赖</span>
+                                <div class="dependency-chip-list">
+                                    @foreach (var dependency in GetSelectedDependencies())
+                                    {
+                                        <button class="dependency-chip" @onclick="@(() => HandlePackageSelected(dependency))">
+                                            @dependency.Title
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (GetSelectedDependents().Any())
+                        {
+                            <div class="task-inspector__dependencies">
+                                <span class="task-inspector__label">后续工作包</span>
+                                <div class="dependency-chip-list">
+                                    @foreach (var dependent in GetSelectedDependents())
+                                    {
+                                        <button class="dependency-chip dependency-chip--soft" @onclick="@(() => HandlePackageSelected(dependent))">
+                                            @dependent.Title
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(SelectedPackage.Result))
+                        {
+                            <div class="task-inspector__result">
+                                <span class="task-inspector__label">结果摘要</span>
+                                <p>@SelectedPackage.Result</p>
+                            </div>
+                        }
+
+                        @if (SelectedPackage.OwnedFiles.Any() || SelectedPackage.OwnedSymbols.Any())
+                        {
+                            <div class="task-inspector__ownership">
+                                @if (SelectedPackage.OwnedFiles.Any())
+                                {
+                                    <div class="task-inspector__dependencies">
+                                        <span class="task-inspector__label">文件范围</span>
+                                        <div class="dependency-chip-list">
+                                            @foreach (var ownedFile in SelectedPackage.OwnedFiles.Take(4))
+                                            {
+                                                <span class="dependency-chip dependency-chip--soft">@ownedFile</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                                @if (SelectedPackage.OwnedSymbols.Any())
+                                {
+                                    <div class="task-inspector__dependencies">
+                                        <span class="task-inspector__label">符号范围</span>
+                                        <div class="dependency-chip-list">
+                                            @foreach (var ownedSymbol in SelectedPackage.OwnedSymbols.Take(4))
+                                            {
+                                                <span class="dependency-chip dependency-chip--soft">@ownedSymbol</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <div>等待工作包进入当前会话。</div>
+                    <div>一旦规划完成，这里会显示执行阶段、依赖和结果摘要。</div>
+                </div>
+            }
+        </section>
+    </div>
+</div>

@@ -1,0 +1,63 @@
+/* WarningBlock.razor.css - Modern Premium UI */
+
+.warning-block {
+    margin: 14px 0;
+    padding: 14px 18px;
+    border-radius: 16px;
+    border-left: 4px solid;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+.warning-block.warning-info {
+    background: rgba(59, 130, 246, 0.05);
+    border-color: rgba(59, 130, 246, 0.2);
+    border-left-color: var(--brand-info);
+}
+
+.warning-block.warning-warning {
+    background: rgba(245, 158, 11, 0.05);
+    border-color: rgba(245, 158, 11, 0.2);
+    border-left-color: var(--brand-warning);
+}
+
+.warning-block.warning-error {
+    background: rgba(239, 68, 68, 0.05);
+    border-color: rgba(239, 68, 68, 0.2);
+    border-left-color: var(--brand-red);
+}
+
+.warning-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.warning-icon {
+    font-size: 16px;
+}
+
+.warning-title {
+    font-size: 14px;
+}
+
+.warning-info .warning-title {
+    color: var(--brand-info);
+}
+
+.warning-warning .warning-title {
+    color: var(--brand-warning);
+}
+
+.warning-error .warning-title {
+    color: var(--brand-red);
+}
+
+.warning-content {
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-secondary, #666);
+}

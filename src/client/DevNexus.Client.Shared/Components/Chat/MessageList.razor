@@ -1,0 +1,93 @@
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Client.Shared.Components.Terminal
+@namespace DevNexus.Client.Shared.Components.Chat
+
+<div class="message-list-container">
+    <div class="message-list" @ref="_listRef" @onscroll="HandleScroll">
+        @if (IsLoading && (Messages == null || Messages.Count == 0))
+        {
+            <div class="message-loading-state" role="status" aria-live="polite">
+                <div class="message-loading-state__copy">
+                    <span class="message-loading-state__eyebrow">正在载入会话</span>
+                    <span class="message-loading-state__title">消息正在恢复中</span>
+                    <span class="message-loading-state__subtitle">请稍候，历史消息和上下文会马上出现。</span>
+                </div>
+
+                <div class="message-skeleton-list">
+                    @for (var i = 0; i < 3; i++)
+                    {
+                        <div class="message-skeleton-item">
+                            <div class="message-skeleton-avatar"></div>
+                            <div class="message-skeleton-body">
+                                <div class="message-skeleton-line message-skeleton-line--short"></div>
+                                <div class="message-skeleton-line message-skeleton-line--medium"></div>
+                                <div class="message-skeleton-line message-skeleton-line--long"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            @* 历史消息 - 使用虚拟滚动优化性能 *@
+            @if (EnableVirtualization && Messages != null && Messages.Count > VirtualizationThreshold)
+            {
+                <Virtualize Items="@Messages" Context="message" ItemSize="120" OverscanCount="3">
+                    <MessageItem Message="@message"
+                                 UserDisplayName="@UserDisplayName"
+                                 UserAvatarUrl="@UserAvatarUrl"
+                                 IsLastAssistantMessage="@(IsLastAssistantMessage(message))"
+                                 IsSidekickVisible="@ChatState.IsSidekickVisible"
+                                 OnEdit="@(content => OnEditMessage.InvokeAsync((message, content)))"
+                                 OnRegenerate="@(() => OnRegenerateMessage.InvokeAsync(message))"
+                                 OnContinue="HandleContinueGeneration" />
+                </Virtualize>
+            }
+            else if (Messages != null)
+            {
+                @foreach (var message in Messages)
+                {
+                    <MessageItem Message="@message"
+                                 UserDisplayName="@UserDisplayName"
+                                 UserAvatarUrl="@UserAvatarUrl"
+                                 IsLastAssistantMessage="@(IsLastAssistantMessage(message))"
+                                 IsSidekickVisible="@ChatState.IsSidekickVisible"
+                                 OnEdit="@(content => OnEditMessage.InvokeAsync((message, content)))"
+                                 OnRegenerate="@(() => OnRegenerateMessage.InvokeAsync(message))"
+                                 OnContinue="HandleContinueGeneration" />
+                }
+            }
+
+            @if (ShowTerminalSummaryCard)
+            {
+                <TerminalSummaryCard SessionId="@CurrentSessionId"
+                                     RecordCount="@TerminalRecords.Count"
+                                     OnOpenDetail="OnOpenTerminalDetail" />
+            }
+
+            @* AI 状态指示器：仅在真正流式执行阶段展示，挂起补参/审批时由挂起交互卡片承担状态表达 *@
+            @if (ShouldShowAiStatusIndicator)
+            {
+                if (ChatState != null && ChatState.IsSwarmActive(CurrentSessionId))
+                {
+                    <AiStatusIndicator CurrentSessionId="@CurrentSessionId"
+                                      CurrentBlocks="@CurrentBlocks"
+                                      OnOpenSwarmSidekick="@OpenSwarmSidekick"
+                                      Presentation="@CurrentMessagePresentation" />
+                }
+            }
+        }
+    </div>
+
+    @* 回到最新按钮 *@
+    @if (_showScrollButton)
+    {
+        <button class="scroll-to-bottom @( _unreadMessageCount > 0 ? "scroll-to-bottom--hint" : "")"
+                @onclick="() => ScrollToBottomAsync(true)"
+                title="@(_unreadMessageCount > 0 ? "有新消息，点击查看" : "回到最新消息")">
+            <span class="arrow-icon">↓</span>
+            <span class="btn-text">@GetScrollButtonText()</span>
+        </button>
+    }
+</div>

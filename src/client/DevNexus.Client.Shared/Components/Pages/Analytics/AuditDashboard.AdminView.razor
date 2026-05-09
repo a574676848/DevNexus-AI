@@ -1,0 +1,481 @@
+@using DevNexus.Client.Shared.DTOs
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@if (IsEmptyData)
+{
+    <div class="global-empty-state">
+        <div class="empty-state-card">
+            <div class="empty-state-icon">
+                <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+                    <path d="M3 3v18h18" />
+                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+                </svg>
+            </div>
+            <h3 class="empty-state-title">暂无审计数据</h3>
+            <p class="empty-state-description">
+                当前筛选范围内没有模型调用记录。<br />
+                当用户或系统产生调用后，这里会展示结构分布与明细。
+            </p>
+            <p class="empty-state-hint">可尝试放宽时间范围或调整筛选条件</p>
+        </div>
+    </div>
+}
+else
+{
+    @if (!CompactMode && Dashboard != null)
+    {
+        <div class="audit-summary-grid">
+            <div class="audit-summary-card">
+                <div class="audit-summary-card__label">系统调用占比</div>
+                <div class="audit-summary-card__value">@Dashboard.Overview.SystemCallRatio.ToString("P0")</div>
+            </div>
+            <div class="audit-summary-card">
+                <div class="audit-summary-card__label">估算来源占比</div>
+                <div class="audit-summary-card__value">@Dashboard.Overview.EstimatedUsageRatio.ToString("P0")</div>
+            </div>
+            <div class="audit-summary-card">
+                <div class="audit-summary-card__label">超时占比</div>
+                <div class="audit-summary-card__value">@Dashboard.Overview.TimeoutRate.ToString("P0")</div>
+            </div>
+        </div>
+    }
+
+    @if (!CompactMode)
+    {
+        <div class="stats-cards admin-stats">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper">
+                    <UsersIcon Size="24" Stroke="currentColor" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">@Stats.TotalRequests</div>
+                    <div class="stat-label">总请求数</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper">
+                    <UploadIcon Size="16" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">@FormatNumber(Stats.TotalInputTokens)</div>
+                    <div class="stat-label">输入 Token</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper">
+                    <DownloadIcon Size="16" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">@FormatNumber(Stats.TotalOutputTokens)</div>
+                    <div class="stat-label">输出 Token</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper">
+                    <ListIcon Size="16" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">@FormatNumber(Stats.TotalTokens)</div>
+                    <div class="stat-label">总 Token</div>
+                </div>
+            </div>
+            <div class="stat-card highlight">
+                <div class="stat-icon-wrapper">
+                    <DollarIcon Size="24" Stroke="currentColor" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">$@Stats.TotalCost.ToString("F2")</div>
+                    <div class="stat-label">总成本</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon-wrapper">
+                    <PieChartIcon Size="20" Stroke="currentColor" />
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">@(Stats.OwnerStats.FirstOrDefault()?.DisplayName ?? "无")</div>
+                    <div class="stat-label">主要主体</div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (!CompactMode)
+    {
+        <div class="charts-section admin-charts">
+            <div class="chart-container">
+                <h3>
+                    <BarChartIcon Size="20" Stroke="currentColor" />
+                    每日成本趋势
+                </h3>
+                <div class="canvas-wrapper">
+                    @if (Stats.DailyStats == null || !Stats.DailyStats.Any())
+                    {
+                        <div class="chart-empty-state">
+                            <BarChartIcon Size="20" />
+                            <span class="chart-empty-text">暂无趋势数据</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <canvas id="adminTrendChart"></canvas>
+                    }
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>
+                    <PieChartIcon Size="20" Stroke="currentColor" />
+                    主体调用占比
+                </h3>
+                <div class="canvas-wrapper">
+                    @if (Stats.OwnerStats == null || !Stats.OwnerStats.Any())
+                    {
+                        <div class="chart-empty-state">
+                            <PieChartIcon Size="20" />
+                            <span class="chart-empty-text">暂无主体数据</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <canvas id="ownerBreakdownChart"></canvas>
+                    }
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3>
+                    <PieChartIcon Size="20" Stroke="currentColor" />
+                    场景消耗分布
+                </h3>
+                <div class="canvas-wrapper">
+                    @if (Stats.SceneStats == null || !Stats.SceneStats.Any())
+                    {
+                        <div class="chart-empty-state">
+                            <PieChartIcon Size="20" />
+                            <span class="chart-empty-text">暂无场景数据</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <canvas id="sceneBreakdownChart"></canvas>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="ranking-section">
+            <h2>
+                <UsersIcon Size="24" Stroke="currentColor" />
+                用户消耗排行榜 (Top 10)
+            </h2>
+
+            @if (UserRanking.Count == 0)
+            {
+                <div class="empty-state">
+                    <UsersIcon Size="16" />
+                    <p>暂无用户数据</p>
+                </div>
+            }
+            else
+            {
+                <div class="ranking-list">
+                    @for (int i = 0; i < UserRanking.Count; i++)
+                    {
+                        var user = UserRanking[i];
+                        var rank = i + 1;
+                        <div class="ranking-item @GetRankClass(rank)" @onclick="() => OnUserClick.InvokeAsync((user.UserId, user.DisplayName))">
+                            <div class="ranking-rank">
+                                @if (rank <= 3)
+                                {
+                                    <span class="rank-medal">@GetRankMedal(rank)</span>
+                                }
+                                else
+                                {
+                                    <span class="rank-number">@rank</span>
+                                }
+                            </div>
+                            <div class="ranking-user">
+                                <div class="user-name">@user.DisplayName</div>
+                                <div class="user-username">@@@user.Username</div>
+                            </div>
+                            <div class="ranking-stats">
+                                <div class="stat-item">
+                                    <span class="stat-label">Token:</span>
+                                    <span class="stat-value">@FormatNumber(user.TotalTokens)</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">成本:</span>
+                                    <span class="stat-value cost">$@user.TotalCost.ToString("F2")</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">会话:</span>
+                                    <span class="stat-value">@user.SessionCount</span>
+                                </div>
+                            </div>
+                            <div class="ranking-trend @GetTrendClass(user.Trend)">
+                                @if (user.Trend == "up")
+                                {
+                                    <TrendUpIcon Size="20" Stroke="currentColor" />
+                                }
+                                else if (user.Trend == "down")
+                                {
+                                    <TrendDownIcon Size="20" Stroke="currentColor" />
+                                }
+                                else
+                                {
+                                    <TrendFlatIcon Size="20" Stroke="currentColor" />
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (ProviderStats?.Count > 0)
+        {
+            <div class="provider-section">
+                <h2>
+                    <ServerIcon Size="24" Stroke="currentColor" />
+                    供应商统计
+                </h2>
+                <div class="provider-list">
+                    @foreach (var provider in ProviderStats)
+                    {
+                        <div class="provider-item">
+                            <div class="provider-header">
+                                <div class="provider-name">
+                                    <ServerIcon Size="20" Stroke="currentColor" />
+                                    @provider.ProviderName
+                                </div>
+                                <div class="provider-cost">
+                                    <DollarIcon Size="18" Stroke="currentColor" />
+                                    $@provider.TotalCost.ToString("F2")
+                                </div>
+                            </div>
+                            <div class="provider-stats">
+                                <div class="provider-stat">
+                                    <span class="label">请求数:</span>
+                                    <span class="value">@provider.TotalRequests</span>
+                                </div>
+                                <div class="provider-stat">
+                                    <span class="label">Token:</span>
+                                    <span class="value">@FormatNumber(provider.TotalTokens)</span>
+                                </div>
+                            </div>
+                            @if (provider.ModelBreakdown.Any())
+                            {
+                                <div class="model-breakdown">
+                                    <div class="breakdown-title">模型明细:</div>
+                                    @foreach (var model in provider.ModelBreakdown)
+                                    {
+                                        <div class="model-item">
+                                            <span class="model-name">@model.ModelId</span>
+                                            <span class="model-tokens">@FormatNumber(model.TotalTokens) tokens</span>
+                                            <span class="model-cost">$@model.TotalCost.ToString("F4")</span>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (Dashboard?.ExceptionSpots?.Count > 0)
+        {
+            <div class="provider-section">
+                <h2>
+                    <BarChartIcon Size="24" Stroke="currentColor" />
+                    异常场景
+                </h2>
+                <div class="provider-list">
+                    @foreach (var item in Dashboard.ExceptionSpots)
+                    {
+                        <div class="provider-item">
+                            <div class="provider-header">
+                                <div class="provider-name">@item.DisplayName</div>
+                                <div class="provider-cost">@item.FailureRate.ToString("P0")</div>
+                            </div>
+                            <div class="provider-stats">
+                                <div class="provider-stat">
+                                    <span class="label">失败</span>
+                                    <span class="value">@item.FailedCount</span>
+                                </div>
+                                <div class="provider-stat">
+                                    <span class="label">超时</span>
+                                    <span class="value">@item.TimeoutCount</span>
+                                </div>
+                                <div class="provider-stat">
+                                    <span class="label">估算</span>
+                                    <span class="value">@item.EstimatedCount</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    <div class="records-section admin-records">
+        <h2>@(CompactMode ? "审计明细" : "全局使用明细")</h2>
+
+        @if (AllRecords.Items.Count == 0)
+        {
+            <div class="empty-state">
+                <BarChartIcon Size="16" />
+                <p>暂无使用记录</p>
+            </div>
+        }
+        else
+        {
+            <div class="records-table-wrapper">
+                <table class="records-table">
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>用户</th>
+                            <th>场景</th>
+                            <th>资源</th>
+                            <th>供应商</th>
+                            <th>模型</th>
+                            <th>输入</th>
+                            <th>输出</th>
+                            <th>成本</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var record in AllRecords.Items)
+                        {
+                            <tr>
+                                <td class="time-cell">@record.CreatedAt.ToString("MM-dd HH:mm")</td>
+                                <td class="user-cell" @onclick="() => HandleUserClick(record)">
+                                    <div class="user-info">
+                                        <div class="user-display-name">@record.UserDisplayName</div>
+                                        <div class="user-username">@@@record.Username</div>
+                                    </div>
+                                </td>
+                                <td class="scene-cell" title="@record.SceneCode">@GetSceneLabel(record)</td>
+                                <td class="session-cell" title="@(record.SessionId?.ToString() ?? record.ResourceId ?? record.SceneCode)">
+                                    @GetResourceLabel(record)
+                                </td>
+                                <td class="provider-cell">@record.ProviderName</td>
+                                <td class="model-cell">@record.ModelId</td>
+                                <td class="number-cell">@FormatNumber(record.InputTokens ?? 0)</td>
+                                <td class="number-cell">@FormatNumber(record.OutputTokens ?? 0)</td>
+                                <td class="cost-cell">$@(record.Cost?.ToString("F4") ?? "0.0000")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button class="page-btn" disabled="@(CurrentPage == 1)" @onclick="OnPreviousPage">
+                    ← 上一页
+                </button>
+                <span class="page-info">第 @CurrentPage / @AllRecords.TotalPages 页 (共 @AllRecords.TotalCount 条记录)</span>
+                <button class="page-btn" disabled="@(CurrentPage >= AllRecords.TotalPages)" @onclick="OnNextPage">
+                    下一页 →
+                </button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public TokenUsageStatsDto Stats { get; set; } = new();
+    [Parameter] public List<ProviderUsageStatsDto> ProviderStats { get; set; } = new();
+    [Parameter] public List<UserRankingDto> UserRanking { get; set; } = new();
+    [Parameter] public PagedResult<TokenUsageDetailedDto> AllRecords { get; set; } = new();
+    [Parameter] public int CurrentPage { get; set; } = 1;
+    [Parameter] public EventCallback OnPreviousPage { get; set; }
+    [Parameter] public EventCallback OnNextPage { get; set; }
+    [Parameter] public EventCallback<(Guid userId, string displayName)> OnUserClick { get; set; }
+    [Parameter] public bool CompactMode { get; set; }
+    [Parameter] public AuditDictionaryDto Dictionary { get; set; } = new();
+    [Parameter] public AuditDashboardDto? Dashboard { get; set; }
+
+    private bool IsEmptyData =>
+        Stats.TotalRequests == 0 &&
+        Stats.TotalTokens == 0 &&
+        (ProviderStats == null || ProviderStats.Count == 0) &&
+        (UserRanking == null || UserRanking.Count == 0) &&
+        (AllRecords == null || AllRecords.Items.Count == 0);
+
+    private static string FormatNumber(long number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString("N0")
+        };
+    }
+
+    private static string FormatNumber(int number) => FormatNumber((long)number);
+
+    private static string GetRankClass(int rank)
+    {
+        return rank switch
+        {
+            1 => "rank-1",
+            2 => "rank-2",
+            3 => "rank-3",
+            _ => ""
+        };
+    }
+
+    private static string GetRankMedal(int rank)
+    {
+        return rank switch
+        {
+            1 => "🥇",
+            2 => "🥈",
+            3 => "🥉",
+            _ => ""
+        };
+    }
+
+    private static string GetTrendClass(string trend)
+    {
+        return trend switch
+        {
+            "up" => "trend-up",
+            "down" => "trend-down",
+            _ => "trend-flat"
+        };
+    }
+
+    private Task HandleUserClick(TokenUsageDetailedDto record)
+    {
+        if (record.UserId.HasValue)
+        {
+            return OnUserClick.InvokeAsync((record.UserId.Value, record.UserDisplayName));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string GetResourceLabel(TokenUsageDetailedDto record)
+    {
+        if (record.SessionId.HasValue)
+        {
+            return $"会话 {record.SessionId.Value.ToString()[..8]}...";
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.ResourceId))
+        {
+            return $"{record.ResourceType} {record.ResourceId}";
+        }
+
+        return record.SceneCode;
+    }
+
+    private string GetSceneLabel(TokenUsageDetailedDto record)
+    {
+        return Dictionary.Scenes.FirstOrDefault(item => item.Code == record.SceneCode)?.DisplayName ?? record.SceneCode;
+    }
+}

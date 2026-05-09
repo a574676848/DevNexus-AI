@@ -1,0 +1,285 @@
+/* CustomTitleBar Component Styles - Modern Minimalist Style */
+
+.custom-titlebar {
+    display: flex;
+    align-items: center;
+    height: var(--titlebar-height, 32px);
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    user-select: none;
+    flex-shrink: 0;
+    -webkit-app-region: drag;
+    /* 原生拖动支持 */
+}
+
+/* 最大化时无圆角 */
+.custom-titlebar.maximized {
+    border-radius: 0;
+}
+
+/* 左侧区域：图标和标题 */
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    gap: 8px;
+}
+
+.titlebar-logo {
+    flex-shrink: 0;
+}
+
+.titlebar-title {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+/* 中间区域：自定义内容 */
+.titlebar-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+}
+
+/* 中间区域的交互元素需要排除拖动 */
+.titlebar-center>* {
+    -webkit-app-region: no-drag;
+}
+
+/* 右侧区域：窗口控制按钮（不可拖动） */
+.titlebar-controls {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    -webkit-app-region: no-drag;
+    /* 按钮区域不可拖动 */
+}
+
+/* 窗口控制按钮基础样式 - 使用高特异性防止被全局样式覆盖 */
+.custom-titlebar .titlebar-controls .titlebar-btn {
+    width: 46px;
+    height: 100%;
+    min-width: 46px;
+    min-height: 32px;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-primary, #333333) !important;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    -webkit-app-region: no-drag;
+    /* 确保按钮不触发拖动 */
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* 最小化按钮悬停 */
+.custom-titlebar .titlebar-controls .titlebar-btn.minimize:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+    color: var(--text-primary, #333333) !important;
+}
+
+/* 最大化按钮悬停 */
+.custom-titlebar .titlebar-controls .titlebar-btn.maximize:hover {
+    background: rgba(0, 0, 0, 0.05) !important;
+    color: var(--text-primary, #333333) !important;
+}
+
+/* 所有按钮按下状态 */
+.custom-titlebar .titlebar-controls .titlebar-btn.minimize:active,
+.custom-titlebar .titlebar-controls .titlebar-btn.maximize:active {
+    background: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 关闭按钮特殊样式 - Windows 风格红色 */
+.custom-titlebar .titlebar-controls .titlebar-btn.close:hover {
+    background: #e81123 !important;
+    color: #ffffff !important;
+}
+
+.custom-titlebar .titlebar-controls .titlebar-btn.close:active {
+    background: #c50f1f !important;
+    color: #ffffff !important;
+}
+
+/* 按钮图标 */
+.custom-titlebar .titlebar-controls .titlebar-btn svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+}
+
+/* 禁用状态 */
+.custom-titlebar .titlebar-controls .titlebar-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.custom-titlebar .titlebar-controls .titlebar-btn:disabled:hover {
+    background: transparent !important;
+}
+
+/* ===== 网络状态指示器 ===== */
+.network-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 11px;
+    color: var(--text-secondary, #999);
+    -webkit-app-region: no-drag;
+}
+
+.network-status .connect-btn {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-secondary, #999);
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    transition: all 0.2s ease;
+}
+
+.network-status .connect-btn.busy {
+    color: var(--brand-green, #07c160);
+}
+
+.network-status .connect-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #fff);
+}
+
+.network-status .connect-btn:active {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.network-status .connect-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.network-status .connect-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--text-secondary);
+    border-top: 2px solid var(--text-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.network-status.connecting .status-dot {
+    background: var(--brand-green, #07c160);
+    animation: pulse-dot 1.1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.network-status .connection-status {
+    margin-left: 8px;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.network-status .connection-status.success {
+    background: rgba(7, 193, 96, 0.1);
+    color: var(--brand-green);
+    border: 1px solid rgba(7, 193, 96, 0.2);
+}
+
+.network-status .connection-status.error {
+    background: rgba(250, 81, 81, 0.1);
+    color: var(--brand-red);
+    border: 1px solid rgba(250, 81, 81, 0.2);
+}
+
+.network-status .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ccc;
+}
+
+.network-status.connected .status-dot {
+    background: #07c160;
+    box-shadow: 0 0 4px rgba(7, 193, 96, 0.5);
+}
+
+.network-status.disconnected .status-dot {
+    background: #fa5151;
+    animation: blink 1s infinite;
+}
+
+.network-status.connected .status-text {
+    color: #07c160;
+}
+
+.network-status.disconnected .status-text {
+    color: #fa5151;
+}
+
+.network-status.connecting .status-text {
+    color: var(--brand-green, #07c160);
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+@keyframes pulse-dot {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(7, 193, 96, 0.22);
+    }
+
+    50% {
+        transform: scale(0.88);
+        box-shadow: 0 0 0 6px rgba(7, 193, 96, 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .network-status .connect-spinner,
+    .network-status.disconnected .status-dot,
+    .network-status.connecting .status-dot {
+        animation: none !important;
+    }
+
+    .network-status .connect-btn,
+    .custom-titlebar .titlebar-controls .titlebar-btn {
+        transition: none !important;
+    }
+}

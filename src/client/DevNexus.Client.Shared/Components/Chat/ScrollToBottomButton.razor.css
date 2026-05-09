@@ -1,0 +1,95 @@
+/* ScrollToBottomButton.razor.css */
+
+.scroll-to-bottom-btn {
+    position: fixed;
+    bottom: 200px;
+    right: 300px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: var(--z-sticky);
+    color: var(--text-secondary);
+    animation: scroll-button-rise 0.2s ease-out both;
+}
+
+.scroll-to-bottom-btn:hover {
+    background: #ffffff;
+    transform: translateY(-4px) scale(1.05);
+    box-shadow: 0 8px 24px rgba(7, 193, 96, 0.15), inset 0 1px 1px #ffffff;
+    color: var(--brand-green);
+    border-color: rgba(7, 193, 96, 0.2);
+}
+
+.scroll-to-bottom-btn:active {
+    transform: translateY(0) scale(0.95);
+}
+
+.scroll-to-bottom-btn i {
+    font-size: var(--font-lg);
+}
+
+.unread-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--brand-red);
+    color: white;
+    font-size: 10px;
+    font-weight: var(--font-weight-bold);
+    padding: 2px 5px;
+    border-radius: var(--radius-lg);
+    min-width: 16px;
+    text-align: center;
+    border: 2px solid var(--white-bg);
+    animation: unread-pop 0.25s ease-out both;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .scroll-to-bottom-btn {
+        bottom: 180px;
+        right: var(--spacing-md);
+    }
+}
+
+@keyframes scroll-button-rise {
+    from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes unread-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.75);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .scroll-to-bottom-btn,
+    .unread-badge {
+        animation: none !important;
+        transition: none !important;
+    }
+}

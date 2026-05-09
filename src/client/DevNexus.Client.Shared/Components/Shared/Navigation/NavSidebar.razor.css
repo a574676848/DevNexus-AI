@@ -1,0 +1,284 @@
+/* NavSidebar.razor.css - 极简风格导航栏 */
+/* 参考现代极简风格 版设计规范 */
+
+.nav-sidebar {
+    width: 54px;
+    height: 100%;
+    /* Premium Glassmorphism */
+    background: rgba(245, 245, 247, 0.7);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0 24px;
+    gap: 6px;
+    -webkit-app-region: drag;
+    border-right: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: 1px 0 10px rgba(0, 0, 0, 0.02);
+}
+
+/* Makes all clickable items non-draggable */
+.nav-item,
+.avatar-btn {
+    -webkit-app-region: no-drag;
+}
+
+/* Top Section: Avatar */
+.nav-top {
+    flex-shrink: 0;
+    padding-bottom: 8px;
+}
+
+/* Bottom Section: Settings */
+.nav-bottom {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 10px;
+    padding-bottom: 20px;
+}
+
+/* Middle Section: Main Navigation Icons */
+.nav-middle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    align-items: center;
+    padding-top: 12px;
+}
+
+@media (max-height: 700px) {
+    .nav-sidebar {
+        padding: 8px 0 20px;
+        gap: 4px;
+    }
+
+    .nav-top {
+        padding-bottom: 6px;
+    }
+
+    .nav-middle {
+        gap: 2px;
+        padding-top: 8px;
+    }
+
+    .nav-bottom {
+        padding-top: 8px;
+        padding-bottom: 16px;
+    }
+
+    .nav-item {
+        width: 40px;
+        height: 40px;
+    }
+
+    .avatar-btn {
+        width: 38px;
+        height: 38px;
+        margin-bottom: 6px;
+    }
+}
+
+@media (max-width: 640px) {
+    .nav-sidebar {
+        width: 48px;
+        padding: 8px 0 20px;
+        gap: 4px;
+    }
+
+    .nav-middle {
+        gap: 2px;
+        padding-top: 8px;
+    }
+
+    .nav-bottom {
+        padding-top: 8px;
+        padding-bottom: 16px;
+    }
+
+    .nav-item {
+        width: 36px;
+        height: 36px;
+    }
+
+    .nav-item svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .avatar-btn {
+        width: 36px;
+        height: 36px;
+        margin-bottom: 6px;
+    }
+
+    .connection-dot {
+        width: 10px;
+        height: 10px;
+        border-width: 2px;
+    }
+}
+
+/* Base Navigation Item Styles */
+.nav-item {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* 普通状态图标颜色：深灰色 */
+    color: #5c5c5c;
+    border-radius: 4px;
+    transition:
+        color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    text-decoration: none;
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+/* Hover Effect - Modern Minimalist Style */
+.nav-item:hover {
+    color: #1d1d1f;
+    background: rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+}
+
+/* Active Press Effect */
+.nav-item:active {
+    transform: scale(0.92);
+}
+
+/* Active Selected State - Modern Minimalist Green Highlight */
+.nav-item.active {
+    color: var(--brand-green, #07c160);
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 1px #ffffff;
+}
+
+/* Active State Icon Glow Effect */
+.nav-item.active svg {
+    filter: none;
+}
+
+/* Active State Left Indicator Bar (极简没有左侧条，这里仅保留图标变色) */
+/* 移除左侧绿色指示条 */
+.nav-item.active::before {
+    display: none;
+}
+
+/* Slide In Animation for Active Indicator */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50%) scaleY(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(-50%) scaleY(1);
+    }
+}
+
+/* ===== Avatar Button with Connection Indicator ===== */
+.avatar-btn {
+    position: relative;
+    margin-bottom: 8px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 6px;
+    transition:
+        background-color 0.2s ease,
+        transform 0.15s ease;
+}
+
+.avatar-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.avatar-btn:active {
+    transform: scale(0.92);
+}
+
+/* Connection Status Dot */
+.connection-dot {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fa5151;
+    border: 2px solid rgba(245, 245, 247, 1);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease;
+}
+
+/* Connected State with Pulse Animation */
+.connection-dot.connected {
+    background: var(--brand-green, #07c160);
+    animation: pulse 2s infinite;
+}
+
+/* Disconnected State with Blink Animation */
+.connection-dot.disconnected {
+    animation: blink 1s infinite;
+}
+
+/* Pulse Animation for Connected State */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(7, 193, 96, 0.5);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(7, 193, 96, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(7, 193, 96, 0);
+    }
+}
+
+/* Blink Animation for Disconnected State */
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+/* ===== SVG Icon Styles ===== */
+.nav-item svg {
+    transition:
+        transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        filter 0.2s ease;
+    width: 22px;
+    height: 22px;
+}
+
+.nav-item:hover svg {
+    transform: scale(1.08);
+}
+
+.nav-item.active svg {
+    transform: scale(1);
+}

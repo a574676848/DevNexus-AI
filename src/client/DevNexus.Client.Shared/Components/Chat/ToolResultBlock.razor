@@ -1,0 +1,95 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+@using DevNexus.Client.Shared.Helpers
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.Enums
+
+@* 工具调用结果 Block 渲染器 *@
+
+<div class="tool-result-block @GetStatusClass() @(_isExpanded ? "expanded" : "")">
+    <div class="tool-result-header" @onclick="ToggleExpand" role="button" tabindex="0">
+        <div class="tool-result-header-left">
+            <i class="fa-solid fa-wrench"></i>
+            <span class="tool-name">@GetToolName()</span>
+            @if (IsRunning())
+            {
+                <span class="tool-spinner" aria-label="调用中">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                </span>
+            }
+            <span class="tool-status">@GetStatusText()</span>
+            @if (!string.IsNullOrEmpty(GetDuration()))
+            {
+                <span class="tool-duration">@GetDuration()</span>
+            }
+        </div>
+        @if (!string.IsNullOrEmpty(Block.Content))
+        {
+            <div class="tool-result-header-right">
+                <i class="fa-solid fa-chevron-down chevron-icon"></i>
+            </div>
+        }
+    </div>
+    @if (!string.IsNullOrEmpty(Block.Content))
+    {
+        <div class="tool-content-wrapper" aria-hidden="@(!_isExpanded)">
+            <div class="tool-content-inner">
+                <div class="tool-result-content">
+                    <pre><code>@Block.Content</code></pre>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    private bool _isExpanded = false;
+
+    private void ToggleExpand()
+    {
+        if (!string.IsNullOrEmpty(Block.Content))
+        {
+            _isExpanded = !_isExpanded;
+        }
+    }
+
+    private string GetToolName() => MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.ToolName, ToolBlockMetadataConstants.ToolNameFallbackDisplay);
+    private ToolInvocationStatus GetStatus() => ToolInvocationStatusExtensions.Parse(
+        MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Status, ToolInvocationStatus.Completed.ToWireValue()));
+    private string GetDuration() => MetadataHelper.GetString(Block.Metadata, ToolBlockMetadataConstants.Duration, string.Empty);
+
+    private string GetStatusClass() => GetStatus() switch
+    {
+        ToolInvocationStatus.Failed => "tool-error",
+        ToolInvocationStatus.Timeout => "tool-warning",
+        ToolInvocationStatus.Running => "tool-running",
+        ToolInvocationStatus.Queued => "tool-running",
+        ToolInvocationStatus.Pending => "tool-running",
+        ToolInvocationStatus.Cancelled => "tool-warning",
+        _ => "tool-success"
+    };
+
+    private string GetStatusText() => GetStatus() switch
+    {
+        ToolInvocationStatus.Queued => "排队中",
+        ToolInvocationStatus.Pending => "等待中",
+        ToolInvocationStatus.Running => "调用中",
+        ToolInvocationStatus.Completed => "完成",
+        ToolInvocationStatus.Failed => "失败",
+        ToolInvocationStatus.Cancelled => "已取消",
+        ToolInvocationStatus.Timeout => "超时",
+        _ => "未知"
+    };
+
+    private bool IsRunning()
+    {
+        var status = GetStatus();
+        return status == ToolInvocationStatus.Queued
+            || status == ToolInvocationStatus.Pending
+            || status == ToolInvocationStatus.Running;
+    }
+}

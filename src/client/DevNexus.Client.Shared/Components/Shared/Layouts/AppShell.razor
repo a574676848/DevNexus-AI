@@ -1,0 +1,117 @@
+@using static DevNexus.Client.Shared.Components.Shared.ResizablePanel
+@namespace DevNexus.Client.Shared.Components.Shared
+
+<div class="app-shell @(IsMaximized ? "maximized" : "") @(IsBorderless ? "borderless" : "")">
+    @* 自定义标题栏（无边框模式下显示） *@
+    @if (IsBorderless)
+    {
+        <CustomTitleBar Title="@Title"
+                        IsMaximized="@IsMaximized"
+                        IsConnected="@IsConnected"
+                        IsArtifactConnected="@IsArtifactConnected"
+                        Latency="@Latency">
+            @TitleBarContent
+        </CustomTitleBar>
+    }
+    
+    @* 全局图片预览弹窗 *@
+    <ImagePreviewOverlay />
+    
+    @* App Body (Grid Layout) *@
+    <div class="app-body">
+        
+        @* 1. Nav Sidebar (54px) *@
+        <nav class="region-nav">
+             @if (NavSidebar != null)
+            {
+                @NavSidebar
+            }
+        </nav>
+
+        @* 2. List Sidebar (可调整大小，可折叠) *@
+        @if (IsListSidebarVisible)
+        {
+            @if (IsListSidebarExpanded)
+            {
+                <ResizablePanel Direction="ResizeDirection.Horizontal" 
+                                InitialSize="250" 
+                                MinSize="180" 
+                                MaxSize="400"
+                                StorageKey="list-sidebar-width">
+                    @if (ListSidebar != null)
+                    {
+                        @ListSidebar
+                    }
+                </ResizablePanel>
+            }
+            else
+            {
+                <button type="button"
+                        class="list-sidebar-expand-handle"
+                        @onclick="HandleListSidebarToggle"
+                        title="展开会话栏"
+                        aria-label="展开会话栏"
+                        aria-expanded="false">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M9 6l6 6-6 6"></path>
+                    </svg>
+                </button>
+            }
+        }
+
+        @* 3. Main Stage (Flex) *@
+        <main class="region-stage">
+             @if (Content != null)
+            {
+                @Content
+            }
+            else
+            {
+                @ChildContent
+            }
+        </main>
+        
+        @* 4. Sidekick (Auto) *@
+        @if (Sidekick != null && IsSidekickVisible)
+        {
+            <ResizablePanel Direction="ResizeDirection.Horizontal" 
+                            StorageKey="sidekick-width" 
+                            InitialSize="500" 
+                            MinSize="300" 
+                            MaxSize="800">
+                <div class="region-sidekick">
+                    @Sidekick
+                </div>
+            </ResizablePanel>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public RenderFragment? NavSidebar { get; set; }
+    [Parameter] public RenderFragment? ListSidebar { get; set; }
+    [Parameter] public RenderFragment? Content { get; set; }
+    [Parameter] public RenderFragment? Sidekick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? TitleBarContent { get; set; }
+
+    [Parameter] public string Title { get; set; } = "DevNexus AI";
+    [Parameter] public bool IsMaximized { get; set; }
+    [Parameter] public bool IsBorderless { get; set; } = true;
+    [Parameter] public bool IsSidekickVisible { get; set; } = false;
+    [Parameter] public bool IsListSidebarVisible { get; set; } = true;
+    [Parameter] public bool IsListSidebarExpanded { get; set; } = true;
+    [Parameter] public bool IsConnected { get; set; } = false;
+    [Parameter] public bool IsArtifactConnected { get; set; } = false;
+    [Parameter] public int Latency { get; set; } = 0;
+    [Parameter] public EventCallback OnListSidebarToggle { get; set; }
+
+    /// <summary>
+    /// 处理会话侧栏展开切换。
+    /// </summary>
+    private async Task HandleListSidebarToggle()
+    {
+        await OnListSidebarToggle.InvokeAsync();
+    }
+}
+

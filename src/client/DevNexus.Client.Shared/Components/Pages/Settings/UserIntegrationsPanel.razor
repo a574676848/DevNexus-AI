@@ -1,0 +1,67 @@
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Shared.Enums
+@using DevNexus.Client.Shared.Components.Icons
+@using DevNexus.Client.Shared.Components.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="provider-panel">
+    @* 顶部工具栏已移除，改用卡片形式添加 *@
+
+    @* 内容区域 *@
+    <UserIntegrationsPanel_Content 
+        IsAdmin="@IsAdmin"
+        UserIntegrations="@UserIntegrations"
+        AllIntegrations="@AllIntegrations"
+        OnSetDefaultUser="@HandleSetDefaultUser"
+        OnEditUser="@HandleEditUser"
+        OnDeleteUser="@HandleDeleteUser"
+        OnEditDetailed="@HandleEditDetailed"
+        OnDeleteDetailed="@HandleDeleteDetailedClick"
+        OnAddClick="@ShowAddDialog" />
+
+    @* 子对话框 - 分离的组件 *@
+    <UserIntegrationsPanel_CreateDialog 
+        Show="@ShowDialog"
+        IsAdmin="@IsAdmin"
+        AvailableUsers="@AvailableUsers"
+        NoteProviders="@NoteProviders"
+        NewIntegration="@NewIntegration"
+        @bind-SelectedIntegrationType="SelectedIntegrationType"
+        @bind-SelectedAuthType="SelectedAuthType"
+        @bind-SelectedProviderId="SelectedProviderId"
+        @bind-SelectedUserId="SelectedUserId"
+        DialogMessage="@DialogMessage"
+        DialogSuccess="@DialogSuccess"
+        IsSubmitting="@IsSubmitting"
+        OnClose="@CloseDialog"
+        OnIntegrationTypeChanged="@OnIntegrationTypeChanged"
+        OnCreateIntegration="@CreateIntegration"
+        GetIntegrationTypeDisplayName="@GetIntegrationTypeDisplayName"
+        GetAuthTypeDisplayName="@GetAuthTypeDisplayName"
+        GetCredentialLabel="@GetCredentialLabel"
+        GetCredentialPlaceholder="@GetCredentialPlaceholder"
+        GetSecondaryCredentialLabel="@GetSecondaryCredentialLabel"
+        GetSecondaryCredentialPlaceholder="@GetSecondaryCredentialPlaceholder"
+        RequiresSecondaryCredential="@RequiresSecondaryCredential" />
+
+    <UserIntegrationsPanel_EditDialog
+        Show="@ShowEditDialog"
+        Integration="@IntegrationToEdit"
+        EditIntegration="@EditIntegration"
+        EditDialogMessage="@EditDialogMessage"
+        EditDialogSuccess="@EditDialogSuccess"
+        IsSubmitting="@IsSubmitting"
+        OnClose="@CloseEditDialog"
+        OnUpdateIntegration="@UpdateIntegration" />
+
+    <UserIntegrationsPanel_DeleteConfirm
+        Show="@ShowDeleteConfirm"
+        Message="@DeleteConfirmMessage"
+        IsSubmitting="@IsSubmitting"
+        OnClose="@(() => ShowDeleteConfirm = false)"
+        OnConfirmDelete="@ConfirmDelete" />
+</div>

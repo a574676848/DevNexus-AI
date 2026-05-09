@@ -1,0 +1,269 @@
+@using System.Text.Json
+@using DevNexus.Client.Shared.Abstractions
+@using DevNexus.Client.Shared.Components.Icons
+@namespace DevNexus.Client.Shared.Components.Cards
+
+@* 网页阅读 Artifact：侧边栏展示网页内容 *@
+<div class="webpage-artifact">
+    <div class="webpage-header">
+        <div class="webpage-title-section">
+            <GlobeIcon Size="16" />
+            <a href="@Url" target="_blank" rel="noopener" class="webpage-url" title="@Url">
+                @TruncateUrl(Url, 50)
+            </a>
+        </div>
+        <div class="webpage-meta">
+            <span class="reader-badge">@ReaderMethod</span>
+            <button class="action-icon-btn" @onclick="CopyUrl" title="复制链接" aria-label="复制链接">
+                <CopyIcon Size="14" />
+            </button>
+            <button class="action-icon-btn" @onclick="RefreshContent" title="刷新内容" aria-label="刷新内容">
+                <RefreshIcon Size="14" />
+            </button>
+        </div>
+    </div>
+
+    @if (IsLoading)
+    {
+        <div class="webpage-loading">
+            <LoadingSpinner Size="sm" />
+            <span>正在读取网页内容...</span>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="webpage-error">
+            <AlertCircleIcon Size="16" />
+            <div class="error-content">
+                <div class="error-title">加载失败</div>
+                <div class="error-message">@ErrorMessage</div>
+                <button class="retry-btn" @onclick="RefreshContent">
+                    <RefreshIcon Size="12" />
+                    重试
+                </button>
+            </div>
+        </div>
+    }
+    else if (string.IsNullOrWhiteSpace(Content))
+    {
+        <div class="webpage-empty">
+            <FileIcon Size="24" />
+            <span>暂无内容</span>
+        </div>
+    }
+    else
+    {
+        <div class="webpage-content">
+            <ThrottledMarkdownRenderer Content="@Content" IsStreaming="false" />
+        </div>
+    }
+
+    <div class="webpage-footer">
+        <div class="metadata">
+            @if (!string.IsNullOrEmpty(ReaderMethod))
+            {
+                <span class="meta-item">
+                    <span class="meta-label">阅读器:</span>
+                    <span class="meta-value">@ReaderMethod</span>
+                </span>
+            }
+            @if (!string.IsNullOrEmpty(FetchTime))
+            {
+                <span class="meta-item">
+                    <span class="meta-label">获取时间:</span>
+                    <span class="meta-value">@FetchTime</span>
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>
+    /// 网页读取 Block 数据
+    /// </summary>
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    [Inject]
+    public IJSRuntime JSRuntime { get; set; } = default!;
+
+    [Inject]
+    public INotificationService NotificationService { get; set; } = default!;
+
+    // 状态管理
+    private string Url { get; set; } = string.Empty;
+    private string Content { get; set; } = string.Empty;
+    private string ReaderMethod { get; set; } = "Unknown";
+    private string FetchTime { get; set; } = string.Empty;
+    private bool IsLoading { get; set; } = false;
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    protected override void OnParametersSet()
+    {
+        ParseWebpageContent();
+    }
+
+    /// <summary>
+    /// 解析网页阅读结果
+    /// 优先从 Block.Content 解析（ReadWebpageAsync 返回）
+    /// </summary>
+    private void ParseWebpageContent()
+    {
+        try
+        {
+            ErrorMessage = string.Empty;
+            IsLoading = false;
+
+            if (Block.Metadata?.TryGetValue("url", out var urlObj) == true)
+            {
+                Url = urlObj?.ToString() ?? string.Empty;
+            }
+
+            if (Block.Metadata?.TryGetValue("method", out var methodObj) == true)
+            {
+                var methodValue = methodObj?.ToString() ?? "auto";
+                ReaderMethod = FormatReaderMethod(methodValue);
+            }
+
+            if (Block.Metadata?.TryGetValue("status", out var statusObj) == true)
+            {
+                IsLoading = statusObj?.ToString()?.ToLowerInvariant() == "loading";
+                if (IsLoading)
+                {
+                    return;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(Block.Content))
+            {
+                ErrorMessage = "网页内容为空";
+                return;
+            }
+
+            // 解析 ReadWebpageAsync 返回的 JSON 格式
+            using var doc = JsonDocument.Parse(Block.Content);
+            var root = doc.RootElement;
+
+            // 检查成功状态
+            if (!root.TryGetProperty("success", out var successElement) || !successElement.GetBoolean())
+            {
+                if (root.TryGetProperty("error", out var errorElement))
+                {
+                    ErrorMessage = errorElement.GetString() ?? "未知错误";
+                }
+                return;
+            }
+
+            // 获取 URL
+            if (root.TryGetProperty("url", out var urlProp))
+            {
+                Url = urlProp.GetString() ?? string.Empty;
+            }
+
+            // 获取阅读器方法
+            if (root.TryGetProperty("method", out var methodProp))
+            {
+                var method = methodProp.GetString() ?? "unknown";
+                ReaderMethod = FormatReaderMethod(method);
+            }
+
+            // 获取网页内容
+            if (root.TryGetProperty("content", out var contentProp))
+            {
+                Content = contentProp.GetString() ?? string.Empty;
+            }
+
+            // 获取获取时间
+            FetchTime = DateTime.Now.ToString("HH:mm:ss");
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"解析网页内容失败：{ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 格式化阅读器方法名
+    /// </summary>
+    private string FormatReaderMethod(string method)
+    {
+        return method switch
+        {
+            "jina" => "Jina Reader",
+            "firecrawl" => "Firecrawl",
+            "auto" => "Auto Selection",
+            _ => method.ToUpper()
+        };
+    }
+
+    /// <summary>
+    /// 截断 URL 显示
+    /// </summary>
+    private string TruncateUrl(string url, int maxLength)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var display = $"{uri.Host}{uri.AbsolutePath}";
+            if (display.Length > maxLength)
+            {
+                return display.Substring(0, maxLength) + "...";
+            }
+            return display;
+        }
+        catch
+        {
+            return url.Length > maxLength ? url.Substring(0, maxLength) + "..." : url;
+        }
+    }
+
+    /// <summary>
+    /// 复制 URL
+    /// </summary>
+    private async Task CopyUrl()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(Url))
+            {
+                await NotificationService.ShowAsync("复制失败", "链接为空");
+                return;
+            }
+
+            await JSRuntime.InvokeVoidAsync("devnexusSearchInterop.copyText", Url);
+            await NotificationService.ShowAsync("复制成功", "链接已复制");
+        }
+        catch (Exception ex)
+        {
+            await NotificationService.ShowAsync("复制失败", $"复制链接失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 刷新内容
+    /// </summary>
+    private async Task RefreshContent()
+    {
+        try
+        {
+            IsLoading = true;
+            ErrorMessage = string.Empty;
+            
+            // TODO: 重新调用 ReadWebpageAsync
+            // var result = await FrontendService.ReadWebpageAsync(Url);
+            // ParseWebpageContent();
+            
+            await Task.Delay(500); // 模拟异步操作
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"刷新失败：{ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+}

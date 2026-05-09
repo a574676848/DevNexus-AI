@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="DevNexus.Client.Pages.WebViewPage"
+
+             BackgroundColor="#f5f7fa">
+
+    <Grid RowDefinitions="36,*">
+        <!-- 自定义标题栏 -->
+        <Grid Grid.Row="0" 
+              BackgroundColor="#ffffff" 
+              Padding="12,0"
+              x:Name="TitleBar">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- 图标和标题 -->
+            <HorizontalStackLayout Grid.Column="0" Spacing="8" VerticalOptions="Center">
+                <Image x:Name="TitleIcon" 
+                       WidthRequest="16" 
+                       HeightRequest="16"
+                       VerticalOptions="Center"/>
+                <Label x:Name="TitleLabel" 
+
+                       FontSize="13"
+                       FontAttributes="Bold"
+                       TextColor="#333333"
+                       VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+            
+            <!-- 窗口控制按钮 -->
+            <HorizontalStackLayout Grid.Column="2" Spacing="4" VerticalOptions="Center">
+                <Button Text="—" 
+                        BackgroundColor="Transparent"
+                        TextColor="#666666"
+                        WidthRequest="32"
+                        HeightRequest="28"
+                        Padding="0"
+                        FontSize="12"
+                        Clicked="OnMinimizeClicked"/>
+                <Button x:Name="MaximizeButton"
+                        Text="☐" 
+                        BackgroundColor="Transparent"
+                        TextColor="#666666"
+                        WidthRequest="32"
+                        HeightRequest="28"
+                        Padding="0"
+                        FontSize="12"
+                        Clicked="OnMaximizeClicked"/>
+                <Button Text="✕" 
+                        BackgroundColor="Transparent"
+                        TextColor="#666666"
+                        WidthRequest="32"
+                        HeightRequest="28"
+                        Padding="0"
+                        FontSize="12"
+                        Clicked="OnCloseClicked"/>
+            </HorizontalStackLayout>
+        </Grid>
+        
+        <!-- WebView 内容 -->
+        <WebView Grid.Row="1" 
+                 x:Name="WebContent"
+                 VerticalOptions="FillAndExpand"
+                 HorizontalOptions="FillAndExpand"/>
+        
+        <!-- 加载指示器 -->
+        <ActivityIndicator Grid.Row="1"
+                           x:Name="LoadingIndicator"
+                           IsRunning="True"
+                           IsVisible="True"
+                           Color="#07c160"
+                           VerticalOptions="Center"
+                           HorizontalOptions="Center"/>
+    </Grid>
+</ContentPage>

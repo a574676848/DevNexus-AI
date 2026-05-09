@@ -1,0 +1,111 @@
+/* 统一的 ResizablePanel 组件样式 - 支持水平和垂直调整 */
+
+.resizable-panel-wrapper {
+    display: flex;
+    position: relative;
+}
+
+/* 垂直调整模式 */
+.resizable-panel-wrapper.direction-vertical {
+    flex-direction: column;
+    width: 100%;
+}
+
+/* 水平调整模式 */
+.resizable-panel-wrapper.direction-horizontal {
+    flex-direction: row;
+    height: 100%;
+}
+
+.resizable-content {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+.resizable-content.resizable-content-overflow-visible {
+    overflow: visible;
+}
+
+/* 通用 Resize Handle 样式 */
+.resize-handle {
+    position: relative;
+    flex-shrink: 0;
+    background: transparent;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 10;
+}
+
+/* 水平调整的 Handle（竖条） */
+.resize-handle-horizontal {
+    width: 4px;
+    height: 100%;
+    cursor: ew-resize;
+}
+
+.resize-handle-horizontal::before {
+    content: '';
+    position: absolute;
+    left: -2px;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+}
+
+/* 垂直调整的 Handle（横条） */
+.resize-handle-vertical {
+    height: 4px;
+    width: 100%;
+    cursor: ns-resize;
+}
+
+.resize-handle-vertical::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -2px;
+    bottom: -2px;
+}
+
+/* Hover 效果 */
+.resize-handle:hover {
+    background: rgba(7, 193, 96, 0.15);
+}
+
+.resize-handle:active {
+    background: rgba(7, 193, 96, 0.3);
+}
+
+/* 拖动时的全局样式（使用 ::deep 替代 :global） */
+::deep body.resizing {
+    user-select: none !important;
+}
+
+::deep body.resizing * {
+    pointer-events: none !important;
+}
+
+::deep body.resizing .resize-handle {
+    pointer-events: auto !important;
+}
+
+/* 水平模式的光标 */
+::deep body.resizing-horizontal {
+    cursor: ew-resize !important;
+}
+
+::deep body.resizing-horizontal * {
+    cursor: ew-resize !important;
+}
+
+/* 垂直模式的光标 */
+::deep body.resizing-vertical {
+    cursor: ns-resize !important;
+}
+
+::deep body.resizing-vertical * {
+    cursor: ns-resize !important;
+}

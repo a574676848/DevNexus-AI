@@ -1,0 +1,173 @@
+@page "/settings/integrations"
+@using DevNexus.Shared.DTOs
+@using DevNexus.Shared.DTOs.Auth
+@using DevNexus.Client.Shared.Components.Icons
+@inject IApiService ApiService
+@inject IRemoteLogService RemoteLog
+@inject IJSRuntime JS
+@inject IWindowService WindowService
+@inject IUserStateService UserStateService
+
+<div class="user-integrations-container">
+    <div class="content-wrapper">
+        <div class="page-header">
+            <div class="header-title">
+                <h1>@(IsAdmin ? "集成管理" : "我的集成")</h1>
+                <span class="header-subtitle">
+                    @(IsAdmin ? "管理所有用户的外部系统集成" : "管理笔记系统、代码仓库、云存储等外部服务")
+                </span>
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <span>加载中...</span>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-state">
+                <svg class="error-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <p>@errorMessage</p>
+                <button class="retry-btn" @onclick="LoadDataAsync">重试</button>
+            </div>
+        }
+        else
+        {
+            <UserIntegrationsPanel
+                IsAdmin="@IsAdmin"
+                UserIntegrations="@userIntegrations"
+                AllIntegrations="@allIntegrations"
+                AvailableUsers="@availableUsers"
+                NoteProviders="@noteProviders"
+                OnRefresh="@LoadDataAsync" />
+        }
+    </div>
+</div>
+
+@code {
+    private bool IsAdmin => UserStateService.CurrentUser?.Roles?.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)) == true;
+    
+    private bool isLoading = true;
+    private string? errorMessage;
+    
+    // 用户视图数据
+    private List<UserIntegrationResponse> userIntegrations = new();
+    
+    // 管理员视图数据
+    private List<UserIntegrationDetailedResponse> allIntegrations = new();
+    
+    private List<NoteProviderResponse> noteProviders = new();
+    private List<UserListItem> availableUsers = new(); // 管理员视图:可选用户列表
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        UserStateService.OnUserChanged += HandleUserChanged;
+        await LoadDataAsync();
+    }
+
+    private async Task HandleUserChanged(UserInfo? user)
+    {
+        await LoadDataAsync();
+    }
+
+    public void Dispose()
+    {
+        UserStateService.OnUserChanged -= HandleUserChanged;
+    }
+
+    private async Task LoadDataAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            if (IsAdmin)
+            {
+                await LoadAdminDataAsync();
+                await LoadAvailableUsersAsync(); // 加载可用用户列表
+            }
+            else
+            {
+                await LoadUserDataAsync();
+            }
+            
+            await LoadNoteProvidersAsync();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogErrorAsync(ex, "UserIntegrations.LoadDataAsync", new() { ["Action"] = "LoadData", ["IsAdmin"] = IsAdmin });
+            errorMessage = "加载数据失败，请重试";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadUserDataAsync()
+    {
+        try
+        {
+            userIntegrations = (await ApiService.GetUserIntegrationsAsync()).ToList();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载用户集成失败: {ex.Message}", "UserIntegrations.LoadUserData");
+            throw;
+        }
+    }
+
+    private async Task LoadAdminDataAsync()
+    {
+        try
+        {
+            allIntegrations = (await ApiService.GetAllIntegrationsAsync()).ToList();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载所有集成失败: {ex.Message}", "UserIntegrations.LoadAdminData");
+            throw;
+        }
+    }
+
+    private async Task LoadNoteProvidersAsync()
+    {
+        try
+        {
+            noteProviders = (await ApiService.GetAllProvidersAsync(includeDisabled: false)).ToList();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载笔记供应商失败: {ex.Message}", "UserIntegrations.LoadNoteProviders");
+        }
+    }
+
+    private async Task LoadAvailableUsersAsync()
+    {
+        try
+        {
+            var userListResponse = await ApiService.GetUsersAsync(page: 1, pageSize: 1000); // 获取所有用户
+            availableUsers = userListResponse.Items;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await RemoteLog.LogWarningAsync($"加载用户列表失败: {ex.Message}", "UserIntegrations.LoadAvailableUsers");
+        }
+    }
+}
+

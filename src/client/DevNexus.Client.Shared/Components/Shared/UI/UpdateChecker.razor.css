@@ -1,0 +1,12 @@
+.update-checker {
+    display: inline-block;
+}
+
+.update-status {
+    font-size: 0.875rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+.update-progress {
+    margin-top: 8px;
+}

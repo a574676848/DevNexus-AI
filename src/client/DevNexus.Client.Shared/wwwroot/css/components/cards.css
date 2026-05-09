@@ -1,0 +1,125 @@
+/* DevNexus AI - Card Styles */
+
+/* Base Card */
+.card {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    background: transparent;
+}
+
+.card-title {
+    font-size: var(--font-base);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.card-body {
+    padding: var(--spacing-md);
+}
+
+.card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* Card Variants */
+.card-interactive {
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-interactive:hover {
+    border-color: rgba(7, 193, 96, 0.3);
+    box-shadow: var(--shadow-md), inset 0 1px 1px #ffffff;
+    background: rgba(255, 255, 255, 0.85);
+    transform: translateY(-2px);
+}
+
+.card-elevated {
+    box-shadow: var(--shadow-none);
+    border: 1px solid var(--border-subtle);
+}
+
+/* Card with Accent Border */
+.card-accent {
+    border-left: 4px solid var(--brand-green);
+}
+
+.card-accent.success {
+    border-left-color: var(--color-success);
+}
+
+.card-accent.warning {
+    border-left-color: var(--color-warning);
+}
+
+.card-accent.error {
+    border-left-color: var(--color-error);
+}
+
+/* Compact Card */
+.card-compact .card-header,
+.card-compact .card-body,
+.card-compact .card-footer {
+    padding: var(--spacing-sm);
+}
+
+/* Message Card (for chat) */
+.card-message {
+    border-radius: var(--radius-sm);
+    background: var(--white-bg);
+    border: 1px solid var(--border-subtle);
+}
+
+.card-message.user {
+    background: var(--bubble-user-bg);
+    color: var(--text-primary);
+    border: none;
+}
+
+.card-message.assistant {
+    background: var(--bubble-ai-bg);
+    color: var(--text-primary);
+}
+
+/* Code Card */
+.card-code {
+    font-family: var(--font-mono);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+}
+
+.card-code .card-header {
+    background: var(--bg-secondary);
+    font-size: var(--text-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.card-code .card-body {
+    padding: 0;
+    overflow-x: auto;
+}
+
+.card-code pre {
+    margin: 0;
+    padding: var(--spacing-md);
+    overflow-x: auto;
+}

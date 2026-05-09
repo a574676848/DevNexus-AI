@@ -1,0 +1,14 @@
+@namespace DevNexus.Client.Shared.Components.Icons
+
+<IconBase Size="@Size" Fill="@Fill" Stroke="@Stroke" StrokeWidth="@StrokeWidth" CssClass="@CssClass" Style="@Style">
+    <path d="M15 18l-6-6 6-6"></path>
+</IconBase>
+
+@code {
+    [Parameter] public int Size { get; set; } = 24;
+    [Parameter] public string Fill { get; set; } = "none";
+    [Parameter] public string Stroke { get; set; } = "currentColor";
+    [Parameter] public string StrokeWidth { get; set; } = "2";
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public string? Style { get; set; }
+}

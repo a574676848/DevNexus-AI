@@ -1,0 +1,148 @@
+/* LoadingSpinner 组件样式 - 极简现代风 */
+
+/* 容器 */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* 覆盖层模式 */
+.loading-container.overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+    z-index: 100;
+    border-radius: inherit;
+}
+
+/* 全页面模式 */
+.loading-container.fullpage {
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg-primary);
+    z-index: 9999;
+}
+
+/* 全页面背景 - 已移除网格，保持纯净 */
+
+/* ===== 简洁旋转环 (Spinners) ===== */
+.spinner-ring {
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--primary, #07c160);
+    border-radius: 50%;
+    animation: spinner 0.8s linear infinite;
+}
+
+/* 尺寸变体 */
+.size-sm .spinner-ring {
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+.size-md .spinner-ring {
+    width: 24px;
+    height: 24px;
+    border-width: 2.5px;
+}
+
+.size-lg .spinner-ring {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+}
+
+@keyframes spinner {
+    to { transform: rotate(360deg); }
+}
+
+/* ===== Logo 加载模式 ===== */
+.loading-logo {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* 移除旧的旋转边框和光晕 */
+.loading-logo::before,
+.loading-logo::after {
+    display: none;
+}
+
+/* Logo SVG - 呼吸效果 */
+.loading-logo svg {
+    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.2));
+    animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+/* Logo 尺寸变体 */
+.size-sm .loading-logo svg {
+    width: 40px;
+    height: 40px;
+}
+
+.size-md .loading-logo svg {
+    width: 64px;
+    height: 64px;
+}
+
+.size-lg .loading-logo svg {
+    width: 80px;
+    height: 80px;
+}
+
+/* ===== 加载文字 ===== */
+.loading-text {
+    color: var(--text-secondary, rgba(255, 255, 255, 0.6));
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.size-sm .loading-text {
+    font-size: 11px;
+}
+
+.size-md .loading-text {
+    font-size: 13px;
+}
+
+.size-lg .loading-text {
+    font-size: 14px;
+}
+
+/* 加载点动画 - 保持与 index.html 一致或简化 */
+.loading-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.loading-dots span {
+    width: 4px;
+    height: 4px;
+    background: var(--primary, #07c160);
+    border-radius: 50%;
+    opacity: 0.5;
+    animation: dotPulse 1.4s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: 0s; }
+.loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+/* 简单的透明度呼吸，不再缩放过度 */
+@keyframes dotPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}

@@ -1,0 +1,26 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+
+@using DevNexus.Shared.DTOs
+@using DevNexus.Client.Shared.Components.Icons
+
+@* 引用 Block 渲染器 - 显示对之前生成 Artifact 的引用 *@
+
+<div class="reference-block">
+    <div class="reference-header">
+        <ExternalLinkIcon Size="14" />
+        <span class="reference-id">@GetReferenceId()</span>
+    </div>
+    @if (!string.IsNullOrEmpty(Block.Content))
+    {
+        <div class="reference-content">
+            @Block.Content
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public BlockDto Block { get; set; } = default!;
+
+    private string GetReferenceId() => Block.ArtifactId ?? "unknown";
+}

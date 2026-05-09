@@ -1,0 +1,147 @@
+@using DevNexus.Client.Shared.Components.Icons
+@namespace DevNexus.Client.Shared.Components.Shared
+
+@if (IsVisible)
+{
+    <div class="confirm-dialog-overlay" @onclick="OnCancel">
+        <div class="confirm-dialog" @onclick:stopPropagation>
+            <div class="confirm-dialog-header">
+                <h3>@Title</h3>
+                <button class="btn-close" @onclick="OnCancel" title="关闭"><XIcon Size="16" /></button>
+            </div>
+            <div class="confirm-dialog-body">
+                <div class="confirm-content-wrapper">
+                    <div class="confirm-main-icon @IconClass">
+                        @if (IconClass == "danger")
+                        {
+                            <TrashIcon Size="28" />
+                        }
+                        else if (string.IsNullOrEmpty(Icon))
+                        {
+                            <AlertCircleIcon Size="28" />
+                        }
+                        else
+                        {
+                            @((MarkupString)Icon)
+                        }
+                    </div>
+                    <p class="confirm-message">@Message</p>
+                </div>
+            </div>
+            <div class="confirm-dialog-footer">
+                <button class="btn btn-cancel" @onclick="OnCancel" disabled="@IsProcessing">
+                    @CancelText
+                </button>
+                <button class="btn btn-confirm @ConfirmButtonClass" @onclick="OnConfirmClick" disabled="@IsProcessing">
+                    @if (IsProcessing)
+                    {
+                        <span class="spinner"></span>
+                        <span>处理中...</span>
+                    }
+                    else
+                    {
+                        <span>@ConfirmText</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// 对话框是否可见
+    /// </summary>
+    [Parameter]
+    public bool IsVisible { get; set; }
+
+    /// <summary>
+    /// 可见性变化回调
+    /// </summary>
+    [Parameter]
+    public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    /// <summary>
+    /// 标题
+    /// </summary>
+    [Parameter]
+    public string Title { get; set; } = "确认操作";
+
+    /// <summary>
+    /// 消息内容
+    /// </summary>
+    [Parameter]
+    public string Message { get; set; } = "确定要执行此操作吗？";
+
+    /// <summary>
+    /// 图标
+    /// </summary>
+    [Parameter]
+    public string Icon { get; set; } = "";
+
+    /// <summary>
+    /// 图标样式类
+    /// </summary>
+    [Parameter]
+    public string IconClass { get; set; } = "warning";
+
+    /// <summary>
+    /// 取消按钮文本
+    /// </summary>
+    [Parameter]
+    public string CancelText { get; set; } = "取消";
+
+    /// <summary>
+    /// 确认按钮文本
+    /// </summary>
+    [Parameter]
+    public string ConfirmText { get; set; } = "确认";
+
+    /// <summary>
+    /// 确认按钮样式类
+    /// </summary>
+    [Parameter]
+    public string ConfirmButtonClass { get; set; } = "danger";
+
+    /// <summary>
+    /// 确认回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    /// <summary>
+    /// 取消回调
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCancelled { get; set; }
+
+    private bool IsProcessing = false;
+
+    private async Task OnConfirmClick()
+    {
+        IsProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            await OnConfirm.InvokeAsync();
+        }
+        finally
+        {
+            IsProcessing = false;
+            await Close();
+        }
+    }
+
+    private async Task OnCancel()
+    {
+        await OnCancelled.InvokeAsync();
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(false);
+    }
+}

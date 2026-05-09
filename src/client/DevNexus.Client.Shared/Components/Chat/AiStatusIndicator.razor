@@ -1,0 +1,60 @@
+@namespace DevNexus.Client.Shared.Components.Chat
+@inject IChatState ChatState
+@using DevNexus.Client.Shared.Models
+
+@* AI 状态指示器 (Gemini 风格) *@
+@if (Presentation.IsStreaming)
+{
+    @* 1. 顶部状态指示器（仅限 Swarm 或 完全无内容时显示） *@
+    @if (ChatState != null && ChatState.IsSwarmActive(CurrentSessionId))
+    {
+        @* Swarm 模式状态指示器 *@
+        <div class="message-item ai-message">
+            <div class="message-avatar ai-avatar">
+                <DevNexusLogo Size="32" GlowIntensity="0" />
+            </div>
+            <div class="message-body">
+                <div class="ai-thinking-capsule swarm-capsule">
+                    <span class="thinking-icon-sparkle thinking-icon-sparkle--swarm">
+                        <i class="fa-solid fa-robot"></i>
+                    </span>
+                    <span class="thinking-text">Swarm 多智能体集群正在处理...</span>
+                    <a class="view-details-link" @onclick="OnOpenSwarmSidekick">
+                        查看详情 <i class="fa-solid fa-angle-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    }
+    else if (CurrentBlocks == null || !CurrentBlocks.Any())
+    {
+        @* 普通单 Agent 思考中，且无任何内容返回时 *@
+        <div class="message-item ai-message">
+            <div class="message-avatar ai-avatar">
+                <DevNexusLogo Size="32" GlowIntensity="0" />
+            </div>
+            <div class="message-body">
+                <div class="ai-thinking-capsule ai-thinking-capsule--streaming">
+                    <span class="thinking-icon-sparkle thinking-icon-sparkle--streaming">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" class="sparkle-svg">
+                            <path d="M12 2L14.4 7.2L20 9.6L14.4 12L12 17.2L9.6 12L4 9.6L9.6 7.2L12 2Z" fill="currentColor" />
+                        </svg>
+                    </span>
+                    <span class="thinking-text">@Presentation.StatusText</span>
+                    <span class="thinking-dots" aria-hidden="true">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid CurrentSessionId { get; set; }
+    [Parameter] public List<BlockDto> CurrentBlocks { get; set; } = new();
+    [Parameter] public EventCallback OnOpenSwarmSidekick { get; set; }
+    [Parameter] public SessionMessagePresentationState Presentation { get; set; } = new();
+}

@@ -1,0 +1,184 @@
+.terminal-summary-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--dnx-radius-md);
+    border: 1px solid var(--dnx-border-default);
+    background: color-mix(in srgb, var(--dnx-bg-surface) 88%, transparent);
+    color: var(--dnx-text-primary);
+    box-shadow: var(--dnx-shadow-sm);
+    transition:
+        border-color 160ms ease,
+        background-color 160ms ease,
+        box-shadow 160ms ease,
+        transform 160ms ease;
+}
+
+.terminal-summary-card:hover {
+    background: var(--dnx-bg-surface);
+    box-shadow: var(--dnx-shadow-md);
+    transform: translateY(-1px);
+}
+
+.terminal-summary-card:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--dnx-brand-green) 28%, transparent);
+    outline-offset: 2px;
+}
+
+.terminal-summary-card__icon,
+.terminal-summary-card__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--dnx-radius-sm);
+    background: color-mix(in srgb, var(--dnx-text-primary) 4.5%, transparent);
+    color: currentColor;
+    flex: 0 0 auto;
+}
+
+.terminal-summary-card__body {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+    text-align: left;
+}
+
+.terminal-summary-card__headline-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.terminal-summary-card__headline {
+    font-size: 13px;
+}
+
+.terminal-summary-card__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: var(--radius-full);
+    background: var(--dnx-bg-accent-soft);
+    color: var(--dnx-brand-green);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.terminal-summary-card__status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.terminal-summary-card__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--dnx-text-primary) 6%, transparent);
+    color: var(--dnx-text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.terminal-summary-card__meta {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--dnx-text-secondary);
+    font-family: var(--md-font-mono);
+    font-size: 11px;
+}
+
+@media (max-width: 900px) {
+    .terminal-summary-card {
+        gap: 10px;
+        padding: 9px 10px;
+    }
+
+    .terminal-summary-card__icon,
+    .terminal-summary-card__action {
+        width: 24px;
+        height: 24px;
+    }
+
+    .terminal-summary-card__headline-row {
+        gap: 6px;
+    }
+
+    .terminal-summary-card__meta {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+}
+
+@media (max-width: 640px) {
+    .terminal-summary-card__action {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .terminal-summary-card,
+    .terminal-summary-card__status-dot {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+.terminal-summary-card--active {
+    border-color: color-mix(in srgb, var(--dnx-brand-green) 24%, var(--dnx-border-default));
+}
+
+.terminal-summary-card--waiting {
+    border-color: color-mix(in srgb, var(--dnx-brand-green) 30%, var(--dnx-border-default));
+    background: var(--dnx-bg-accent-soft);
+}
+
+.terminal-summary-card--success {
+    border-color: color-mix(in srgb, var(--dnx-brand-green) 18%, var(--dnx-border-default));
+}
+
+.terminal-summary-card--warning {
+    border-color: color-mix(in srgb, var(--dnx-warning) 28%, var(--dnx-border-default));
+    background: color-mix(in srgb, var(--dnx-warning) 4%, transparent);
+}
+
+.terminal-summary-card--danger {
+    border-color: color-mix(in srgb, var(--dnx-danger) 28%, var(--dnx-border-default));
+    background: color-mix(in srgb, var(--dnx-danger) 4%, transparent);
+}
+
+.terminal-summary-card--waiting .terminal-summary-card__status-dot,
+.terminal-summary-card--active .terminal-summary-card__status-dot {
+    animation: terminal-summary-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes terminal-summary-pulse {
+    0%, 100% {
+        opacity: 0.9;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.45;
+        transform: scale(0.82);
+    }
+}
