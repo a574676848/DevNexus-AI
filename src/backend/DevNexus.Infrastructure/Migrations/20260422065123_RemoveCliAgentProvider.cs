@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,8 +11,7 @@ namespace DevNexus.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "CliAgentProviders");
+            migrationBuilder.Sql("DROP TABLE IF EXISTS \"CliAgentProviders\" CASCADE;");
 
             migrationBuilder.DropColumn(
                 name: "CliProviderId",

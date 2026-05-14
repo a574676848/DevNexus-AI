@@ -268,7 +268,6 @@
     {
         return pluginName switch
         {
-            "NotePlugin" => "笔记工具",
             "WebSearchPlugin" => "网络搜索工具",
             "CodeExecutionPlugin" => "代码执行工具",
             "KnowledgeBasePlugin" => "知识库工具",
@@ -283,11 +282,6 @@
     {
         return (pluginName, functionName) switch
         {
-            ("NotePlugin", "SearchNotesAsync") => "搜索笔记",
-            ("NotePlugin", "CreateNoteAsync") => "新建笔记",
-            ("NotePlugin", "CreateNoteWithAttachmentsAsync") => "新建带附件笔记",
-            ("NotePlugin", "UpdateNoteAsync") => "更新笔记",
-            ("NotePlugin", "DeleteNoteAsync") => "删除笔记",
             ("WebSearchPlugin", "SearchAsync") => "搜索网页",
             ("WebSearchPlugin", "AdvancedSearchAsync") => "深度搜索",
             ("WebSearchPlugin", "ReadWebpageAsync") => "读取网页",

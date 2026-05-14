@@ -6,11 +6,6 @@ namespace DevNexus.Shared.Enums;
 public enum IntegrationType
 {
     /// <summary>
-    /// 笔记系统 (Memos, Notion, Obsidian)
-    /// </summary>
-    NoteSystem = 1,
-
-    /// <summary>
     /// 代码仓库 (GitHub, GitLab, Gitea)
     /// </summary>
     CodeRepository = 2,

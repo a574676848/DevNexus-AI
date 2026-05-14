@@ -11,7 +11,7 @@ DevNexus AI 是一个本地优先、可私有化部署的 AI 工作站。提供�
 ## 核心能力
 
 - **实时聊天** — REST + SignalR 组合提供会话管理、排队消息、流式输出、终端运行态与 Artifact 更新
-- **供应商管理** — 支持 LLM、Embedding、Search、Storage、Note Provider 的运行时配置、验证、默认项切换与加密存储
+- **供应商管理** — 支持 LLM、Embedding、Search、Storage 的运行时配置、验证、默认项切换与加密存储
 - **语义摄取** — 上传文件可生成 SmartDocument，用于摘要、分块、检索和聊天上下文
 - **文件资产** — UploadSession、FileAsset、FileVersion、FileTask 构成文件处理主链路
 - **外部 Runner** — 文件任务优先调用受控工作区内的 `runner.ps1`，其次调用 `runner.py`，输出文件回灌为新资产

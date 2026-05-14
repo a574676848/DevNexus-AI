@@ -14,7 +14,7 @@
             <div class="header-title">
                 <h1>@(IsAdmin ? "集成管理" : "我的集成")</h1>
                 <span class="header-subtitle">
-                    @(IsAdmin ? "管理所有用户的外部系统集成" : "管理笔记系统、代码仓库、云存储等外部服务")
+                    @(IsAdmin ? "管理所有用户的外部系统集成" : "管理代码仓库、云存储等外部服务")
                 </span>
             </div>
         </div>
@@ -45,7 +45,6 @@
                 UserIntegrations="@userIntegrations"
                 AllIntegrations="@allIntegrations"
                 AvailableUsers="@availableUsers"
-                NoteProviders="@noteProviders"
                 OnRefresh="@LoadDataAsync" />
         }
     </div>
@@ -63,7 +62,6 @@
     // 管理员视图数据
     private List<UserIntegrationDetailedResponse> allIntegrations = new();
     
-    private List<NoteProviderResponse> noteProviders = new();
     private List<UserListItem> availableUsers = new(); // 管理员视图:可选用户列表
 
 
@@ -100,8 +98,6 @@
             {
                 await LoadUserDataAsync();
             }
-            
-            await LoadNoteProvidersAsync();
         }
         catch (Exception ex)
         {
@@ -140,19 +136,6 @@
         {
             await RemoteLog.LogWarningAsync($"加载所有集成失败: {ex.Message}", "UserIntegrations.LoadAdminData");
             throw;
-        }
-    }
-
-    private async Task LoadNoteProvidersAsync()
-    {
-        try
-        {
-            noteProviders = (await ApiService.GetAllProvidersAsync(includeDisabled: false)).ToList();
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            await RemoteLog.LogWarningAsync($"加载笔记供应商失败: {ex.Message}", "UserIntegrations.LoadNoteProviders");
         }
     }
 

@@ -381,16 +381,6 @@ internal static class ApplicationDbContextModelBuilderExtensions
         modelBuilder.Entity<StorageProvider>()
             .HasIndex(p => new { p.IsEnabled, p.IsDefault, p.Priority });
 
-        modelBuilder.Entity<NoteProvider>()
-            .Property(p => p.Configuration)
-            .HasColumnType("jsonb");
-
-        modelBuilder.Entity<NoteProvider>()
-            .HasIndex(p => p.ProviderId);
-
-        modelBuilder.Entity<NoteProvider>()
-            .HasIndex(p => new { p.IsEnabled, p.IsDefault, p.Priority });
-
         modelBuilder.Entity<ModelPricing>()
             .Property(mp => mp.ProviderType)
             .HasMaxLength(32);
@@ -453,6 +443,11 @@ internal static class ApplicationDbContextModelBuilderExtensions
             entity.Property(e => e.ProviderName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.ProviderId).IsRequired().HasMaxLength(100);
             entity.Property(e => e.MeteringType).IsRequired().HasMaxLength(32);
+            entity.Property(e => e.StablePrefixHash).HasMaxLength(128);
+            entity.Property(e => e.ToolSchemaHash).HasMaxLength(128);
+            entity.Property(e => e.ToolName).HasMaxLength(256);
+            entity.Property(e => e.ToolFailureReason).HasMaxLength(64);
+            entity.Property(e => e.ToolSuggestedAction).HasMaxLength(64);
             entity.Property(e => e.MeteringValue).HasColumnType("decimal(18,6)");
             entity.Property(e => e.Cost).HasColumnType("decimal(18,6)");
             entity.Property(e => e.UsageSource).IsRequired().HasMaxLength(32);

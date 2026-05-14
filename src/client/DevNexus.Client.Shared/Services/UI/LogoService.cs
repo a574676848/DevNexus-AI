@@ -132,11 +132,6 @@ public class LogoService : ILogoService
             "tencentcos" or "cos" => "/images/providers/tencent.svg",
             "cloudflarer2" or "r2" => "/images/providers/cloudflare.svg",
             
-            // 笔记供应商
-            "memos" => "/images/providers/memos.svg",
-            "notion" => "/images/providers/notion.svg",
-            "obsidian" => "/images/providers/obsidian.svg",
-
             _ => "/images/providers/default.svg"
         };
     }
@@ -171,11 +166,6 @@ public class LogoService : ILogoService
             "/images/providers/tencent.svg",
             "/images/providers/cloudflare.svg",
             "/images/providers/qiniu.svg",
-            
-            // 笔记系统
-            "/images/providers/memos.svg",
-            "/images/providers/notion.svg",
-            "/images/providers/obsidian.svg",
             
             // 默认图标
             "/images/providers/default.svg"

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using DevNexus.Domain.Models;
+using DevNexus.Shared.Constants;
 
 namespace DevNexus.Infrastructure.Services.LLM;
 
@@ -18,63 +19,9 @@ public partial class KernelService
     {
         try
         {
-            // 注册 WebSearchPlugin
-            if (!kernel.Plugins.TryGetPlugin("WebSearchPlugin", out _))
+            foreach (var tool in _toolCatalogService.GetCoreTools())
             {
-                var webSearchPlugin = _serviceProvider.GetService<WebSearchPlugin>();
-                if (webSearchPlugin != null)
-                {
-                    kernel.Plugins.AddFromObject(webSearchPlugin, "WebSearchPlugin");
-                    _logger.LogDebug("[AI.Kernel] Registered WebSearchPlugin");
-                }
-            }
-
-            // 注册笔记插件 (NotePlugin)
-            if (!kernel.Plugins.TryGetPlugin("NotePlugin", out _))
-            {
-                var notePlugin = _serviceProvider.GetService<NotePlugin>();
-                if (notePlugin != null)
-                {
-                    // 如果是会话级 Kernel，注入上下文（重要！）
-                    if (sessionId.HasValue && userId.HasValue)
-                    {
-                        notePlugin.SetContext(sessionId.Value, userId.Value);
-                        _logger.LogDebug("[AI.Kernel] Initialized NotePlugin context SessionId={SessionId} UserId={UserId}",
-                            sessionId, userId);
-                    }
-
-                    kernel.Plugins.AddFromObject(notePlugin, "NotePlugin");
-                    _logger.LogDebug("[AI.Kernel] Registered NotePlugin");
-                }
-            }
-
-            // 注册文生图插件 (ImageGenerationPlugin)
-            if (!kernel.Plugins.TryGetPlugin("ImageGeneration", out _))
-            {
-                var imageGenerationPlugin = _serviceProvider.GetService<ImageGenerationPlugin>();
-                if (imageGenerationPlugin != null)
-                {
-                    // 如果是会话级 Kernel，注入上下文
-                    if (sessionId.HasValue && userId.HasValue)
-                    {
-                        imageGenerationPlugin.SetContext(sessionId.Value, userId.Value);
-                        _logger.LogDebug("[AI.Kernel] Initialized ImageGenerationPlugin context SessionId={SessionId}", sessionId);
-                    }
-
-                    kernel.Plugins.AddFromObject(imageGenerationPlugin, "ImageGeneration");
-                    _logger.LogDebug("[AI.Kernel] Registered ImageGenerationPlugin");
-                }
-            }
-
-            // 注册代码执行插件 (CodeExecutionPlugin - Phase 3)
-            if (!kernel.Plugins.TryGetPlugin("CodeExecution", out _))
-            {
-                var codeExecPlugin = _serviceProvider.GetService<CodeExecutionPlugin>();
-                if (codeExecPlugin != null)
-                {
-                    kernel.Plugins.AddFromObject(codeExecPlugin, "CodeExecution");
-                    _logger.LogDebug("[AI.Kernel] Registered CodeExecutionPlugin");
-                }
+                RegisterCatalogPlugin(kernel, tool.PluginName, sessionId, userId);
             }
         }
         catch (Exception ex)
@@ -92,13 +39,13 @@ public partial class KernelService
     {
         try
         {
-            if (!kernel.Plugins.TryGetPlugin("KnowledgeBasePlugin", out _))
+            if (!kernel.Plugins.TryGetPlugin(AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin, out _))
             {
                 var kbService = _serviceProvider.GetRequiredService<IKnowledgeBaseService>();
                 var kbLogger = _serviceProvider.GetRequiredService<ILogger<KnowledgeBasePlugin>>();
 
                 var kbPlugin = new KnowledgeBasePlugin(kbService, kbLogger, userId);
-                kernel.Plugins.AddFromObject(kbPlugin, "KnowledgeBasePlugin");
+                kernel.Plugins.AddFromObject(kbPlugin, AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin);
 
                 _logger.LogDebug("[AI.Kernel] Registered KnowledgeBasePlugin for UserId={UserId}", userId);
             }
@@ -119,13 +66,13 @@ public partial class KernelService
         try
         {
             // 避免重复注册
-            if (kernel.Plugins.TryGetPlugin("HostService", out _))
+            if (kernel.Plugins.TryGetPlugin(AiOptimizationConstants.ToolProtocol.HostServicePlugin, out _))
                 return;
 
             var hostService = _serviceProvider.GetService<IHostStructuredService>();
             if (hostService != null)
             {
-                kernel.Plugins.AddFromObject(new HostTextPlugin(hostService), "HostService");
+                kernel.Plugins.AddFromObject(new HostTextPlugin(hostService), AiOptimizationConstants.ToolProtocol.HostServicePlugin);
                 _logger.LogDebug("[AI.Kernel] 已注册 HostService 全局 Plugin");
             }
         }
@@ -161,6 +108,13 @@ public partial class KernelService
         {
             foreach (var pluginName in match.Skill.Plugins)
             {
+                if (RegisterCatalogPlugin(kernel, pluginName, sessionId, userId))
+                {
+                    _logger.LogDebug("[AI.Kernel] 注册 Skill 目录 Plugin | Skill={Skill} Plugin={Plugin}",
+                        match.Skill.Name, pluginName);
+                    continue;
+                }
+
                 // 避免重复注册
                 if (kernel.Plugins.TryGetPlugin(pluginName, out _))
                     continue;
@@ -179,5 +133,59 @@ public partial class KernelService
                 }
             }
         }
+    }
+
+    private bool RegisterCatalogPlugin(
+        Kernel kernel,
+        string pluginName,
+        Guid? sessionId,
+        Guid? userId)
+    {
+        if (kernel.Plugins.TryGetPlugin(pluginName, out _))
+        {
+            return true;
+        }
+
+        switch (pluginName)
+        {
+            case AiOptimizationConstants.ToolProtocol.WebSearchPlugin:
+                return AddPluginFromService<WebSearchPlugin>(kernel, pluginName);
+            case AiOptimizationConstants.ToolProtocol.ImageGenerationPlugin:
+                var imageGenerationPlugin = _serviceProvider.GetService<ImageGenerationPlugin>();
+                if (imageGenerationPlugin == null)
+                {
+                    return false;
+                }
+
+                if (sessionId.HasValue && userId.HasValue)
+                {
+                    imageGenerationPlugin.SetContext(sessionId.Value, userId.Value);
+                    _logger.LogDebug("[AI.Kernel] Initialized ImageGenerationPlugin context SessionId={SessionId}", sessionId);
+                }
+
+                kernel.Plugins.AddFromObject(imageGenerationPlugin, pluginName);
+                return true;
+            case AiOptimizationConstants.ToolProtocol.CodeExecutionPlugin:
+                return AddPluginFromService<CodeExecutionPlugin>(kernel, pluginName);
+            case AiOptimizationConstants.ToolProtocol.HostServicePlugin:
+                RegisterHostServicePlugin(kernel);
+                return kernel.Plugins.TryGetPlugin(pluginName, out _);
+            default:
+                return false;
+        }
+    }
+
+    private bool AddPluginFromService<TPlugin>(Kernel kernel, string pluginName)
+        where TPlugin : class
+    {
+        var plugin = _serviceProvider.GetService<TPlugin>();
+        if (plugin == null)
+        {
+            return false;
+        }
+
+        kernel.Plugins.AddFromObject(plugin, pluginName);
+        _logger.LogDebug("[AI.Kernel] Registered {PluginName}", pluginName);
+        return true;
     }
 }

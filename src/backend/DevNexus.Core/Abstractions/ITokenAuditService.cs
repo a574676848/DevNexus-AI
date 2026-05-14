@@ -27,5 +27,10 @@ public interface ITokenAuditService
         string? errorCode = null,
         string? errorMessage = null,
         string meteringType = ModelInvocationMeteringTypes.Token,
-        decimal? meteringValue = null);
+        decimal? meteringValue = null,
+        int? cachedPromptTokens = null,
+        string? stablePrefixHash = null,
+        string? toolSchemaHash = null,
+        int? dynamicContextTokens = null,
+        int? historyTokens = null);
 }

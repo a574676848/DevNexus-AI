@@ -93,6 +93,31 @@ public sealed class TokenAuditContext
     /// LLM 提供商数据库主键 ID
     /// </summary>
     public Guid LLMProviderId { get; init; }
+
+    /// <summary>
+    /// Provider 返回的缓存命中输入 Token 数。
+    /// </summary>
+    public int? CachedPromptTokens { get; init; }
+
+    /// <summary>
+    /// 稳定 Prompt 前缀内容指纹。
+    /// </summary>
+    public string? StablePrefixHash { get; init; }
+
+    /// <summary>
+    /// 工具 Schema 与排序指纹。
+    /// </summary>
+    public string? ToolSchemaHash { get; init; }
+
+    /// <summary>
+    /// 动态上下文 Token 数。
+    /// </summary>
+    public int? DynamicContextTokens { get; init; }
+
+    /// <summary>
+    /// 历史消息 Token 数。
+    /// </summary>
+    public int? HistoryTokens { get; init; }
     
     private static readonly AsyncLocal<TokenAuditContext?> _current = new();
     

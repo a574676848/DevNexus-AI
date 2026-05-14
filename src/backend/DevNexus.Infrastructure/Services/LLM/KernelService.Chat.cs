@@ -28,7 +28,8 @@ public partial class KernelService
         IEnumerable<SkillMatchResult>? matchedSkills = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default,
         bool enableAutoFunctionCalling = true,
-        ModelInvocationScopeDto? auditScope = null)
+        ModelInvocationScopeDto? auditScope = null,
+        PromptOptimizationMetadataDto? promptMetadata = null)
     {
         var previousContext = TokenAuditContext.Current;
         Kernel kernel;
@@ -85,7 +86,8 @@ public partial class KernelService
             providerInfo?.ModelName ?? "unknown",
             providerInfo?.ProviderName ?? "unknown",
             providerInfo?.ProviderId ?? "unknown",
-            providerInfo?.LLMProviderId ?? Guid.Empty);
+            providerInfo?.LLMProviderId ?? Guid.Empty,
+            promptMetadata);
 
         var autoFunctionCallingEnabled = ShouldEnableAutoFunctionCalling(enableAutoFunctionCalling);
 
@@ -197,7 +199,8 @@ public partial class KernelService
         IEnumerable<SkillMatchResult>? matchedSkills = null,
         CancellationToken cancellationToken = default,
         bool enableAutoFunctionCalling = true,
-        ModelInvocationScopeDto? auditScope = null)
+        ModelInvocationScopeDto? auditScope = null,
+        PromptOptimizationMetadataDto? promptMetadata = null)
     {
         var previousContext = TokenAuditContext.Current;
         try
@@ -237,7 +240,11 @@ public partial class KernelService
                 ProviderType = ModelInvocationProviderTypes.Llm,
                 ProviderName = providerInfo?.ProviderName ?? "unknown",
                 ProviderId = providerInfo?.ProviderId ?? "unknown",
-                LLMProviderId = providerInfo?.LLMProviderId ?? Guid.Empty
+                LLMProviderId = providerInfo?.LLMProviderId ?? Guid.Empty,
+                StablePrefixHash = promptMetadata?.StablePrefixHash,
+                ToolSchemaHash = promptMetadata?.ToolSchemaHash,
+                DynamicContextTokens = promptMetadata?.DynamicContextTokens,
+                HistoryTokens = promptMetadata?.HistoryTokens
             };
             
             var result = await chatCompletion.GetChatMessageContentAsync(

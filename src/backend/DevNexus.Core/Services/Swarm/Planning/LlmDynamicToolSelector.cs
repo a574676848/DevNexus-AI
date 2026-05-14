@@ -32,8 +32,7 @@ public class LlmDynamicToolSelector : IDynamicToolSelector
         ["网络请求"] = new() { "WebSearch", "HttpRequest", "DownloadFile" },
         ["数据处理"] = new() { "ParseJson", "ParseXml", "TransformData" },
         ["版本控制"] = new() { "GitCommit", "GitPush", "GitPull", "GitStatus" },
-        ["图像生成"] = new() { "GenerateImage", "ImageAnalysis" },
-        ["笔记管理"] = new() { "CreateNote", "SearchNotes", "UpdateNote" }
+        ["图像生成"] = new() { "GenerateImage", "ImageAnalysis" }
     };
 
     public LlmDynamicToolSelector(
@@ -104,9 +103,9 @@ public class LlmDynamicToolSelector : IDynamicToolSelector
             case DomainType.Creative:
                 predictedCategories.AddRange(new[] { "图像生成", "文件操作" });
                 break;
-             case DomainType.OfficeWork:
-                 predictedCategories.AddRange(new[] { "笔记管理", "文件操作" });
-                 break;
+            case DomainType.OfficeWork:
+                predictedCategories.Add("文件操作");
+                break;
             default:
                 predictedCategories.AddRange(new[] { "文件操作", "网络请求" });
                 break;
@@ -121,9 +120,9 @@ public class LlmDynamicToolSelector : IDynamicToolSelector
         {
             predictedCategories.Add("图像生成");
         }
-        if (taskType.Contains("笔记") || taskType.Contains("文档"))
+        if (taskType.Contains("文档"))
         {
-            predictedCategories.Add("笔记管理");
+            predictedCategories.Add("文件操作");
         }
 
         // 合并所有预测的工具
@@ -154,8 +153,7 @@ public class LlmDynamicToolSelector : IDynamicToolSelector
             ["ListFiles"] = new[] { "列出", "查找文件", "list files", "遍历" },
             ["WebSearch"] = new[] { "搜索", "查询", "web search", "google", "bing" },
             ["GenerateImage"] = new[] { "生成图片", "图像生成", "generate image", "dall-e" },
-            ["GitCommit"] = new[] { "提交", "commit", "git提交" },
-            ["CreateNote"] = new[] { "创建笔记", "记录", "create note", "新建笔记" }
+            ["GitCommit"] = new[] { "提交", "commit", "git提交" }
         };
 
         foreach (var tool in availableTools)

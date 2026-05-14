@@ -35,7 +35,6 @@
 - `FileAssetsController` - `api/v1/file-assets`
 - `FileTasksController` - `api/v1/file-tasks`
 - `MemoryController` - `api/v1/memory`
-- `NoteController` - `api/v1/notes`
 
 ### 3.3 Provider 与模型能力
 
@@ -43,7 +42,6 @@
 - `EmbeddingProviderController` - `api/v1/providers/embedding`
 - `SearchProviderController` - `api/v1/providers/search`
 - `StorageProviderController` - `api/v1/providers/storage`
-- `NoteProviderController` - `api/v1/providers/note`
 - `ModelPricingController` - `api/v1/model-pricing`
 - `SkillController` - `api/v1/skill`
 
@@ -126,7 +124,6 @@
 - `EmbeddingProviderType`: `Doubao`, `OpenAI`, `Local`
 - `SearchProviderType`: `SearXNG`, `Tavily`, `JinaReader`, `Firecrawl`
 - `StorageProviderType`: `Local`, `AwsS3`, `AliyunOss`, `QiniuKodo`, `TencentCos`, `MinIO`, `CloudflareR2`, `S3Compatible`
-- `NoteProviderType`: `Memos`, `Notion`, `Obsidian`, `Custom`
 
 ## 7. 鉴权约定
 

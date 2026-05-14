@@ -74,7 +74,8 @@ public partial class KernelService
         string modelName,
         string providerName,
         string providerId,
-        Guid llmProviderId)
+        Guid llmProviderId,
+        PromptOptimizationMetadataDto? promptMetadata = null)
     {
         return new TokenAuditContext
         {
@@ -94,7 +95,11 @@ public partial class KernelService
             ProviderType = context.ProviderType,
             ProviderName = providerName,
             ProviderId = providerId,
-            LLMProviderId = llmProviderId
+            LLMProviderId = llmProviderId,
+            StablePrefixHash = promptMetadata?.StablePrefixHash ?? context.StablePrefixHash,
+            ToolSchemaHash = promptMetadata?.ToolSchemaHash ?? context.ToolSchemaHash,
+            DynamicContextTokens = promptMetadata?.DynamicContextTokens ?? context.DynamicContextTokens,
+            HistoryTokens = promptMetadata?.HistoryTokens ?? context.HistoryTokens
         };
     }
 }

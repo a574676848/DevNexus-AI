@@ -9,6 +9,7 @@ using DevNexus.Shared.Constants;
 using DevNexus.Shared.Enums;
 using DevNexus.Shared.DTOs;
 using DevNexus.Infrastructure.Services.CliTerminal;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Linq;
@@ -24,11 +25,8 @@ public partial class HostService : IHostStructuredService, ICliExecService
     private readonly IUserContextAccessor _userContextAccessor;
     private readonly IUserStoragePathService _userStoragePathService;
     private readonly ISkillRuntimePathResolver _skillRuntimePathResolver;
-    private readonly ICliExecutionPolicyService _cliExecutionPolicyService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IRuntimeEventNotifier _runtimeEventNotifier;
-    private readonly IPendingInteractionService _pendingInteractionService;
-    private readonly ICliExecCheckpointService _cliExecCheckpointService;
-    private readonly ICliExecSessionRepository _cliExecSessionRepository;
     private readonly ICliSandboxWarmPool _cliSandboxWarmPool;
     private readonly CliSessionManager _sessionManager;
     private readonly ITerminalNotifier _terminalNotifier;
@@ -38,11 +36,8 @@ public partial class HostService : IHostStructuredService, ICliExecService
         IUserContextAccessor userContextAccessor,
         IUserStoragePathService userStoragePathService,
         ISkillRuntimePathResolver skillRuntimePathResolver,
-        ICliExecutionPolicyService cliExecutionPolicyService,
+        IServiceScopeFactory serviceScopeFactory,
         IRuntimeEventNotifier runtimeEventNotifier,
-        IPendingInteractionService pendingInteractionService,
-        ICliExecCheckpointService cliExecCheckpointService,
-        ICliExecSessionRepository cliExecSessionRepository,
         ICliSandboxWarmPool cliSandboxWarmPool,
         ITerminalNotifier terminalNotifier,
         CliSessionManager sessionManager)
@@ -51,11 +46,8 @@ public partial class HostService : IHostStructuredService, ICliExecService
         _userContextAccessor = userContextAccessor;
         _userStoragePathService = userStoragePathService;
         _skillRuntimePathResolver = skillRuntimePathResolver;
-        _cliExecutionPolicyService = cliExecutionPolicyService;
+        _serviceScopeFactory = serviceScopeFactory;
         _runtimeEventNotifier = runtimeEventNotifier;
-        _pendingInteractionService = pendingInteractionService;
-        _cliExecCheckpointService = cliExecCheckpointService;
-        _cliExecSessionRepository = cliExecSessionRepository;
         _cliSandboxWarmPool = cliSandboxWarmPool;
         _terminalNotifier = terminalNotifier;
         _sessionManager = sessionManager;
@@ -103,8 +95,14 @@ public partial class HostService : IHostStructuredService, ICliExecService
             };
         }
 
-        var targetWd = _cliExecutionPolicyService.ResolveWorkingDirectory(userId.Value, workingDirectory);
-        var policy = await _cliExecutionPolicyService.EvaluateCommandAsync(
+        using var scope = _serviceScopeFactory.CreateScope();
+        var cliExecutionPolicyService = scope.ServiceProvider.GetRequiredService<ICliExecutionPolicyService>();
+        var pendingInteractionService = scope.ServiceProvider.GetRequiredService<IPendingInteractionService>();
+        var cliExecCheckpointService = scope.ServiceProvider.GetRequiredService<ICliExecCheckpointService>();
+        var cliExecSessionRepository = scope.ServiceProvider.GetRequiredService<ICliExecSessionRepository>();
+
+        var targetWd = cliExecutionPolicyService.ResolveWorkingDirectory(userId.Value, workingDirectory);
+        var policy = await cliExecutionPolicyService.EvaluateCommandAsync(
             userId.Value,
             publicSessionId,
             command,
@@ -137,6 +135,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         command,
                         arguments,
                         targetWd,
+                        cliExecSessionRepository,
                         cancellationToken);
 
                     var contextSnapshot = ChatExecutionContext.GetSnapshot();
@@ -162,7 +161,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         ErrorSummary = policy.Message
                     };
 
-                    var interaction = await _pendingInteractionService.CreateOrReuseAsync(
+                    var interaction = await pendingInteractionService.CreateOrReuseAsync(
                         parsedSessionId,
                         contextSnapshot.MessageId == Guid.Empty ? null : contextSnapshot.MessageId,
                         toolRecord,
@@ -250,7 +249,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
             var sessionId = BuildInternalCliSessionKey(userId.Value, publicSessionId);
             var lockKey = BuildCliLockKey(userId.Value, targetWd);
 
-            await _cliExecCheckpointService.CreateCheckpointIfNeededAsync(
+            await cliExecCheckpointService.CreateCheckpointIfNeededAsync(
                 userId.Value,
                 Guid.TryParse(publicSessionId, out var parsedCheckpointSessionId) ? parsedCheckpointSessionId : null,
                 sessionId,
@@ -277,7 +276,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
             var terminalStreamId = Guid.NewGuid();
             var toolCallId = contextSnapshot.ToolCallId;
 
-            await _cliExecSessionRepository.UpsertAsync(
+            await cliExecSessionRepository.UpsertAsync(
                 new CliExecSession
                 {
                     SessionKey = sessionId,
@@ -504,9 +503,10 @@ public partial class HostService : IHostStructuredService, ICliExecService
         string command,
         string arguments,
         string workingDirectory,
+        ICliExecSessionRepository cliExecSessionRepository,
         CancellationToken cancellationToken)
     {
-        await _cliExecSessionRepository.UpsertAsync(
+        await cliExecSessionRepository.UpsertAsync(
             new CliExecSession
             {
                 UserId = userId,

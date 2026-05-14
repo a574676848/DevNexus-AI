@@ -71,6 +71,18 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
                 InputTokens = record.InputTokens,
                 OutputTokens = record.OutputTokens,
                 TotalTokens = totalTokens,
+                CachedPromptTokens = record.CachedPromptTokens,
+                StablePrefixHash = record.StablePrefixHash,
+                ToolSchemaHash = record.ToolSchemaHash,
+                DynamicContextTokens = record.DynamicContextTokens,
+                HistoryTokens = record.HistoryTokens,
+                ToolName = record.ToolName,
+                ToolArgumentsValid = record.ToolArgumentsValid,
+                ToolFailureReason = record.ToolFailureReason,
+                ToolSuggestedAction = record.ToolSuggestedAction,
+                ToolRetryable = record.ToolRetryable,
+                ToolRequiresHumanIntervention = record.ToolRequiresHumanIntervention,
+                ToolExitCode = record.ToolExitCode,
                 MeteringValue = record.MeteringValue ?? totalTokens,
                 DurationMs = record.DurationMs,
                 Cost = record.Cost ?? cost,
@@ -151,6 +163,90 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
     public Task<AuditDictionaryDto> GetAuditDictionaryAsync(CancellationToken cancellationToken = default)
     {
         return GetAuditDictionaryInternalAsync(cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _dbContext.ModelInvocationAudits.AsNoTracking();
+        var startUtc = EnsureUtc(startDate);
+        var endUtc = EnsureUtc(endDate);
+
+        if (startUtc.HasValue)
+        {
+            query = query.Where(item => item.CreatedAt >= startUtc.Value);
+        }
+
+        if (endUtc.HasValue)
+        {
+            var endOfDay = endUtc.Value.Date.AddDays(1);
+            query = query.Where(item => item.CreatedAt < endOfDay);
+        }
+
+        var totalInputTokens = await query.SumAsync(item => (long)(item.InputTokens ?? 0), cancellationToken);
+        var cachedPromptTokens = await query.SumAsync(item => (long)(item.CachedPromptTokens ?? 0), cancellationToken);
+        var stablePrefixTrackedRequests = await query.CountAsync(
+            item => item.StablePrefixHash != null && item.StablePrefixHash != string.Empty,
+            cancellationToken);
+        var toolSchemaTrackedRequests = await query.CountAsync(
+            item => item.ToolSchemaHash != null && item.ToolSchemaHash != string.Empty,
+            cancellationToken);
+
+        var toolQuery = query.Where(item => item.InvocationKind == ModelInvocationKinds.FunctionCall && item.ToolName != null);
+        var toolCallCount = await toolQuery.CountAsync(cancellationToken);
+        var toolSuccessCount = await toolQuery.CountAsync(item => item.IsSuccess, cancellationToken);
+        var toolArgumentValidCount = await toolQuery.CountAsync(item => item.ToolArgumentsValid == true, cancellationToken);
+        var toolRetryableFailureCount = await toolQuery.CountAsync(item => !item.IsSuccess && item.ToolRetryable == true, cancellationToken);
+        var toolHumanInterventionCount = await toolQuery.CountAsync(item => item.ToolRequiresHumanIntervention == true, cancellationToken);
+
+        var dashboard = new AiOptimizationDashboardDto
+        {
+            TotalInputTokens = totalInputTokens,
+            CachedPromptTokens = cachedPromptTokens,
+            CacheHitRatio = totalInputTokens > 0 ? (double)cachedPromptTokens / totalInputTokens : 0,
+            StablePrefixTrackedRequests = stablePrefixTrackedRequests,
+            ToolSchemaTrackedRequests = toolSchemaTrackedRequests,
+            ToolCallCount = toolCallCount,
+            ToolSuccessCount = toolSuccessCount,
+            ToolFailureCount = toolCallCount - toolSuccessCount,
+            ToolSuccessRate = toolCallCount > 0 ? (double)toolSuccessCount / toolCallCount : 0,
+            ToolArgumentValidCount = toolArgumentValidCount,
+            ToolRetryableFailureCount = toolRetryableFailureCount,
+            ToolHumanInterventionCount = toolHumanInterventionCount
+        };
+
+        dashboard.ToolStats = await toolQuery
+            .GroupBy(item => item.ToolName!)
+            .Select(group => new ToolInvocationStatsDto
+            {
+                ToolName = group.Key,
+                RequestCount = group.Count(),
+                SuccessCount = group.Count(item => item.IsSuccess),
+                FailureCount = group.Count(item => !item.IsSuccess),
+                SuccessRate = group.Count() > 0 ? (double)group.Count(item => item.IsSuccess) / group.Count() : 0,
+                AverageDurationMs = group.Average(item => (double)item.DurationMs)
+            })
+            .OrderByDescending(item => item.RequestCount)
+            .Take(20)
+            .ToListAsync(cancellationToken);
+
+        dashboard.ToolFailureReasonStats = await toolQuery
+            .Where(item => !item.IsSuccess && item.ToolFailureReason != null)
+            .GroupBy(item => item.ToolFailureReason!)
+            .Select(group => new AuditBreakdownDto
+            {
+                Code = group.Key,
+                DisplayName = group.Key,
+                RequestCount = group.Count(),
+                FailedCount = group.Count()
+            })
+            .OrderByDescending(item => item.RequestCount)
+            .ToListAsync(cancellationToken);
+
+        return dashboard;
     }
 
     /// <inheritdoc />
@@ -344,6 +440,18 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
                 InputTokens = t.InputTokens,
                 OutputTokens = t.OutputTokens,
                 TotalTokens = t.TotalTokens,
+                CachedPromptTokens = t.CachedPromptTokens,
+                StablePrefixHash = t.StablePrefixHash,
+                ToolSchemaHash = t.ToolSchemaHash,
+                DynamicContextTokens = t.DynamicContextTokens,
+                HistoryTokens = t.HistoryTokens,
+                ToolName = t.ToolName,
+                ToolArgumentsValid = t.ToolArgumentsValid,
+                ToolFailureReason = t.ToolFailureReason,
+                ToolSuggestedAction = t.ToolSuggestedAction,
+                ToolRetryable = t.ToolRetryable,
+                ToolRequiresHumanIntervention = t.ToolRequiresHumanIntervention,
+                ToolExitCode = t.ToolExitCode,
                 MeteringValue = t.MeteringValue,
                 DurationMs = t.DurationMs,
                 Cost = t.Cost,
@@ -445,6 +553,18 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
                 InputTokens = t.InputTokens,
                 OutputTokens = t.OutputTokens,
                 TotalTokens = t.TotalTokens,
+                CachedPromptTokens = t.CachedPromptTokens,
+                StablePrefixHash = t.StablePrefixHash,
+                ToolSchemaHash = t.ToolSchemaHash,
+                DynamicContextTokens = t.DynamicContextTokens,
+                HistoryTokens = t.HistoryTokens,
+                ToolName = t.ToolName,
+                ToolArgumentsValid = t.ToolArgumentsValid,
+                ToolFailureReason = t.ToolFailureReason,
+                ToolSuggestedAction = t.ToolSuggestedAction,
+                ToolRetryable = t.ToolRetryable,
+                ToolRequiresHumanIntervention = t.ToolRequiresHumanIntervention,
+                ToolExitCode = t.ToolExitCode,
                 MeteringValue = t.MeteringValue,
                 DurationMs = t.DurationMs,
                 Cost = t.Cost,

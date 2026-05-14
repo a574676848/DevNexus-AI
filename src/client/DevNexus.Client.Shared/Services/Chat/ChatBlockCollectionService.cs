@@ -135,61 +135,7 @@ public sealed class ChatBlockCollectionService
                 return;
             }
 
-            var toolNameStr = toolName?.ToString() ?? string.Empty;
-            if (!toolNameStr.Contains("NotePlugin-CreateNoteWithAttachmentsAsync"))
-            {
-                UpsertToolResultBlock(currentBlocks, block, existingIndex);
-                return;
-            }
-
-            using var doc = JsonDocument.Parse(block.Content);
-            var root = doc.RootElement;
-
-            var isSuccess = root.TryGetProperty("success", out var successElement)
-                && successElement.GetBoolean();
-
-            string? noteUrl = null;
-            var message = string.Empty;
-
-            if (root.TryGetProperty("noteUrl", out var urlElement) && !string.IsNullOrEmpty(urlElement.GetString()))
-            {
-                noteUrl = urlElement.GetString();
-            }
-
-            if (root.TryGetProperty("message", out var msgElement))
-            {
-                message = msgElement.GetString() ?? string.Empty;
-            }
-
-            var cardBlock = new BlockDto
-            {
-                BlockId = Guid.NewGuid(),
-                SessionId = block.SessionId,
-                MessageId = block.MessageId,
-                BlockType = BlockType.InteractiveCard,
-                Content = string.Empty,
-                Metadata = new Dictionary<string, object>
-                {
-                    [ToolBlockMetadataConstants.CardType] = isSuccess
-                        ? ToolBlockMetadataConstants.CardTypeNoteCreated
-                        : ToolBlockMetadataConstants.CardTypeNoteError,
-                    [ToolBlockMetadataConstants.Title] = isSuccess ? "✅ 笔记已创建" : "❌ 笔记创建失败",
-                    [ToolBlockMetadataConstants.Message] = message
-                }
-            };
-
-            if (isSuccess && !string.IsNullOrEmpty(noteUrl))
-            {
-                cardBlock.Metadata[ToolBlockMetadataConstants.ActionText] = ToolBlockMetadataConstants.ActionTextViewNote;
-                cardBlock.Metadata[ToolBlockMetadataConstants.ActionUrl] = noteUrl;
-            }
-
-            if (existingIndex >= 0)
-            {
-                currentBlocks.RemoveAt(existingIndex);
-            }
-
-            currentBlocks.Add(cardBlock);
+            UpsertToolResultBlock(currentBlocks, block, existingIndex);
         }
         catch (Exception ex)
         {

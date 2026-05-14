@@ -41,25 +41,10 @@
 
                 @if (!string.IsNullOrEmpty(SelectedIntegrationType))
                 {
-                    @if (SelectedIntegrationType == nameof(IntegrationType.NoteSystem) && NoteProviders.Any())
-                    {
-                        <div class="form-section">
-                            <label class="form-label">笔记供应商</label>
-                            <select class="form-select" @onchange="OnProviderIdChangedHandler">
-                                <option value="" selected="@(string.IsNullOrEmpty(SelectedProviderId))">选择已配置的供应商（可选）</option>
-                                @foreach (var provider in NoteProviders)
-                                {
-                                    <option value="@provider.Id" selected="@(SelectedProviderId == provider.Id.ToString())">@provider.DisplayName (@provider.Type)</option>
-                                }
-                            </select>
-                            <span class="form-hint">选择管理员配置的笔记供应商，或自定义端点</span>
-                        </div>
-                    }
-
                     <div class="form-section">
                         <label class="form-label">显示名称 <span class="required">*</span></label>
                         <input type="text" class="form-input" @bind="NewIntegration.DisplayName"
-                               placeholder="例如: 我的笔记" />
+                               placeholder="例如: GitHub 工作区" />
                     </div>
 
                     <div class="form-section">
@@ -155,9 +140,6 @@
 
     [Parameter]
     public List<UserListItem> AvailableUsers { get; set; } = new();
-
-    [Parameter]
-    public List<NoteProviderResponse> NoteProviders { get; set; } = new();
 
     [Parameter]
     public CreateUserIntegrationRequest NewIntegration { get; set; } = new();

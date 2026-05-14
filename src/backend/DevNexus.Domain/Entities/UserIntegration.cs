@@ -20,7 +20,7 @@ public class UserIntegration : AuditableEntity
     public IntegrationType IntegrationType { get; set; }
 
     /// <summary>
-    /// 关联的供应商 ID（如 NoteProviderId）
+    /// 关联的供应商 ID。
     /// 可为空，对于不需要全局配置的集成
     /// </summary>
     public Guid? ProviderId { get; set; }

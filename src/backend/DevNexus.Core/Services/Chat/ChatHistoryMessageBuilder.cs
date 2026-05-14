@@ -8,16 +8,16 @@ namespace DevNexus.Core.Services.Chat;
 public sealed class ChatHistoryMessageBuilder
 {
     private readonly IChatMessageRepository _chatMessageRepository;
-    private readonly ChatHistorySummaryService _summaryService;
+    private readonly ISessionSummaryService _sessionSummaryService;
     private readonly ILogger<ChatHistoryMessageBuilder> _logger;
 
     public ChatHistoryMessageBuilder(
         IChatMessageRepository chatMessageRepository,
-        ChatHistorySummaryService summaryService,
+        ISessionSummaryService sessionSummaryService,
         ILogger<ChatHistoryMessageBuilder> logger)
     {
         _chatMessageRepository = chatMessageRepository;
-        _summaryService = summaryService;
+        _sessionSummaryService = sessionSummaryService;
         _logger = logger;
     }
 
@@ -146,11 +146,11 @@ public sealed class ChatHistoryMessageBuilder
         try
         {
             var targetChars = Math.Max(500, olderContent.Length / 3);
-            var summary = await _summaryService.GetOrGenerateSummaryAsync(
-                olderContent.ToString(),
-                targetChars,
+            var summary = await _sessionSummaryService.GetOrCreateSummaryAsync(
                 sessionId,
                 providerId.Value,
+                olderContent.ToString(),
+                targetChars,
                 cancellationToken);
 
             if (string.IsNullOrWhiteSpace(summary))
@@ -161,7 +161,7 @@ public sealed class ChatHistoryMessageBuilder
             var summaryMessage = $"[对话历史摘要]\n以下是本次对话早期内容的摘要，供参考：\n{summary}";
             var summaryTokens = ChatHistoryTextHelper.EstimateTokenCount(summaryMessage);
 
-            chatHistory.AddUserMessage(summaryMessage);
+            chatHistory.AddSystemMessage(summaryMessage);
             remainingBudget -= summaryTokens;
 
             _logger.LogDebug(

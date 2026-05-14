@@ -2,6 +2,7 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using DevNexus.Core.Models;
 using DevNexus.Domain.Models;
+using DevNexus.Shared.DTOs;
 
 namespace DevNexus.Core.Abstractions;
 
@@ -54,7 +55,8 @@ public interface IKernelService
         IEnumerable<SkillMatchResult>? matchedSkills = null,
         CancellationToken cancellationToken = default,
         bool enableAutoFunctionCalling = true,
-        ModelInvocationScopeDto? auditScope = null);
+        ModelInvocationScopeDto? auditScope = null,
+        PromptOptimizationMetadataDto? promptMetadata = null);
 
     /// <summary>
     /// 非流式聊天完成（带 Token 审计）
@@ -68,7 +70,8 @@ public interface IKernelService
         IEnumerable<SkillMatchResult>? matchedSkills = null,
         CancellationToken cancellationToken = default,
         bool enableAutoFunctionCalling = true,
-        ModelInvocationScopeDto? auditScope = null);
+        ModelInvocationScopeDto? auditScope = null,
+        PromptOptimizationMetadataDto? promptMetadata = null);
 
     /// <summary>
     /// Vision 聊天完成（支持图片消息）

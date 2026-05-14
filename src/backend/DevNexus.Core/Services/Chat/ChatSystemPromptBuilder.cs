@@ -13,6 +13,7 @@ public sealed class ChatSystemPromptBuilder
         public string? CriticalPrompt { get; set; }
         public int MaxContextTokens { get; set; }
         public List<SkillMatchResult>? MatchedSkills { get; set; }
+        public PromptLayerMetadata? LayerMetadata { get; set; }
     }
 
     private readonly ChatPromptService _chatPromptService;
@@ -76,29 +77,48 @@ public sealed class ChatSystemPromptBuilder
             userTempPath,
             userProjectPath);
 
-        await AppendMemoryContextAsync(systemPromptBuilder, userId, currentMessage, cancellationToken);
-        AppendToolSelectionContext(systemPromptBuilder, requestMetadata);
-        await AppendPendingInteractionContextAsync(systemPromptBuilder, requestMetadata, cancellationToken);
+        systemPromptBuilder.AppendLine();
+        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.AutonomousWorkflowPrompt);
+        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.ToolUsageBestPractices);
+
+        var stablePrefix = systemPromptBuilder.ToString();
+        var dynamicContextBuilder = new StringBuilder();
+
+        await AppendMemoryContextAsync(dynamicContextBuilder, userId, currentMessage, cancellationToken);
+        AppendToolSelectionContext(dynamicContextBuilder, requestMetadata);
+        await AppendPendingInteractionContextAsync(dynamicContextBuilder, requestMetadata, cancellationToken);
         var matchedSkills = await AppendSkillContextAsync(
-            systemPromptBuilder,
+            dynamicContextBuilder,
             sessionId,
             userId,
             currentMessage,
             selectedSkillName,
             cancellationToken);
 
-        systemPromptBuilder.AppendLine();
-        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.AutonomousWorkflowPrompt);
-        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.ToolUsageBestPractices);
+        await AppendSessionMemoryIndexAsync(dynamicContextBuilder, userId, sessionId, cancellationToken);
 
-        await AppendSessionMemoryIndexAsync(systemPromptBuilder, userId, sessionId, cancellationToken);
+        var dynamicContext = dynamicContextBuilder.ToString();
+        if (!string.IsNullOrWhiteSpace(dynamicContext))
+        {
+            systemPromptBuilder.Append(dynamicContext);
+        }
 
         return new ChatSystemPromptBuildResult
         {
             Prompt = systemPromptBuilder.ToString(),
             CriticalPrompt = criticalSystemPrompt,
             MaxContextTokens = maxContextTokens,
-            MatchedSkills = matchedSkills
+            MatchedSkills = matchedSkills,
+            LayerMetadata = new PromptLayerMetadata
+            {
+                StablePrefix = stablePrefix,
+                StablePrefixHash = PromptFingerprint.ComputeHash(stablePrefix),
+                DynamicContext = dynamicContext,
+                DynamicContextTokens = ChatHistoryService.EstimateTokenCount(dynamicContext),
+                SkillInstructionHash = string.IsNullOrWhiteSpace(dynamicContext)
+                    ? null
+                    : PromptFingerprint.ComputeHash(dynamicContext)
+            }
         };
     }
 
@@ -353,12 +373,6 @@ public sealed class ChatSystemPromptBuilder
 
         switch (toolId)
         {
-            case "notes-management":
-                systemPromptBuilder.AppendLine(
-                    "用户显式选择了笔记管理工具。请优先调用 NotePlugin 完成检索、归纳、写入或整理任务，输出时要明确说明执行了哪些笔记操作。\n" +
-                    "如果用户需求不完整，请先补足最少必要信息，再执行笔记写入。\n" +
-                    "如果是搜索笔记，请先返回命中的关键信息摘要，再给出后续建议。");
-                break;
             case "web-search":
                 systemPromptBuilder.AppendLine(
                     "用户显式选择了网络搜索工具。请优先调用 WebSearchPlugin 执行联网检索，并在必要时继续读取网页正文。\n" +

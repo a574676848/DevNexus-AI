@@ -30,6 +30,11 @@ public interface IAuditAnalyticsReadService
         string? status = null,
         CancellationToken cancellationToken = default);
 
+    Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
+        DateTime? startDate = null,
+        DateTime? endDate = null,
+        CancellationToken cancellationToken = default);
+
     Task<List<TokenUsageDto>> GetUsageRecordsAsync(
         Guid? userId = null,
         DateTime? startDate = null,

@@ -12,6 +12,16 @@ namespace DevNexus.Client.Shared.Components.Pages.Analytics;
 /// </summary>
 public partial class AuditDashboard : IDisposable
 {
+    private const string AuditViewMine = "mine";
+    private const string AuditViewSystem = "system";
+    private const string AuditViewAiOptimization = "ai";
+    private const string AuditViewDetail = "detail";
+    private const string AuditViewTabClass = "audit-view-tab";
+    private const string ActiveAuditViewTabClass = "audit-view-tab active";
+    private const string CustomPeriod = "custom";
+    private const string DefaultPeriodDays = "30";
+    private const int DefaultPeriodDayCount = 30;
+
     [Parameter] public Guid? TargetUserId { get; set; }
 
     private bool IsAdmin => TargetUserId == null && UserStateService.CurrentUser?.Roles?.Any(r => r.Equals("Admin", StringComparison.OrdinalIgnoreCase)) == true;
@@ -20,12 +30,12 @@ public partial class AuditDashboard : IDisposable
     private bool isLoading = true;
     private bool hasError;
     private string errorMessage = string.Empty;
-    private string selectedPeriod = "30";
+    private string selectedPeriod = DefaultPeriodDays;
     private AuditDictionaryDto auditDictionary = new();
     private string selectedOwnerType = string.Empty;
     private string selectedSceneCode = string.Empty;
     private string selectedStatus = string.Empty;
-    private string selectedAuditView = "mine";
+    private string selectedAuditView = AuditViewMine;
     private DateTime? startDate;
     private DateTime? endDate;
     private bool shouldRenderCharts;
@@ -41,19 +51,21 @@ public partial class AuditDashboard : IDisposable
 
     private TokenUsageStatsDto adminStats = new();
     private AuditDashboardDto adminDashboard = new();
+    private AiOptimizationDashboardDto aiOptimizationDashboard = new();
     private List<ProviderUsageStatsDto> providerStats = new();
     private List<UserRankingDto> userRanking = new();
     private PagedResult<TokenUsageDetailedDto> allRecords = new();
     private int adminCurrentPage = 1;
     private const int AdminPageSize = 5;
 
-    private bool ShowAdminView => IsAdmin && selectedAuditView is "system" or "detail";
+    private bool ShowAiOptimizationView => IsAdmin && selectedAuditView == AuditViewAiOptimization;
+    private bool ShowAdminView => IsAdmin && selectedAuditView is AuditViewSystem or AuditViewDetail;
 
     protected override async Task OnInitializedAsync()
     {
         UserStateService.OnUserChanged += HandleUserChanged;
         SetDefaultDates();
-        selectedAuditView = IsAdmin ? "system" : "mine";
+        selectedAuditView = IsAdmin ? AuditViewSystem : AuditViewMine;
         await LoadDataAsync();
     }
 
@@ -98,12 +110,12 @@ public partial class AuditDashboard : IDisposable
         endDate = DateTime.Today;
         startDate = int.TryParse(selectedPeriod, out var days)
             ? DateTime.Today.AddDays(-days)
-            : DateTime.Today.AddDays(-30);
+            : DateTime.Today.AddDays(-DefaultPeriodDayCount);
     }
 
     private async Task OnPeriodChanged()
     {
-        if (selectedPeriod != "custom")
+        if (selectedPeriod != CustomPeriod)
         {
             SetDefaultDates();
             await LoadDataAsync();
@@ -124,7 +136,11 @@ public partial class AuditDashboard : IDisposable
                 auditDictionary = await ApiService.GetAuditDictionaryAsync();
             }
 
-            if (ShowAdminView)
+            if (ShowAiOptimizationView)
+            {
+                await LoadAiOptimizationDataAsync();
+            }
+            else if (ShowAdminView)
             {
                 await LoadAdminDataAsync();
             }
@@ -267,7 +283,7 @@ public partial class AuditDashboard : IDisposable
                 null,
                 selectedStatus);
             var providerTask = ApiService.GetProviderStatsAsync(startDate, endDate);
-            var rankingTask = selectedAuditView == "detail"
+            var rankingTask = selectedAuditView == AuditViewDetail
                 ? Task.FromResult(new List<UserRankingDto>())
                 : ApiService.GetUserRankingAsync(startDate, endDate, 10);
             var recordsTask = ApiService.GetDetailedUsageRecordsAsync(
@@ -307,10 +323,24 @@ public partial class AuditDashboard : IDisposable
         }
     }
 
+    private async Task LoadAiOptimizationDataAsync()
+    {
+        try
+        {
+            aiOptimizationDashboard = await ApiService.GetAiOptimizationDashboardAsync(startDate, endDate);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载 AI 优化看板失败");
+            aiOptimizationDashboard = new();
+            throw;
+        }
+    }
+
     private async Task SwitchAuditView(string view)
     {
         selectedAuditView = view;
-        if (view == "mine")
+        if (view == AuditViewMine)
         {
             selectedOwnerType = string.Empty;
         }
@@ -320,7 +350,7 @@ public partial class AuditDashboard : IDisposable
 
     private string GetViewTabClass(string view)
     {
-        return selectedAuditView == view ? "audit-view-tab active" : "audit-view-tab";
+        return selectedAuditView == view ? ActiveAuditViewTabClass : AuditViewTabClass;
     }
 
     private string GetOwnerLabel(string ownerType)
@@ -569,6 +599,21 @@ public partial class AuditDashboard : IDisposable
     }
 
     private static string FormatNumber(int number) => FormatNumber((long)number);
+
+    private static string FormatPercent(double value)
+    {
+        return $"{value:P1}";
+    }
+
+    private string FormatFailureReasonRatio(int requestCount)
+    {
+        if (aiOptimizationDashboard.ToolFailureCount <= 0)
+        {
+            return "0.0%";
+        }
+
+        return FormatPercent((double)requestCount / aiOptimizationDashboard.ToolFailureCount);
+    }
 
     private static string GetTrendIcon(string trend)
     {

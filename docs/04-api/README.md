@@ -19,7 +19,6 @@
 - `ChatController`
 - `ArtifactController`
 - `MemoryController`
-- `NoteController`
 - `StorageController`
 
 ### 3. 文件资产与任务
@@ -32,7 +31,6 @@
 - `EmbeddingProviderController`
 - `SearchProviderController`
 - `StorageProviderController`
-- `NoteProviderController`
 - `ModelPricingController`
 - `SkillController`
 

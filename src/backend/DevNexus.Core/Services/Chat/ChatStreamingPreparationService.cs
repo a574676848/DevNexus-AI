@@ -29,6 +29,11 @@ public sealed class ChatStreamingPreparationResult
     /// 匹配到的技能结果。
     /// </summary>
     public List<SkillMatchResult>? MatchedSkills { get; init; }
+
+    /// <summary>
+    /// Prompt 优化审计元数据。
+    /// </summary>
+    public PromptLayerMetadata? PromptLayerMetadata { get; init; }
 }
 
 /// <summary>
@@ -92,7 +97,8 @@ public sealed class ChatStreamingPreparationService
             ProviderId = providerId,
             UserQuery = userQuery,
             ChatHistory = historyResult.ChatHistory,
-            MatchedSkills = historyResult.MatchedSkills
+            MatchedSkills = historyResult.MatchedSkills,
+            PromptLayerMetadata = historyResult.PromptLayerMetadata
         };
     }
 

@@ -24,9 +24,6 @@ public partial class UserIntegrationsPanel
     public List<UserListItem> AvailableUsers { get; set; } = new();
 
     [Parameter]
-    public List<NoteProviderResponse> NoteProviders { get; set; } = new();
-
-    [Parameter]
     public EventCallback OnRefresh { get; set; }
 
     // 对话框状态
@@ -109,7 +106,6 @@ public partial class UserIntegrationsPanel
 
             NewIntegration.AuthType = type switch
             {
-                IntegrationType.NoteSystem => IntegrationAuthType.ApiToken,
                 IntegrationType.CodeRepository => IntegrationAuthType.ApiToken,
                 IntegrationType.CloudStorage => IntegrationAuthType.ApiKeySecret,
                 _ => IntegrationAuthType.ApiToken
@@ -149,19 +145,6 @@ public partial class UserIntegrationsPanel
             if (IsAdmin && Guid.TryParse(SelectedUserId, out var targetUserId))
             {
                 NewIntegration.UserId = targetUserId;
-            }
-
-            if (Guid.TryParse(SelectedProviderId, out var providerId))
-            {
-                var provider = NoteProviders.FirstOrDefault(p => p.Id == providerId);
-                if (provider != null)
-                {
-                    NewIntegration.ProviderId = provider.Id;
-                    if (string.IsNullOrEmpty(NewIntegration.Endpoint))
-                    {
-                        NewIntegration.Endpoint = provider.Endpoint;
-                    }
-                }
             }
 
             await ApiService.CreateIntegrationAsync(NewIntegration);
@@ -339,7 +322,6 @@ public partial class UserIntegrationsPanel
     // Display name helpers
     protected static string GetIntegrationTypeDisplayName(IntegrationType type) => type switch
     {
-        IntegrationType.NoteSystem => "笔记系统",
         IntegrationType.CodeRepository => "代码仓库",
         IntegrationType.CloudStorage => "云存储",
         IntegrationType.ProjectManagement => "项目管理",

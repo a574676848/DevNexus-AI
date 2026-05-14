@@ -81,32 +81,6 @@ public enum StorageProviderType
 }
 
 /// <summary>
-/// 笔记系统供应商类型
-/// </summary>
-public enum NoteProviderType
-{
-    /// <summary>
-    /// Memos - 开源笔记系统
-    /// </summary>
-    Memos = 1,
-    
-    /// <summary>
-    /// Notion - 企业级协作平台
-    /// </summary>
-    Notion = 2,
-    
-    /// <summary>
-    /// Obsidian - 本地知识库
-    /// </summary>
-    Obsidian = 3,
-    
-    /// <summary>
-    /// 其他自定义笔记系统
-    /// </summary>
-    Custom = 99
-}
-
-/// <summary>
 /// 验证状态
 /// </summary>
 public enum ValidationStatus

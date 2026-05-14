@@ -152,18 +152,6 @@
                 <div class="menu-divider"></div>
             }
 
-            @* 笔记系统入口 (所有用户) *@
-            <div class="menu-section">
-                <button class="menu-item" @onclick="OpenNotes">
-                    <i class="fa-solid fa-book menu-icon text-primary"></i>
-                    <span class="menu-text">打开笔记系统</span>
-                    <i class="fa-solid fa-arrow-up-right-from-square menu-arrow"></i>
-                </button>
-            </div>
-
-            @* 分隔线 *@
-            <div class="menu-divider"></div>
-
             @* 预留功能区域 *@
             <div class="menu-section">
                 @* 模型定价管理 (仅管理员) *@
@@ -243,64 +231,6 @@
         
         await Close();
         WindowService.OpenWebWindow(url, "Seq 日志");
-    }
-
-    /// <summary>
-    /// 打开笔记系统
-    /// </summary>
-    private async Task OpenNotes()
-    {
-        try
-        {
-            string? url = null;
-
-            // 优先尝试从用户的默认笔记集成获取
-            try
-            {
-                var userIntegrations = await ApiService.GetUserIntegrationsAsync();
-                var defaultNoteIntegration = userIntegrations
-                    .Where(i => i.IntegrationType == IntegrationType.NoteSystem && i.IsDefault && i.IsActive)
-                    .FirstOrDefault();
-
-                if (defaultNoteIntegration?.ProviderId.HasValue == true)
-                {
-                    var provider = await ApiService.GetProviderByIdAsync(defaultNoteIntegration.ProviderId.Value);
-                    url = provider?.Endpoint;
-                }
-            }
-            catch
-            {
-                // 如果获取用户集成失败，继续尝试其他方式
-            }
-
-            // 如果没有用户集成，尝试从服务器信息获取
-            if (string.IsNullOrEmpty(url))
-            {
-                await EnsureServerInfoLoaded();
-                url = serverInfo?.NotesUrl;
-            }
-
-            // 如果服务器信息中没有，尝试从默认供应商获取
-            if (string.IsNullOrEmpty(url))
-            {
-                var defaultProvider = await ApiService.GetDefaultProviderAsync();
-                url = defaultProvider?.Endpoint;
-            }
-
-            if (string.IsNullOrEmpty(url))
-            {
-                // 没有配置任何笔记供应商
-                url = "about:blank"; // 或显示提示信息
-            }
-
-            await Close();
-            WindowService.OpenWebWindow(url, "笔记系统");
-        }
-        catch
-        {
-            // 静默处理
-            await Close();
-        }
     }
 
     /// <summary>

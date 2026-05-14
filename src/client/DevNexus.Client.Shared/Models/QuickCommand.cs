@@ -79,24 +79,6 @@ public static class QuickCommands
     {
         new()
         {
-            Command = "/notes",
-            Name = "笔记管理",
-            Description = "搜索、沉淀、整理或写入你的笔记内容。",
-            Template = "请帮我处理笔记相关任务：\n- 目标：\n- 关键内容：\n- 期望结果：",
-            Category = "knowledge",
-            CategoryName = "知识与研究",
-            CategoryIcon = "fa-solid fa-book-open",
-            Icon = "fa-solid fa-note-sticky",
-            ActionLabel = "启用笔记工具",
-            Placeholder = "笔记工具已就绪，输入要检索、整理或保存的内容",
-            Metadata = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["toolId"] = "notes-management",
-                ["toolDisplayName"] = "笔记管理"
-            }
-        },
-        new()
-        {
             Command = "/search",
             Name = "网络搜索",
             Description = "联网检索并在需要时继续读取网页正文。",

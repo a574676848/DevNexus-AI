@@ -17,8 +17,6 @@
 - Embedding Provider：`Doubao`、`OpenAI`、`Local`。
 - Search Provider：`SearXNG`、`Tavily`、`JinaReader`、`Firecrawl`。
 - Storage Provider：`Local`、`AwsS3`、`AliyunOss`、`QiniuKodo`、`TencentCos`、`MinIO`、`CloudflareR2`、`S3Compatible`。
-- Note Provider：`Memos`、`Notion`、`Obsidian`、`Custom`。
-
 Provider 密钥通过 `IEncryptionService` 加密存储，运行时由对应 Factory 或管理服务解析。
 
 ## 文档语义摄取

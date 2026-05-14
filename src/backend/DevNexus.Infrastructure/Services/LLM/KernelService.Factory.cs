@@ -34,9 +34,6 @@ public partial class KernelService
             _defaultKernel = builder.Build();
             RegisterPlugins(_defaultKernel);
             
-            // 显式注册 HostService 插件 (允许 LLM 执行命令/文件操作)
-            RegisterHostServicePlugin(_defaultKernel);
-
             _logger.LogDebug(
                 "[AI.Kernel] Kernel initialized with default provider | Provider={Provider}",
                 _currentProvider.ProviderName);
@@ -161,9 +158,6 @@ public partial class KernelService
         {
              RegisterPlugins(kernel, null, null);
         }
-
-        // 显式注册 HostService 插件 (允许 LLM 执行命令/文件操作)
-        RegisterHostServicePlugin(kernel);
 
         return (kernel, provider);
     }

@@ -39,6 +39,7 @@
 - `07-cli-runtime-stability-architecture.md` — CLI Runtime 稳定性架构
 - `08-user-auth.md` — 用户与认证分层边界
 - `09-auth-token-model.md` — 访问令牌与刷新令牌模型
+- `10-ai-agent-optimization-roadmap.md` — AI Agent 优化路线图
 
 ### `03-guides`
 
@@ -62,6 +63,7 @@
 - `setup.md` — 开发环境入口
 - `coding-standards.md` — 编码规范
 - `testing.md` — 构建与校验
+- `tool-call-smoke-suite.md` — 工具调用烟测集
 - `contributing.md` — 贡献流程
 
 ### `07-faq`

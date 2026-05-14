@@ -71,8 +71,6 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IFilePlatformApiService>(sp => sp.GetRequiredService<ApiService>());
         services.AddScoped<IMemoryApiService>(sp => sp.GetRequiredService<ApiService>());
         services.AddScoped<ISkillApiService>(sp => sp.GetRequiredService<ApiService>());
-        services.AddScoped<INoteProviderApiService>(sp => sp.GetRequiredService<ApiService>());
-        services.AddScoped<INoteApiService>(sp => sp.GetRequiredService<ApiService>());
         services.AddScoped<IUserIntegrationApiService>(sp => sp.GetRequiredService<ApiService>());
         services.AddScoped<ISessionManager, SessionManager>();
         services.AddSingleton<IRemoteLogService, RemoteLogService>();

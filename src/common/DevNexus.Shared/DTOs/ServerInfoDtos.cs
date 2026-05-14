@@ -86,11 +86,6 @@ public class ServerInfoResponseDto
     public string? SeqUrl { get; set; }
 
     /// <summary>
-    /// 笔记系统地址
-    /// </summary>
-    public string? NotesUrl { get; set; }
-
-    /// <summary>
     /// 功能特性
     /// </summary>
     public Dictionary<string, bool> Features { get; set; } = new();

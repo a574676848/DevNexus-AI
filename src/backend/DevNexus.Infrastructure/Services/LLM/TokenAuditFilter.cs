@@ -252,6 +252,11 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
                 InputTokens = inputTokens,
                 OutputTokens = outputTokens,
                 TotalTokens = inputTokens + outputTokens,
+                CachedPromptTokens = ctx?.CachedPromptTokens,
+                StablePrefixHash = ctx?.StablePrefixHash,
+                ToolSchemaHash = ctx?.ToolSchemaHash,
+                DynamicContextTokens = ctx?.DynamicContextTokens,
+                HistoryTokens = ctx?.HistoryTokens,
                 MeteringValue = inputTokens + outputTokens,
                 UsageSource = ModelInvocationUsageSources.Actual,
                 Status = ModelInvocationStatuses.Succeeded,
@@ -396,7 +401,12 @@ public class TokenAuditService : ITokenAuditService
         string? errorCode = null,
         string? errorMessage = null,
         string meteringType = ModelInvocationMeteringTypes.Token,
-        decimal? meteringValue = null)
+        decimal? meteringValue = null,
+        int? cachedPromptTokens = null,
+        string? stablePrefixHash = null,
+        string? toolSchemaHash = null,
+        int? dynamicContextTokens = null,
+        int? historyTokens = null)
     {
         var auditContext = TokenAuditContext.Current;
         var resolvedUserId = userId ?? auditContext?.OwnerUserId;
@@ -438,6 +448,11 @@ public class TokenAuditService : ITokenAuditService
             InputTokens = inputTokens,
             OutputTokens = outputTokens,
             TotalTokens = inputTokens + outputTokens,
+            CachedPromptTokens = cachedPromptTokens ?? auditContext?.CachedPromptTokens,
+            StablePrefixHash = stablePrefixHash ?? auditContext?.StablePrefixHash,
+            ToolSchemaHash = toolSchemaHash ?? auditContext?.ToolSchemaHash,
+            DynamicContextTokens = dynamicContextTokens ?? auditContext?.DynamicContextTokens,
+            HistoryTokens = historyTokens ?? auditContext?.HistoryTokens,
             MeteringValue = meteringValue ?? inputTokens + outputTokens,
             UsageSource = usageSource,
             Status = status,

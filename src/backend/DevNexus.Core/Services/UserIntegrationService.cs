@@ -17,7 +17,6 @@ public class UserIntegrationService : IUserIntegrationService
 
     private readonly IUserIntegrationStore _userIntegrationStore;
     private readonly IUserIdentityService _userIdentityService;
-    private readonly INoteProviderManagementService _noteProviderManagementService;
     private readonly ILLMProviderManagementService _llmProviderManagementService;
     private readonly IStorageProviderManagementService _storageProviderManagementService;
     private readonly IEncryptionService _encryptionService;
@@ -27,7 +26,6 @@ public class UserIntegrationService : IUserIntegrationService
     public UserIntegrationService(
         IUserIntegrationStore userIntegrationStore,
         IUserIdentityService userIdentityService,
-        INoteProviderManagementService noteProviderManagementService,
         ILLMProviderManagementService llmProviderManagementService,
         IStorageProviderManagementService storageProviderManagementService,
         IEncryptionService encryptionService,
@@ -36,7 +34,6 @@ public class UserIntegrationService : IUserIntegrationService
     {
         _userIntegrationStore = userIntegrationStore;
         _userIdentityService = userIdentityService;
-        _noteProviderManagementService = noteProviderManagementService;
         _llmProviderManagementService = llmProviderManagementService;
         _storageProviderManagementService = storageProviderManagementService;
         _encryptionService = encryptionService;
@@ -589,12 +586,6 @@ public class UserIntegrationService : IUserIntegrationService
     /// </summary>
     private async Task<string> GetProviderNameAsync(Guid providerId, CancellationToken cancellationToken)
     {
-        var noteProvider = await _noteProviderManagementService.GetProviderByIdAsync(providerId, cancellationToken);
-        if (noteProvider != null)
-        {
-            return noteProvider.DisplayName;
-        }
-
         var llmProvider = await _llmProviderManagementService.GetProviderByIdAsync(providerId, cancellationToken);
         if (llmProvider != null)
         {

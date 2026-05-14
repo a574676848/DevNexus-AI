@@ -174,7 +174,6 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<IEmbeddingProviderManagementService, Services.Providers.EmbeddingProviderManagementService>();
         services.AddScoped<ISearchProviderManagementService, Services.Providers.SearchProviderManagementService>();
         services.AddScoped<IStorageProviderManagementService, Services.Providers.StorageProviderManagementService>();
-        services.AddScoped<INoteProviderManagementService, Services.Providers.NoteProviderManagementService>();
         services.AddScoped<IModelPricingService, Services.Providers.ModelPricingService>();
         services.AddScoped<Services.Providers.ProviderSeederService>();
 
@@ -182,6 +181,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<Services.Analytics.AuditAnalyticsService>();
         services.AddScoped<IAuditAnalyticsReadService>(sp => sp.GetRequiredService<Services.Analytics.AuditAnalyticsService>());
         services.AddScoped<IAuditAnalyticsWriteService>(sp => sp.GetRequiredService<Services.Analytics.AuditAnalyticsService>());
+        services.AddSingleton<IToolCatalogService, Services.Tools.InfrastructureToolCatalogService>();
 
         // 注册仓库服务
         services.AddScoped<IArtifactRepository, Repositories.ArtifactRepository>();
@@ -219,9 +219,6 @@ public static class InfrastructureServiceExtensions
         // 注册 Embedding 相关服务
         services.AddScoped<IEmbeddingProviderFactory, Services.Embedding.EmbeddingProviderFactory>();
         services.AddScoped<Services.Embedding.EmbeddingProviderFactory>(sp => (Services.Embedding.EmbeddingProviderFactory)sp.GetRequiredService<IEmbeddingProviderFactory>());
-
-        // 注册笔记服务工厂
-        services.AddScoped<INoteServiceFactory, Services.NoteServiceFactory>();
 
         // 注册 Kernel Memory 服务
         services.AddSingleton<Core.Abstractions.IReasoningExtractionService, Services.LLM.ReasoningExtractionService>();
@@ -264,7 +261,6 @@ public static class InfrastructureServiceExtensions
         // 注册 Semantic Kernel 插件
         services.AddScoped<Services.Plugins.WebSearchPlugin>();
         services.AddScoped<Services.Plugins.ImageGenerationPlugin>();
-        services.AddScoped<Services.Plugins.NotePlugin>();
         services.AddScoped<Services.Plugins.IntegrationPlugin>();
         services.AddScoped<Services.Plugins.SessionMemoryPlugin>();
         services.AddScoped<Services.Jobs.ImageGenerationJob>();

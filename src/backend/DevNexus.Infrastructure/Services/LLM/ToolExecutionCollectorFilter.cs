@@ -1,5 +1,9 @@
 using DevNexus.Core.Models.Evaluation;
+using DevNexus.Core.Abstractions;
 using DevNexus.Core.Services.Chat;
+using DevNexus.Shared.DTOs;
+using DevNexus.Shared.Constants;
+using DevNexus.Shared.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using System;
@@ -17,10 +21,17 @@ namespace DevNexus.Infrastructure.Services.LLM;
 public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
 {
     private readonly ILogger<ToolExecutionCollectorFilter> _logger;
+    private readonly ITokenAuditQueue _auditQueue;
+    private readonly IToolInvocationValidationService _validationService;
 
-    public ToolExecutionCollectorFilter(ILogger<ToolExecutionCollectorFilter> logger)
+    public ToolExecutionCollectorFilter(
+        ILogger<ToolExecutionCollectorFilter> logger,
+        ITokenAuditQueue auditQueue,
+        IToolInvocationValidationService validationService)
     {
         _logger = logger;
+        _auditQueue = auditQueue;
+        _validationService = validationService;
     }
 
     public async Task OnAutoFunctionInvocationAsync(
@@ -36,6 +47,41 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
 
         // 某些参数可能很长，这里记录简要日志
         _logger.LogDebug("[AgentLoop.Collector] Invoking {Plugin}.{Function}", pluginName, functionName);
+
+        var toolName = $"{pluginName}.{functionName}";
+        var argumentsJson = JsonSerializer.Serialize(context.Arguments);
+        var validation = _validationService.Validate(toolName, argumentsJson);
+        if (!validation.IsValid)
+        {
+            sw.Stop();
+            var validationRecord = new ToolExecutionRecord
+            {
+                ToolName = toolName,
+                Arguments = argumentsJson,
+                Success = false,
+                FailureReason = ToolFailureReason.ToolFormatError,
+                Retryable = validation.Retryable,
+                RequiresHumanIntervention = false,
+                SuggestedAction = ToolSuggestedAction.PromptUserInput,
+                UserMessage = validation.UserMessage,
+                Output = validation.UserMessage ?? "工具参数验证失败。",
+                ErrorMessage = validation.UserMessage,
+                ErrorSummary = validation.UserMessage,
+                Duration = sw.Elapsed
+            };
+
+            if (ChatExecutionContext.HasActive)
+            {
+                ChatExecutionContext.AddToolRecord(validationRecord);
+                await QueueToolAuditRecordAsync(validationRecord, pluginName, functionName, sw.ElapsedMilliseconds, argumentsValid: false);
+            }
+
+            _logger.LogWarning(
+                "[AgentLoop.Collector] 工具参数预验证失败 | Tool={Tool} Reason={Reason}",
+                toolName,
+                validation.FailureReason);
+            return;
+        }
 
         await next(context);
 
@@ -66,8 +112,8 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         // 构造记录
         var record = new ToolExecutionRecord
         {
-            ToolName = $"{pluginName}.{functionName}",
-            Arguments = JsonSerializer.Serialize(context.Arguments),
+            ToolName = toolName,
+            Arguments = argumentsJson,
             Success = classification.Success,
             FailureReason = classification.FailureReason,
             Retryable = classification.Retryable,
@@ -78,7 +124,7 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
             UserMessage = classification.UserMessage,
             RequestedUserInputKind = classification.RequestedUserInputKind,
             RequestedUserInputLabel = classification.RequestedUserInputLabel,
-            Output = TruncateOutput(outputString, 2000),
+            Output = TruncateOutput(outputString, AiOptimizationConstants.ToolOutputContextMaxChars),
             ErrorMessage = errorMessage,
             ErrorSummary = errorSummary,
             ExitCode = exitCode,
@@ -86,6 +132,7 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         };
 
         ChatExecutionContext.AddToolRecord(record);
+        await QueueToolAuditRecordAsync(record, pluginName, functionName, sw.ElapsedMilliseconds);
 
         // ✅ 工具调用完成/失败提醒
         if (classification.Success)
@@ -102,13 +149,71 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
             record.ToolName, classification.Success, sw.ElapsedMilliseconds);
     }
 
+    private async Task QueueToolAuditRecordAsync(
+        ToolExecutionRecord toolRecord,
+        string? pluginName,
+        string? functionName,
+        long durationMs,
+        bool argumentsValid = true)
+    {
+        try
+        {
+            var ctx = TokenAuditContext.Current;
+            var toolName = toolRecord.ToolName;
+            var record = new ModelInvocationAuditRecord
+            {
+                OwnerType = ctx?.OwnerType ?? ModelInvocationOwnerTypes.System,
+                OwnerUserId = ctx?.OwnerUserId,
+                InvocationKind = ModelInvocationKinds.FunctionCall,
+                SceneCode = ModelInvocationSceneCodes.ToolFunctionCall,
+                SceneCategory = ctx?.SceneCategory ?? ModelInvocationSceneCategories.Other,
+                ResourceType = ctx?.ResourceType ?? ModelInvocationResourceTypes.None,
+                ResourceId = ctx?.ResourceId,
+                SessionId = ctx?.SessionId,
+                MessageId = ctx?.MessageId,
+                TraceId = ctx?.TraceId,
+                ParentInvocationId = ctx?.ParentInvocationId,
+                RootInvocationId = ctx?.RootInvocationId,
+                ModelId = ctx?.ModelName ?? "tool",
+                ProviderType = ctx?.ProviderType ?? ModelInvocationProviderTypes.Llm,
+                ProviderName = ctx?.ProviderName ?? "tool",
+                ProviderId = ctx?.LLMProviderId.ToString() ?? Guid.Empty.ToString(),
+                MeteringType = ModelInvocationMeteringTypes.Request,
+                MeteringValue = 1,
+                UsageSource = ModelInvocationUsageSources.None,
+                Status = toolRecord.Success ? ModelInvocationStatuses.Succeeded : ModelInvocationStatuses.Failed,
+                ErrorCode = toolRecord.Success ? null : toolRecord.FailureReason.ToWireValue(),
+                ErrorMessage = toolRecord.ErrorSummary,
+                DurationMs = durationMs,
+                ToolName = string.IsNullOrWhiteSpace(toolName)
+                    ? $"{pluginName}.{functionName}"
+                    : toolName,
+                ToolArgumentsValid = argumentsValid && toolRecord.FailureReason != ToolFailureReason.ToolFormatError,
+                ToolFailureReason = toolRecord.FailureReason.ToWireValue(),
+                ToolSuggestedAction = toolRecord.SuggestedAction.ToWireValue(),
+                ToolRetryable = toolRecord.Retryable,
+                ToolRequiresHumanIntervention = toolRecord.RequiresHumanIntervention,
+                ToolExitCode = toolRecord.ExitCode
+            };
+
+            await _auditQueue.QueueBackgroundWorkItemAsync(record);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "[AgentLoop.Collector] 工具调用审计入队失败 | Tool={Tool}",
+                toolRecord.ToolName);
+        }
+    }
+
     private static string TruncateOutput(string input, int maxLen)
     {
         if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
         
         // 采用 Head 500 + ... + Tail 1000 策略（保留关键上下文）
-        int headLen = maxLen / 4;
-        int tailLen = maxLen * 3 / 4;
+        int headLen = maxLen / AiOptimizationConstants.ToolOutputHeadDivisor;
+        int tailLen = maxLen * AiOptimizationConstants.ToolOutputTailMultiplier / AiOptimizationConstants.ToolOutputHeadDivisor;
         
         return input[..headLen] + "\n... [TRUNCATED] ...\n" + input[^tailLen..];
     }

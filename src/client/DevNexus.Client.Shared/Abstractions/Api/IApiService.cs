@@ -13,8 +13,6 @@ public interface IApiService :
     IFilePlatformApiService,
     IArtifactApiService,
     IMemoryApiService,
-    INoteProviderApiService,
-    INoteApiService,
     IUserIntegrationApiService,
     ISkillApiService
 {

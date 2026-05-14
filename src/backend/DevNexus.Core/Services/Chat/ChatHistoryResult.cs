@@ -17,4 +17,7 @@ public class ChatHistoryResult
 
     /// <summary>匹配到的 Skill 列表（供 KernelService 注册绑定 Plugin）</summary>
     public List<SkillMatchResult>? MatchedSkills { get; set; }
+
+    /// <summary>Prompt 分层审计元数据。</summary>
+    public PromptLayerMetadata? PromptLayerMetadata { get; set; }
 }

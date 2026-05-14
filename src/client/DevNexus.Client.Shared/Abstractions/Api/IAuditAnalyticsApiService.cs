@@ -30,6 +30,13 @@ public interface IAuditAnalyticsApiService
         string? status = null);
 
     /// <summary>
+    /// 获取 AI Agent 优化看板数据。
+    /// </summary>
+    Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
+        DateTime? startDate = null,
+        DateTime? endDate = null);
+
+    /// <summary>
     /// 获取当前用户 Token 使用记录
     /// </summary>
     Task<PagedResultDto<TokenUsageDto>> GetMyTokenRecordsAsync(

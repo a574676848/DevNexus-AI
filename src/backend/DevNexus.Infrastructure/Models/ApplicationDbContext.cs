@@ -33,7 +33,6 @@ public class ApplicationDbContext : IdentityDbContext<InfrastructureUser, Identi
     public DbSet<EmbeddingProvider> EmbeddingProviders { get; set; }
     public DbSet<SearchProvider> SearchProviders { get; set; }
     public DbSet<StorageProvider> StorageProviders { get; set; }
-    public DbSet<NoteProvider> NoteProviders { get; set; }
     public DbSet<UserIntegration> UserIntegrations => Set<UserIntegration>();
     public DbSet<ModelInvocationAudit> ModelInvocationAudits { get; set; }
     public DbSet<AuditSceneDefinition> AuditSceneDefinitions { get; set; }

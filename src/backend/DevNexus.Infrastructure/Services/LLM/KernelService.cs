@@ -19,6 +19,7 @@ public partial class KernelService : IKernelService
     private readonly TokenAuditFilter _tokenAuditFilter;
     private readonly ToolExecutionCollectorFilter _toolExecutionCollectorFilter;
     private readonly IConfirmationService _confirmationService;
+    private readonly IToolCatalogService _toolCatalogService;
 
     // 基于 (ProviderId, SessionId) 复合键缓存 Kernel 实例
     // 每个会话拥有独立的 Kernel，确保插件上下文不会混淆
@@ -54,6 +55,7 @@ public partial class KernelService : IKernelService
         _skillRegistry = skillRegistry ?? throw new ArgumentNullException(nameof(skillRegistry));
         _providerCacheState = providerCacheState ?? throw new ArgumentNullException(nameof(providerCacheState));
         _confirmationService = serviceProvider.GetRequiredService<IConfirmationService>();
+        _toolCatalogService = serviceProvider.GetRequiredService<IToolCatalogService>();
     }
 
     private long _currentCacheVersion = -1;

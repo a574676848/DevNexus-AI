@@ -119,7 +119,16 @@ public partial class ChatService
                 userId,
                 preparation.MatchedSkills,
                 cancellationToken,
-                enableAutoFunctionCalling: true))
+                enableAutoFunctionCalling: true,
+                promptMetadata: preparation.PromptLayerMetadata == null
+                    ? null
+                    : new PromptOptimizationMetadataDto
+                    {
+                        StablePrefixHash = preparation.PromptLayerMetadata.StablePrefixHash,
+                        ToolSchemaHash = preparation.PromptLayerMetadata.ToolSchemaHash,
+                        DynamicContextTokens = preparation.PromptLayerMetadata.DynamicContextTokens,
+                        HistoryTokens = preparation.PromptLayerMetadata.HistoryTokens
+                    }))
             {
                 // 捕获 FinishReason（仅最后一个 chunk 有值："Stop" = 正常, "Length" = 截断）
                 if (streamContent.Metadata?.TryGetValue("FinishReason", out var fr) == true && fr != null)

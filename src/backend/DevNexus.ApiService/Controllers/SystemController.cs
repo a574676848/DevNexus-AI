@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using System.Reflection;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Constants;
-using DevNexus.Domain.Abstractions;
 using DevNexus.Core.Services;
 using DevNexus.Core.Abstractions;
 
@@ -18,7 +17,6 @@ public class SystemController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<SystemController> _logger;
-    private readonly INoteProviderManagementService _noteProviderService;
     private readonly ICliSandboxValidationService _cliSandboxValidationService;
 
     /// <summary>
@@ -27,12 +25,10 @@ public class SystemController : ControllerBase
     public SystemController(
         IConfiguration configuration,
         ILogger<SystemController> logger,
-        INoteProviderManagementService noteProviderService,
         ICliSandboxValidationService cliSandboxValidationService)
     {
         _configuration = configuration;
         _logger = logger;
-        _noteProviderService = noteProviderService;
         _cliSandboxValidationService = cliSandboxValidationService;
     }
 
@@ -159,20 +155,6 @@ public class SystemController : ControllerBase
             ?? _configuration.GetConnectionString(ConnectionStringNames.Seq)?.Replace(":5341", ":5342")
             ?? "http://localhost:5341";
 
-        string? notesUrl = null;
-        try
-        {
-            var defaultProvider = await _noteProviderService.GetDefaultProviderAsync();
-            if (defaultProvider != null && defaultProvider.IsEnabled)
-            {
-                notesUrl = defaultProvider.Endpoint;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to get default note provider URL");
-        }
-
         return Ok(new ServerInfoResponseDto
         {
             Version = version,
@@ -191,7 +173,6 @@ public class SystemController : ControllerBase
             VectorDbHost = vectorDbHost,
             HangfireUrl = hangfireUrl,
             SeqUrl = seqUrl,
-            NotesUrl = notesUrl,
             Features = new Dictionary<string, bool>
             {
                 ["SignalR"] = true,

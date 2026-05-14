@@ -39,8 +39,6 @@ public static class ToolBlockMetadataConstants
     public const string CardTypeSearch = "search";
     public const string CardTypeAdvancedSearch = "advanced-search";
     public const string CardTypeWebpage = "webpage";
-    public const string CardTypeNoteCreated = "note-created";
-    public const string CardTypeNoteError = "note-error";
     public const string CardTypeFileTask = "file-task";
     public const string CardTypeCommand = "command";
     public const string CardTypeSql = "sql";
@@ -50,8 +48,6 @@ public static class ToolBlockMetadataConstants
     public const string StatusLoading = "loading";
     public const string StatusSuccess = "success";
     public const string StatusError = "error";
-
-    public const string ActionTextViewNote = "查看笔记";
 
     /// <summary>
     /// 规范化交互卡片类型。
@@ -63,8 +59,6 @@ public static class ToolBlockMetadataConstants
             CardTypeSearch => CardTypeSearch,
             CardTypeAdvancedSearch => CardTypeAdvancedSearch,
             CardTypeWebpage => CardTypeWebpage,
-            CardTypeNoteCreated => CardTypeNoteCreated,
-            CardTypeNoteError => CardTypeNoteError,
             CardTypeFileTask => CardTypeFileTask,
             CardTypeCommand => CardTypeCommand,
             CardTypeSql => CardTypeSql,

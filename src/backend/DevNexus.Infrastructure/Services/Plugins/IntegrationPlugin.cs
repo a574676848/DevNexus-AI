@@ -39,7 +39,7 @@ public class IntegrationPlugin : SessionContextPluginBase
     /// </summary>
     [KernelFunction, Description("根据集成类型获取当前用户的默认集成配置和凭证信息。")]
     public async Task<string> GetDefaultIntegrationAsync(
-        [Description("集成类型 (1: NoteSystem/笔记系统, 2: CodeRepository/代码仓库, 3: CloudStorage/云存储, 4: ProjectManagement/项目管理, 5: Communication/通讯工具, 6: Calendar/日历服务, 7: Email/邮件服务, 8: CICD/持续集成部署, 9: Monitoring/监控服务, 99: Custom/其他)")] int type)
+        [Description("集成类型 (2: CodeRepository/代码仓库, 3: CloudStorage/云存储, 4: ProjectManagement/项目管理, 5: Communication/通讯工具, 6: Calendar/日历服务, 7: Email/邮件服务, 8: CICD/持续集成部署, 9: Monitoring/监控服务, 99: Custom/其他)")] int type)
     {
         try
         {

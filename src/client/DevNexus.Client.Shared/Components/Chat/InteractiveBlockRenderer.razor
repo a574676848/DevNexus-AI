@@ -32,8 +32,6 @@
             ToolBlockMetadataConstants.CardTypeAdvancedSearch => @<AdvancedSearchPanel Block="@Block" />,     // 高级搜索：完整内容与引用卡片
             ToolBlockMetadataConstants.CardTypeWebpage => @<WebpageArtifact Block="@Block" />,                 // 网页阅读：完整网页内容展示
             ToolBlockMetadataConstants.CardTypeFileTask => @<FileTaskCard Block="@Block" />,                  // 文件任务：显示最小任务状态和输入资产
-            ToolBlockMetadataConstants.CardTypeNoteCreated => @<NoteSuccessCard Block="@Block" />,            // 💡 WBS-003：笔记创建成功卡片
-            ToolBlockMetadataConstants.CardTypeNoteError => @<NoteErrorCard Block="@Block" />,                // 💡 WBS-003：笔记创建失败卡片
             _ => @<div class="unknown-card">未知卡片类型: @cardType</div>
         };
     }

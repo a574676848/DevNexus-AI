@@ -30,12 +30,14 @@ public static class CoreServiceExtensions
         services.Configure<BingSearchOptions>(configuration.GetSection("BingSearch"));
         services.Configure<GoogleSearchOptions>(configuration.GetSection("GoogleSearch"));
         services.Configure<CliPolicyOptions>(configuration.GetSection("CliPolicy"));
+        services.Configure<AgentAutomationOptions>(configuration.GetSection("AgentAutomation"));
         // 注册审批服务（单例，用于跨请求管理审批状态）
         services.AddSingleton<IApprovalService, ApprovalService>();
 
         // 注册 Chat 重构后的服务
         services.AddScoped<Services.Chat.ChatSystemPromptBuilder>();
         services.AddScoped<Services.Chat.ChatHistorySummaryService>();
+        services.AddScoped<Services.Chat.ISessionSummaryService, Services.Chat.SessionSummaryService>();
         services.AddScoped<Services.Chat.ChatHistoryMessageBuilder>();
         services.AddScoped<Services.Chat.ChatHistoryService>();
         services.AddScoped<Services.Chat.ChatPromptService>();
@@ -53,6 +55,7 @@ public static class CoreServiceExtensions
         services.AddScoped<Services.Chat.ChatThinkingPersistenceCoordinator>();
         services.AddScoped<Services.Chat.ChatSwarmFinalizer>();
         services.AddScoped<Services.Chat.ToolBlockExecutionCoordinator>();
+        services.AddSingleton<IToolInvocationValidationService, Services.Tools.DefaultToolInvocationValidationService>();
         services.AddScoped<ICliApprovalGrantService, CliApprovalGrantService>();
         services.AddScoped<ICliExecutionPolicyService, CliExecutionPolicyService>();
         services.AddScoped<Services.Chat.IChatSessionCleanupCoordinator, Services.Chat.ChatSessionCleanupCoordinator>();

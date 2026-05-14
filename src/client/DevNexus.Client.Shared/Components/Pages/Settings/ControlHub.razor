@@ -31,12 +31,6 @@
             </span>
             <span>存储服务</span>
         </button>
-        <button class="tab @(activeTab == "note" ? "active" : "")" @onclick="@(() => SetActiveTab("note"))">
-            <span class="tab-icon">
-                <NoteIcon Size="16" />
-            </span>
-            <span>笔记服务</span>
-        </button>
     </nav>
 
     <div class="tab-content">
@@ -77,9 +71,6 @@
                 case "storage":
                     <StorageProviderPanel Providers="storageProviders" OnRefresh="LoadStorageProvidersAsync" />
                     break;
-                case "note":
-                    <NoteProviderPanel Providers="noteProviders" OnRefresh="LoadNoteProvidersAsync" />
-                    break;
             }
         }
     </div>
@@ -98,7 +89,6 @@
     private int embeddingGlobalVectorSize = 1024;
     private List<SearchProviderResponse> searchProviders = new();
     private List<StorageProviderResponse> storageProviders = new();
-    private List<NoteProviderResponse> noteProviders = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -123,8 +113,7 @@
             LoadLLMProvidersAsync(),
             LoadEmbeddingProvidersAsync(),
             LoadSearchProvidersAsync(),
-            LoadStorageProvidersAsync(),
-            LoadNoteProvidersAsync()
+            LoadStorageProvidersAsync()
             );
         }
         catch (Exception ex)
@@ -198,16 +187,4 @@
         }
     }
 
-    private async Task LoadNoteProvidersAsync()
-    {
-        try
-        {
-            noteProviders = (await ApiService.GetAllProvidersAsync(true)).ToList();
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            await RemoteLog.LogWarningAsync($"加载笔记供应商失败: {ex.Message}", "ControlHub.LoadNote");
-        }
-    }
 }

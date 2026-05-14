@@ -20,6 +20,7 @@ public class ChatHistoryService
     private readonly ChatSystemPromptBuilder _systemPromptBuilder;
     private readonly ChatHistoryMessageBuilder _messageBuilder;
     private readonly ChatHistorySummaryService _summaryService;
+    private readonly IToolCatalogService _toolCatalogService;
     private readonly ILogger<ChatHistoryService> _logger;
 
     public ChatHistoryService(
@@ -27,12 +28,14 @@ public class ChatHistoryService
         ChatSystemPromptBuilder systemPromptBuilder,
         ChatHistoryMessageBuilder messageBuilder,
         ChatHistorySummaryService summaryService,
+        IToolCatalogService toolCatalogService,
         ILogger<ChatHistoryService> logger)
     {
         _chatPromptService = chatPromptService;
         _systemPromptBuilder = systemPromptBuilder;
         _messageBuilder = messageBuilder;
         _summaryService = summaryService;
+        _toolCatalogService = toolCatalogService;
         _logger = logger;
     }
 
@@ -58,8 +61,6 @@ public class ChatHistoryService
         CancellationToken cancellationToken = default)
     {
         var chatHistory = new ChatHistory();
-        const int outputReservedTokens = 20000; // 为输出预留的 Token 数
-
         var promptBuildResult = await _systemPromptBuilder.BuildAsync(
             sessionId,
             userId,
@@ -71,8 +72,8 @@ public class ChatHistoryService
         var maxContextTokens = promptBuildResult.MaxContextTokens;
 
         // 计算各部分的 Token 预算
-        int maxTotalTokens = maxContextTokens - outputReservedTokens;
-        int maxHistoryTokens = (int)(maxTotalTokens * 0.3); // 历史对话占 30%
+        int maxTotalTokens = maxContextTokens - AiOptimizationConstants.OutputReservedTokens;
+        int maxHistoryTokens = (int)(maxTotalTokens * AiOptimizationConstants.HistoryTokenBudgetRatio);
 
         chatHistory.AddSystemMessage(promptBuildResult.Prompt);
         int systemTokens = EstimateTokenCount(promptBuildResult.Prompt);
@@ -122,11 +123,19 @@ public class ChatHistoryService
             remainingTokenBudget,
             cancellationToken);
 
+        var actualHistoryTokens = Math.Max(0, remainingTokenBudget);
+        if (promptBuildResult.LayerMetadata != null)
+        {
+            promptBuildResult.LayerMetadata.HistoryTokens = actualHistoryTokens;
+            promptBuildResult.LayerMetadata.ToolSchemaHash = _toolCatalogService.ComputeSchemaHash();
+        }
+
         return new ChatHistoryResult
         {
             ChatHistory = chatHistory,
             CriticalSystemPrompt = promptBuildResult.CriticalPrompt,
-            MatchedSkills = promptBuildResult.MatchedSkills
+            MatchedSkills = promptBuildResult.MatchedSkills,
+            PromptLayerMetadata = promptBuildResult.LayerMetadata
         };
     }
 

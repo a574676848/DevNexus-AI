@@ -285,7 +285,6 @@ public partial class InputBox
     {
         return pluginName switch
         {
-            "NotePlugin" => "笔记工具",
             "WebSearchPlugin" => "网络搜索工具",
             "CodeExecutionPlugin" => "代码执行工具",
             "KnowledgeBasePlugin" => "知识库工具",

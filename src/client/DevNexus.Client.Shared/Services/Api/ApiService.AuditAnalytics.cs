@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using DevNexus.Client.Shared.DTOs;
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using Microsoft.Extensions.Logging;
 namespace DevNexus.Client.Shared.Services.Api;
@@ -55,6 +56,18 @@ public partial class ApiService
         var response = await _httpClient.GetAsync($"/api/v1/auditanalytics/dashboard{query}");
         await EnsureSuccessAsync(response);
         return await response.Content.ReadFromJsonAsync<AuditDashboardDto>() ?? new();
+    }
+
+    /// <inheritdoc />
+    public async Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
+        DateTime? startDate = null,
+        DateTime? endDate = null)
+    {
+        var query = BuildDateQuery(startDate, endDate);
+        var response = await _httpClient.GetAsync(
+            $"{AiOptimizationConstants.AuditAnalyticsRoutes.Base}/{AiOptimizationConstants.AuditAnalyticsRoutes.AiOptimizationDashboard}{query}");
+        await EnsureSuccessAsync(response);
+        return await response.Content.ReadFromJsonAsync<AiOptimizationDashboardDto>() ?? new();
     }
 
     /// <inheritdoc />

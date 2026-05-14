@@ -15,7 +15,6 @@
 - Embedding Provider
 - Search Provider
 - Storage Provider
-- Note Provider
 - Model Pricing
 
 对应接口位于：
@@ -24,7 +23,6 @@
 - /api/v1/providers/embedding
 - /api/v1/providers/search
 - /api/v1/providers/storage
-- /api/v1/providers/note
 - /api/v1/model-pricing
 
 ## 3. 当前设计原则
