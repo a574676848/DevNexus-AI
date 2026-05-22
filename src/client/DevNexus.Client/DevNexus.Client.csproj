@@ -93,8 +93,8 @@
         <PackageReference Include="sqlite-net-pcl" />
         <PackageReference Include="SQLitePCLRaw.bundle_green" />
         
-        <!-- System Tray Icon -->
-        <PackageReference Include="H.NotifyIcon.Maui" />
+        <!-- System Tray Icon (Windows only — H.NotifyIcon 基础包依赖 System.Private.Windows.Core，不可跨平台 AOT) -->
+        <PackageReference Include="H.NotifyIcon.Maui" Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'" />
     </ItemGroup>
 
     <ItemGroup>
