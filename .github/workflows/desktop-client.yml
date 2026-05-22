@@ -157,11 +157,15 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: List available Xcode versions
+        run: ls /Applications/ | grep -i xcode || true
+
       - name: Select Xcode
-        # MacCatalyst SDK 26.5 需要 Xcode 26.5；选取 runner 上可用的最新稳定版
+        # MacCatalyst SDK 26.5 需要 Xcode 26.5
+        # latest-stable 只能选到 26.4.1，改用 latest 以兼容 beta/RC 版本
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: latest
 
       - name: Show active Xcode
         run: xcodebuild -version
