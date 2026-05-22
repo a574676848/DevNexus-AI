@@ -159,7 +159,7 @@ jobs:
         run: dotnet workload install maui-maccatalyst
 
       - name: Publish macOS desktop client
-        run: dotnet publish src/client/DevNexus.Client/DevNexus.Client.csproj -f net10.0-maccatalyst -c Release -p:CreatePackage=false
+        run: dotnet publish src/client/DevNexus.Client/DevNexus.Client.csproj -f net10.0-maccatalyst -c Release -p:CreatePackage=false -p:BuildMacCatalyst=true
 
       - name: Build macOS installer package
         shell: bash
