@@ -7,7 +7,9 @@ namespace DevNexus.Client.Pages;
 public partial class WebViewPage : ContentPage
 {
     private readonly string _url;
+#if WINDOWS
     private bool _isMaximized;
+#endif
 
     public WebViewPage(string url, string title)
     {

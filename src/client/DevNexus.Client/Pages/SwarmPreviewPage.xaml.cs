@@ -10,7 +10,9 @@ namespace DevNexus.Client.Pages;
 public partial class SwarmPreviewPage : ContentPage
 {
     private readonly Guid _sessionId;
+#if WINDOWS
     private bool _isMaximized;
+#endif
     private BlazorWebView? _blazorWebView;
 
     public SwarmPreviewPage(Guid sessionId)

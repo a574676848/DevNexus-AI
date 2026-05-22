@@ -20,9 +20,10 @@ public class NotificationService : INotificationService
         // 必须在主线程执行
         MainThread.BeginInvokeOnMainThread(async () =>
         {
-            if (Application.Current?.MainPage != null)
+            var page = Application.Current?.Windows.FirstOrDefault()?.Page;
+            if (page != null)
             {
-                await Application.Current.MainPage.DisplayAlert(title, message, "确定");
+                await page.DisplayAlertAsync(title, message, "确定");
             }
         });
         await Task.CompletedTask;

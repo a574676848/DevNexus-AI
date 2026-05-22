@@ -236,7 +236,7 @@ public partial class WindowService : IWindowService, IWindowLifecycleHandler
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[MacWindowService] OpenWindow failed: {ex.Message}");
+                global::System.Diagnostics.Debug.WriteLine($"[MacWindowService] OpenWindow failed: {ex.Message}");
             }
         });
     }

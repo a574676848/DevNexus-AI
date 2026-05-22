@@ -11,7 +11,9 @@ namespace DevNexus.Client.Pages;
 public partial class ArtifactPreviewPage : ContentPage
 {
     private readonly ArtifactDto _artifact;
+#if WINDOWS
     private bool _isMaximized;
+#endif
     private BlazorWebView? _blazorWebView;
 
     public ArtifactPreviewPage(ArtifactDto artifact)
