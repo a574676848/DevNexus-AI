@@ -108,6 +108,11 @@ jobs:
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
+          # 官方安装包不含非官方语言包，从 issrc 仓库补充简体中文语言文件
+          $langDir = "C:\Program Files (x86)\Inno Setup 6\Languages"
+          Invoke-WebRequest `
+            "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/ChineseSimplified.isl" `
+            -OutFile "$langDir\ChineseSimplified.isl"
 
       - name: Build Windows installer
         shell: pwsh
