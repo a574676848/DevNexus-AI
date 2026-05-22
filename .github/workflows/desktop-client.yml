@@ -150,9 +150,13 @@ jobs:
       - name: Setup .NET 10 SDK
         uses: actions/setup-dotnet@v4
         with:
-          # 固定 10.0.2xx 频道：MacCatalyst SDK 26.4.x，兼容 macos-26 上的 Xcode 26.4.x
-          # 10.0.3xx 起需要 Xcode 26.5，当前 runner 尚未满足
-          dotnet-version: "10.0.2xx"
+          dotnet-version: "10.0.x"
+
+      - name: Select Xcode
+        # MacCatalyst SDK 26.5 需要 Xcode 26.5；选取 runner 上可用的最新稳定版
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Show active Xcode
         run: xcodebuild -version
