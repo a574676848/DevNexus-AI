@@ -1,0 +1,30 @@
+<Project>
+
+  <PropertyGroup>
+    <DevNexusHostPageTemplateFile Condition="'$(DevNexusHostPageTemplateFile)' == ''">$(MSBuildThisFileDirectory)..\HostPageTemplates\index.template.html</DevNexusHostPageTemplateFile>
+    <DevNexusHostPageOutputFile Condition="'$(DevNexusHostPageOutputFile)' == ''">$(MSBuildProjectDirectory)\wwwroot\index.html</DevNexusHostPageOutputFile>
+    <DevNexusHostPageAssetPrefix Condition="'$(DevNexusHostPageAssetPrefix)' == ''">_content/DevNexus.Client.Shared/</DevNexusHostPageAssetPrefix>
+    <DevNexusHostPageStyleSheet Condition="'$(DevNexusHostPageStyleSheet)' == ''">$(MSBuildProjectName).styles.css</DevNexusHostPageStyleSheet>
+    <DevNexusHostPageBlazorScript Condition="'$(DevNexusHostPageBlazorScript)' == ''">blazor.webassembly.js</DevNexusHostPageBlazorScript>
+    <DevNexusHostPageIconLinks Condition="'$(DevNexusHostPageIconLinks)' == ''">&lt;link rel="icon" href="data:," /&gt;</DevNexusHostPageIconLinks>
+    <DevNexusHostPageHeadMarkup Condition="'$(DevNexusHostPageHeadMarkup)' == ''"></DevNexusHostPageHeadMarkup>
+    <DevNexusHostPageExtraScripts Condition="'$(DevNexusHostPageExtraScripts)' == ''"></DevNexusHostPageExtraScripts>
+  </PropertyGroup>
+
+  <Target Name="GenerateDevNexusHostPage" BeforeTargets="AssignTargetPaths">
+    <ReadLinesFromFile File="$(DevNexusHostPageTemplateFile)">
+      <Output TaskParameter="Lines" ItemName="_DevNexusHostPageTemplateLines" />
+    </ReadLinesFromFile>
+
+    <PropertyGroup>
+      <_DevNexusHostPageTemplate>@(_DevNexusHostPageTemplateLines, '%0A')</_DevNexusHostPageTemplate>
+      <_DevNexusHostPageGenerated>$([System.String]::Copy('$(_DevNexusHostPageTemplate)').Replace('__ASSET_PREFIX__', '$(DevNexusHostPageAssetPrefix)').Replace('__HOST_STYLESHEET__', '$(DevNexusHostPageStyleSheet)').Replace('__HOST_ICON_LINKS__', '$(DevNexusHostPageIconLinks)').Replace('__HOST_HEAD_MARKUP__', '$(DevNexusHostPageHeadMarkup)').Replace('__BLAZOR_BOOT_SCRIPT__', '$(DevNexusHostPageBlazorScript)').Replace('__HOST_EXTRA_SCRIPTS__', '$(DevNexusHostPageExtraScripts)'))</_DevNexusHostPageGenerated>
+    </PropertyGroup>
+
+    <WriteLinesToFile File="$(DevNexusHostPageOutputFile)"
+                      Lines="$(_DevNexusHostPageGenerated)"
+                      Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+  </Target>
+
+</Project>
