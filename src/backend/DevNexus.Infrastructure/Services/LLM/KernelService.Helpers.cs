@@ -6,6 +6,39 @@ namespace DevNexus.Infrastructure.Services.LLM;
 
 public partial class KernelService
 {
+    private static readonly string[] InputTokenPropertyNames =
+    [
+        "InputTokens",
+        "PromptTokens"
+    ];
+
+    private static readonly string[] OutputTokenPropertyNames =
+    [
+        "OutputTokens",
+        "CompletionTokens"
+    ];
+
+    private static readonly string[] CachedTokenPropertyNames =
+    [
+        "CachedPromptTokens",
+        "CachedInputTokens",
+        "CacheReadInputTokens",
+        "CacheReadTokens",
+        "CachedTokens"
+    ];
+
+    private static readonly string[] TokenDetailsPropertyNames =
+    [
+        "InputTokenDetails",
+        "PromptTokenDetails",
+        "PromptTokensDetails"
+    ];
+
+    private sealed record TokenUsageMetadata(
+        int? InputTokens,
+        int? OutputTokens,
+        int? CachedPromptTokens);
+
     /// <summary>
     /// 估算文本的 Token 数量
     /// </summary>
@@ -33,54 +66,120 @@ public partial class KernelService
     /// </summary>
     /// <param name="metadata">消息元数据</param>
     /// <returns>输入和输出 Token 数量元组，如不可用则返回 null</returns>
-    private static (int? InputTokens, int? OutputTokens) ExtractTokenUsageFromMetadata(
+    private static TokenUsageMetadata ExtractTokenUsageFromMetadata(
         IReadOnlyDictionary<string, object?>? metadata)
     {
         if (metadata == null)
         {
-            return (null, null);
+            return new TokenUsageMetadata(null, null, null);
         }
 
         // 尝试从 "Usage" 键获取 Token 使用量（Semantic Kernel 标准格式）
         if (metadata.TryGetValue("Usage", out var usageObj) && usageObj != null)
         {
-            // OpenAI SDK 返回的是 ChatTokenUsage 类型
-            var usageType = usageObj.GetType();
+            var inputTokens = TryGetIntProperty(usageObj, InputTokenPropertyNames);
+            var outputTokens = TryGetIntProperty(usageObj, OutputTokenPropertyNames);
+            var cachedPromptTokens = TryGetIntProperty(usageObj, CachedTokenPropertyNames)
+                ?? TryGetNestedIntProperty(usageObj, TokenDetailsPropertyNames, CachedTokenPropertyNames);
 
-            // 尝试获取 InputTokens 和 OutputTokens 属性
-            var inputTokensProp = usageType.GetProperty("InputTokens");
-            var outputTokensProp = usageType.GetProperty("OutputTokens");
+            return new TokenUsageMetadata(inputTokens, outputTokens, cachedPromptTokens);
+        }
 
-            if (inputTokensProp != null && outputTokensProp != null)
+        return new TokenUsageMetadata(null, null, null);
+    }
+
+    private static int? TryGetNestedIntProperty(
+        object source,
+        IReadOnlyList<string> containerNames,
+        IReadOnlyList<string> valueNames)
+    {
+        foreach (var containerName in containerNames)
+        {
+            var container = source.GetType().GetProperty(containerName)?.GetValue(source);
+            if (container == null)
             {
-                var inputTokens = inputTokensProp.GetValue(usageObj) as int?;
-                var outputTokens = outputTokensProp.GetValue(usageObj) as int?;
-
-                if (inputTokens.HasValue && outputTokens.HasValue)
-                {
-                    return (inputTokens.Value, outputTokens.Value);
-                }
+                continue;
             }
 
-            // 兼容旧版字段名（PromptTokens, CompletionTokens）
-            var promptTokensProp = usageType.GetProperty("PromptTokens");
-            var completionTokensProp = usageType.GetProperty("CompletionTokens");
-
-            if (promptTokensProp != null && completionTokensProp != null)
+            var value = TryGetIntProperty(container, valueNames);
+            if (value.HasValue)
             {
-                var promptTokens = promptTokensProp.GetValue(usageObj) as int?;
-                var completionTokens = completionTokensProp.GetValue(usageObj) as int?;
-
-                if (promptTokens.HasValue && completionTokens.HasValue)
-                {
-                    return (promptTokens.Value, completionTokens.Value);
-                }
+                return value;
             }
         }
 
-        return (null, null);
+        return null;
     }
 
+    private static int? TryGetIntProperty(object source, IReadOnlyList<string> names)
+    {
+        if (source is JsonElement jsonElement)
+        {
+            return TryGetIntFromJson(jsonElement, names);
+        }
+
+        foreach (var name in names)
+        {
+            var property = source.GetType().GetProperty(name);
+            var value = property?.GetValue(source);
+            if (value == null)
+            {
+                continue;
+            }
+
+            if (value is JsonElement nestedJson)
+            {
+                return TryGetIntFromJson(nestedJson, names);
+            }
+
+            if (int.TryParse(value.ToString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? TryGetIntFromJson(JsonElement element, IReadOnlyList<string> names)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var name in names)
+        {
+            if (!element.TryGetProperty(name, out var value)
+                && !element.TryGetProperty(ToSnakeCase(name), out value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+            {
+                return number;
+            }
+        }
+
+        return null;
+    }
+
+    private static string ToSnakeCase(string value)
+    {
+        var builder = new System.Text.StringBuilder();
+        foreach (var character in value)
+        {
+            if (char.IsUpper(character) && builder.Length > 0)
+            {
+                builder.Append('_');
+            }
+
+            builder.Append(char.ToLowerInvariant(character));
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>
     /// 记录 API 错误的详细信息

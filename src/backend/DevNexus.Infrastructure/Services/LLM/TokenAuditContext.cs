@@ -73,7 +73,7 @@ public sealed class TokenAuditContext
     /// 模型名称
     /// </summary>
     public string ModelName { get; init; } = string.Empty;
-    
+
     /// <summary>
     /// 提供商类型（llm / embedding）
     /// </summary>
@@ -102,6 +102,11 @@ public sealed class TokenAuditContext
     /// <summary>
     /// 稳定 Prompt 前缀内容指纹。
     /// </summary>
+    public string? PromptCacheKey { get; init; }
+
+    /// <summary>
+    /// 稳定 Prompt 前缀内容指纹。
+    /// </summary>
     public string? StablePrefixHash { get; init; }
 
     /// <summary>
@@ -118,9 +123,36 @@ public sealed class TokenAuditContext
     /// 历史消息 Token 数。
     /// </summary>
     public int? HistoryTokens { get; init; }
-    
+
+    /// <summary>
+    /// Prompt 缓存标记候选数量。
+    /// </summary>
+    public int? CacheMarkerCandidateCount { get; init; }
+
+    /// <summary>
+    /// 是否具备双标记缓存预热条件。
+    /// </summary>
+    public bool? CacheDoubleMarkerReady { get; init; }
+
+    /// <summary>
+    /// 双标记缓存预热状态原因。
+    /// </summary>
+    public string? CacheMarkerReadinessReason { get; init; }
+
+    /// <summary>
+    /// 稳定 Prompt 前缀片段清单。
+    /// </summary>
+    public IReadOnlyList<PromptFragmentManifestItemDto> StablePrefixManifest { get; init; } =
+        Array.Empty<PromptFragmentManifestItemDto>();
+
+    /// <summary>
+    /// 动态上下文片段清单。
+    /// </summary>
+    public IReadOnlyList<PromptFragmentManifestItemDto> DynamicContextManifest { get; init; } =
+        Array.Empty<PromptFragmentManifestItemDto>();
+
     private static readonly AsyncLocal<TokenAuditContext?> _current = new();
-    
+
     /// <summary>
     /// 获取或设置当前异步上下文中的 TokenAuditContext
     /// </summary>

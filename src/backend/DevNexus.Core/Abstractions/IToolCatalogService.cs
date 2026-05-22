@@ -8,19 +8,24 @@ namespace DevNexus.Core.Abstractions;
 public interface IToolCatalogService
 {
     /// <summary>
-    /// 获取稳定排序后的核心工具清单。
-    /// </summary>
-    IReadOnlyList<ToolCatalogItemDto> GetCoreTools();
-
-    /// <summary>
-    /// 获取稳定排序后的领域工具清单。
-    /// </summary>
-    IReadOnlyList<ToolCatalogItemDto> GetDomainTools();
-
-    /// <summary>
     /// 获取所有工具。
     /// </summary>
     IReadOnlyList<ToolCatalogItemDto> GetAllTools();
+
+    /// <summary>
+    /// 获取可直接暴露给普通会话的工具清单。
+    /// </summary>
+    IReadOnlyList<ToolCatalogItemDto> GetDirectTools();
+
+    /// <summary>
+    /// 获取需要按 Skill 或领域场景延迟暴露的工具清单。
+    /// </summary>
+    IReadOnlyList<ToolCatalogItemDto> GetDeferredTools();
+
+    /// <summary>
+    /// 将模型或 Skill 传入的工具名称解析为目录中的规范插件名。
+    /// </summary>
+    string? ResolvePluginName(string? requestedName);
 
     /// <summary>
     /// 计算工具 Schema 与排序指纹。

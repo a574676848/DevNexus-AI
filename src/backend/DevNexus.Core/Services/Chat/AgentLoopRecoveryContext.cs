@@ -31,4 +31,9 @@ internal sealed class AgentLoopRecoveryContext
     /// 当前统一运行态快照。
     /// </summary>
     public ChatSessionRuntimeSnapshot Runtime { get; init; } = new();
+
+    /// <summary>
+    /// 是否只执行运行态恢复检查。
+    /// </summary>
+    public bool RuntimeOnly { get; init; }
 }

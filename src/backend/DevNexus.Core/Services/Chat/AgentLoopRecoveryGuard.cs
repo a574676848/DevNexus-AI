@@ -83,6 +83,27 @@ internal sealed class AgentLoopRecoveryGuard : IAgentLoopRecoveryGuard
         CancellationToken cancellationToken)
     {
         var normalizedToolRecords = ToolExecutionRecordNormalizer.Normalize(toolRecords);
+        var runtime = await _runtimeInspector.InspectAsync(
+            userId,
+            sessionId,
+            queuedCount: 0,
+            cancellationToken);
+        var runtimeRecoveryResult = await _recoveryPipeline.ExecuteAsync(
+            new AgentLoopRecoveryContext
+            {
+                UserId = userId,
+                SessionId = sessionId,
+                ToolRecords = normalizedToolRecords,
+                AgentLoopAttempt = agentLoopAttempt,
+                Runtime = runtime,
+                RuntimeOnly = true
+            },
+            cancellationToken);
+        if (runtimeRecoveryResult != null)
+        {
+            return runtimeRecoveryResult;
+        }
+
         if (normalizedToolRecords.Count == 0)
         {
             return new AgentLoopRecoveryGuardResult
@@ -91,11 +112,23 @@ internal sealed class AgentLoopRecoveryGuard : IAgentLoopRecoveryGuard
             };
         }
 
-        var runtime = await _runtimeInspector.InspectAsync(
-            userId,
-            sessionId,
-            queuedCount: 0,
-            cancellationToken);
+        var sequenceValidation = ToolExecutionSequenceValidator.Validate(normalizedToolRecords);
+        if (!sequenceValidation.IsValid)
+        {
+            var stopMessage = ToolCallTruncationRepairPromptBuilder.IsTruncation(sequenceValidation.Message)
+                ? ToolCallTruncationRepairPromptBuilder.Build(normalizedToolRecords)
+                : sequenceValidation.Message
+                    ?? "当前工具调用序列缺少稳定标识，已停止自动修复。";
+
+            return new AgentLoopRecoveryGuardResult
+            {
+                ToolRecords = normalizedToolRecords,
+                ShouldStop = true,
+                StopTitle = "工具调用序列异常",
+                StopMessage = stopMessage
+            };
+        }
+
         var recoveryResult = await _recoveryPipeline.ExecuteAsync(
             new AgentLoopRecoveryContext
             {

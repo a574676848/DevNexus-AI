@@ -63,7 +63,10 @@ public interface ISwarmEventService
     /// <summary>
     /// 控制命令通知。
     /// </summary>
-    Task NotifyControlCommandAsync(string sessionId, string command, CancellationToken cancellationToken = default);
+    Task NotifyControlCommandAsync(
+        string sessionId,
+        SwarmControlCommandDto command,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Swarm 会话结束（完成或中止）

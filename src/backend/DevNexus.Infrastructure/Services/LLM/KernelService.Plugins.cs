@@ -19,7 +19,7 @@ public partial class KernelService
     {
         try
         {
-            foreach (var tool in _toolCatalogService.GetCoreTools())
+            foreach (var tool in _toolCatalogService.GetDirectTools())
             {
                 RegisterCatalogPlugin(kernel, tool.PluginName, sessionId, userId);
             }
@@ -72,7 +72,13 @@ public partial class KernelService
             var hostService = _serviceProvider.GetService<IHostStructuredService>();
             if (hostService != null)
             {
-                kernel.Plugins.AddFromObject(new HostTextPlugin(hostService), AiOptimizationConstants.ToolProtocol.HostServicePlugin);
+                var cliRuntimeCoordinator = _serviceProvider.GetService<ICliRuntimeCoordinator>();
+                var userContextAccessor = _serviceProvider.GetService<IUserContextAccessor>();
+                var hostPlugin = cliRuntimeCoordinator == null || userContextAccessor == null
+                    ? new HostTextPlugin(hostService)
+                    : new HostTextPlugin(hostService, cliRuntimeCoordinator, userContextAccessor);
+
+                kernel.Plugins.AddFromObject(hostPlugin, AiOptimizationConstants.ToolProtocol.HostServicePlugin);
                 _logger.LogDebug("[AI.Kernel] 已注册 HostService 全局 Plugin");
             }
         }
@@ -108,23 +114,24 @@ public partial class KernelService
         {
             foreach (var pluginName in match.Skill.Plugins)
             {
-                if (RegisterCatalogPlugin(kernel, pluginName, sessionId, userId))
+                var resolvedPluginName = _toolCatalogService.ResolvePluginName(pluginName) ?? pluginName;
+                if (RegisterCatalogPlugin(kernel, resolvedPluginName, sessionId, userId))
                 {
-                    _logger.LogDebug("[AI.Kernel] 注册 Skill 目录 Plugin | Skill={Skill} Plugin={Plugin}",
-                        match.Skill.Name, pluginName);
+                    _logger.LogDebug("[AI.Kernel] 注册 Skill 目录 Plugin | Skill={Skill} Plugin={Plugin} Requested={Requested}",
+                        match.Skill.Name, resolvedPluginName, pluginName);
                     continue;
                 }
 
                 // 避免重复注册
-                if (kernel.Plugins.TryGetPlugin(pluginName, out _))
+                if (kernel.Plugins.TryGetPlugin(resolvedPluginName, out _))
                     continue;
 
-                var plugin = pluginResolver.Resolve(pluginName, sessionId, userId);
+                var plugin = pluginResolver.Resolve(resolvedPluginName, sessionId, userId);
                 if (plugin != null)
                 {
-                    kernel.Plugins.AddFromObject(plugin, pluginName);
+                    kernel.Plugins.AddFromObject(plugin, resolvedPluginName);
                     _logger.LogDebug("[AI.Kernel] 注册 Skill Plugin | Skill={Skill} Plugin={Plugin}",
-                        match.Skill.Name, pluginName);
+                        match.Skill.Name, resolvedPluginName);
                 }
                 else
                 {
@@ -150,6 +157,15 @@ public partial class KernelService
         {
             case AiOptimizationConstants.ToolProtocol.WebSearchPlugin:
                 return AddPluginFromService<WebSearchPlugin>(kernel, pluginName);
+            case AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin:
+                if (!userId.HasValue)
+                {
+                    _logger.LogDebug("[AI.Kernel] 跳过 KnowledgeBasePlugin 注册：缺少 UserId 上下文");
+                    return false;
+                }
+
+                RegisterKnowledgeBasePlugin(kernel, userId.Value);
+                return kernel.Plugins.TryGetPlugin(pluginName, out _);
             case AiOptimizationConstants.ToolProtocol.ImageGenerationPlugin:
                 var imageGenerationPlugin = _serviceProvider.GetService<ImageGenerationPlugin>();
                 if (imageGenerationPlugin == null)

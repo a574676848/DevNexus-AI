@@ -10,6 +10,7 @@ public sealed class ChatSystemPromptBuilder
     internal sealed class ChatSystemPromptBuildResult
     {
         public string Prompt { get; set; } = string.Empty;
+        public string? DynamicContextMessage { get; set; }
         public string? CriticalPrompt { get; set; }
         public int MaxContextTokens { get; set; }
         public List<SkillMatchResult>? MatchedSkills { get; set; }
@@ -62,31 +63,43 @@ public sealed class ChatSystemPromptBuilder
     {
         var maxContextTokens = await EstimateMaxContextTokensAsync(providerId, cancellationToken);
 
-        var systemPromptBuilder = new StringBuilder(_chatPromptService.GetSystemIdentity());
-        systemPromptBuilder.Append(PromptConstants.Output.BlockFormatSpec);
-        systemPromptBuilder.Append(PromptConstants.Output.ToolUsageGuide);
-
         var userTempPath = _userStoragePathService.GetUserTempPath(userId);
         var userProjectPath = _userStoragePathService.GetUserProjectPath(userId);
-        systemPromptBuilder.Append(string.Format(
-            PromptConstants.System.FileSecuritySandboxPrompt,
-            userTempPath,
-            userProjectPath));
+        var stablePrefixFragments = BuildStablePrefixFragments(userTempPath, userProjectPath);
+        var stablePrefix = PromptFragmentComposer.Compose(stablePrefixFragments);
         var criticalSystemPrompt = string.Format(
             PromptConstants.System.FileSecurityCompactReminderPrompt,
             userTempPath,
             userProjectPath);
-
-        systemPromptBuilder.AppendLine();
-        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.AutonomousWorkflowPrompt);
-        systemPromptBuilder.AppendLine(PromptConstants.AgentLoop.ToolUsageBestPractices);
-
-        var stablePrefix = systemPromptBuilder.ToString();
         var dynamicContextBuilder = new StringBuilder();
+        var dynamicContextFragments = new List<PromptFragment>();
 
-        await AppendMemoryContextAsync(dynamicContextBuilder, userId, currentMessage, cancellationToken);
-        AppendToolSelectionContext(dynamicContextBuilder, requestMetadata);
-        await AppendPendingInteractionContextAsync(dynamicContextBuilder, requestMetadata, cancellationToken);
+        await AppendDynamicContextFragmentAsync(
+            dynamicContextBuilder,
+            dynamicContextFragments,
+            PromptFragmentSources.DynamicMemory,
+            sequence: 0,
+            builder => AppendMemoryContextAsync(builder, userId, currentMessage, cancellationToken));
+        AppendDynamicContextFragment(
+            dynamicContextBuilder,
+            dynamicContextFragments,
+            PromptFragmentSources.DynamicSystemExperience,
+            sequence: 5,
+            builder => AppendSystemExperienceContext(builder, requestMetadata));
+        AppendDynamicContextFragment(
+            dynamicContextBuilder,
+            dynamicContextFragments,
+            PromptFragmentSources.DynamicToolSelection,
+            sequence: 10,
+            builder => AppendToolSelectionContext(builder, requestMetadata));
+        await AppendDynamicContextFragmentAsync(
+            dynamicContextBuilder,
+            dynamicContextFragments,
+            PromptFragmentSources.DynamicPendingInteraction,
+            sequence: 20,
+            builder => AppendPendingInteractionContextAsync(builder, requestMetadata, cancellationToken));
+        var systemExperienceReplay = SystemExperienceReplayMetadata.BuildSnapshot(requestMetadata);
+        var skillContextStartIndex = dynamicContextBuilder.Length;
         var matchedSkills = await AppendSkillContextAsync(
             dynamicContextBuilder,
             sessionId,
@@ -94,32 +107,114 @@ public sealed class ChatSystemPromptBuilder
             currentMessage,
             selectedSkillName,
             cancellationToken);
+        AddDynamicContextFragment(
+            dynamicContextFragments,
+            dynamicContextBuilder,
+            PromptFragmentSources.DynamicSkill,
+            sequence: 30,
+            startIndex: skillContextStartIndex);
 
-        await AppendSessionMemoryIndexAsync(dynamicContextBuilder, userId, sessionId, cancellationToken);
+        await AppendDynamicContextFragmentAsync(
+            dynamicContextBuilder,
+            dynamicContextFragments,
+            PromptFragmentSources.DynamicSessionMemory,
+            sequence: 40,
+            builder => AppendSessionMemoryIndexAsync(builder, userId, sessionId, cancellationToken));
 
         var dynamicContext = dynamicContextBuilder.ToString();
-        if (!string.IsNullOrWhiteSpace(dynamicContext))
-        {
-            systemPromptBuilder.Append(dynamicContext);
-        }
+        var stablePrefixHash = PromptFingerprint.ComputeHash(stablePrefix);
 
         return new ChatSystemPromptBuildResult
         {
-            Prompt = systemPromptBuilder.ToString(),
+            Prompt = stablePrefix,
+            DynamicContextMessage = PromptDynamicContextMessageBuilder.Build(dynamicContext),
             CriticalPrompt = criticalSystemPrompt,
             MaxContextTokens = maxContextTokens,
             MatchedSkills = matchedSkills,
             LayerMetadata = new PromptLayerMetadata
             {
                 StablePrefix = stablePrefix,
-                StablePrefixHash = PromptFingerprint.ComputeHash(stablePrefix),
+                StablePrefixHash = stablePrefixHash,
+                StablePrefixManifest = PromptFragmentManifestBuilder.Build(stablePrefixFragments),
+                DynamicContextManifest = PromptFragmentManifestBuilder.Build(dynamicContextFragments),
+                PromptCacheKey = PromptCacheKeyBuilder.Build(stablePrefixHash, toolSchemaHash: null),
                 DynamicContext = dynamicContext,
                 DynamicContextTokens = ChatHistoryService.EstimateTokenCount(dynamicContext),
+                SystemExperienceReplay = systemExperienceReplay,
                 SkillInstructionHash = string.IsNullOrWhiteSpace(dynamicContext)
                     ? null
                     : PromptFingerprint.ComputeHash(dynamicContext)
             }
         };
+    }
+
+    private IReadOnlyList<PromptFragment> BuildStablePrefixFragments(string userTempPath, string userProjectPath)
+    {
+        var fileSecurityPrompt = string.Format(
+            PromptConstants.System.FileSecuritySandboxPrompt,
+            userTempPath,
+            userProjectPath);
+        var workflowPrompt = string.Concat(
+            Environment.NewLine,
+            PromptConstants.AgentLoop.AutonomousWorkflowPrompt,
+            Environment.NewLine,
+            PromptConstants.AgentLoop.ToolUsageBestPractices,
+            Environment.NewLine);
+
+        return
+        [
+            PromptFragment.SystemIdentity(_chatPromptService.GetSystemIdentity()),
+            PromptFragment.OutputContract(PromptConstants.Output.BlockFormatSpec),
+            PromptFragment.ToolGuidance(PromptConstants.Output.ToolUsageGuide),
+            PromptFragment.SecurityBoundary(fileSecurityPrompt),
+            PromptFragment.AgentWorkflow(workflowPrompt)
+        ];
+    }
+
+    private static void AppendDynamicContextFragment(
+        StringBuilder builder,
+        List<PromptFragment> fragments,
+        string source,
+        int sequence,
+        Action<StringBuilder> append)
+    {
+        var startIndex = builder.Length;
+        append(builder);
+        AddDynamicContextFragment(fragments, builder, source, sequence, startIndex);
+    }
+
+    private static async Task AppendDynamicContextFragmentAsync(
+        StringBuilder builder,
+        List<PromptFragment> fragments,
+        string source,
+        int sequence,
+        Func<StringBuilder, Task> appendAsync)
+    {
+        var startIndex = builder.Length;
+        await appendAsync(builder);
+        AddDynamicContextFragment(fragments, builder, source, sequence, startIndex);
+    }
+
+    private static void AddDynamicContextFragment(
+        List<PromptFragment> fragments,
+        StringBuilder builder,
+        string source,
+        int sequence,
+        int startIndex)
+    {
+        var length = builder.Length - startIndex;
+        if (length <= 0)
+        {
+            return;
+        }
+
+        var text = builder.ToString(startIndex, length).Trim();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return;
+        }
+
+        fragments.Add(PromptFragment.DynamicContext(text, sequence, source));
     }
 
     private async Task<int> EstimateMaxContextTokensAsync(
@@ -394,6 +489,16 @@ public sealed class ChatSystemPromptBuilder
         }
     }
 
+    private static void AppendSystemExperienceContext(
+        StringBuilder systemPromptBuilder,
+        Dictionary<string, object>? requestMetadata)
+    {
+        if (TryGetMetadataValue(requestMetadata, ChatMessageMetadataKeys.SystemExperienceContext, out var context))
+        {
+            systemPromptBuilder.AppendLine(context);
+        }
+    }
+
     private static bool TryGetMetadataValue(
         Dictionary<string, object>? requestMetadata,
         string key,
@@ -420,24 +525,11 @@ public sealed class ChatSystemPromptBuilder
             return;
         }
 
-        var interaction = await _pendingInteractionRepository.GetByIdAsync(interactionId, cancellationToken);
-        if (interaction == null
-            || interaction.Status != PendingInteractionStatus.Resolved
-            || interaction.ResolutionData == null
-            || interaction.ResolutionData.Count == 0)
+        var context = PendingInteractionResumeContextBuilder.Build(
+            await _pendingInteractionRepository.GetByIdAsync(interactionId, cancellationToken));
+        if (!string.IsNullOrWhiteSpace(context))
         {
-            return;
+            systemPromptBuilder.Append(context);
         }
-
-        systemPromptBuilder.AppendLine();
-        systemPromptBuilder.AppendLine("## 用户刚刚补充的关键信息");
-        systemPromptBuilder.AppendLine("以下信息由用户在挂起交互中刚刚补充，可直接用于继续执行上一次被中断的任务：");
-        systemPromptBuilder.AppendLine($"- 交互标题: {interaction.Title}");
-        systemPromptBuilder.AppendLine($"- 交互说明: {interaction.Description}");
-        foreach (var pair in interaction.ResolutionData)
-        {
-            systemPromptBuilder.AppendLine($"- {pair.Key}: {pair.Value}");
-        }
-        systemPromptBuilder.AppendLine("请基于以上补充信息继续推进任务，不要重复向用户索取相同内容。");
     }
 }

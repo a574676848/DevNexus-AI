@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Execution;
+using DevNexus.Core.Services.Cli;
 using Microsoft.SemanticKernel;
 
 namespace DevNexus.Core.Services.Swarm.Context;
@@ -12,6 +13,8 @@ namespace DevNexus.Core.Services.Swarm.Context;
 public class HostTextPlugin
 {
     private readonly IHostStructuredService _hostService;
+    private readonly ICliRuntimeCoordinator? _cliRuntimeCoordinator;
+    private readonly IUserContextAccessor? _userContextAccessor;
 
     /// <summary>
     /// 初始化宿主服务文本插件适配器。
@@ -19,6 +22,19 @@ public class HostTextPlugin
     public HostTextPlugin(IHostStructuredService hostService)
     {
         _hostService = hostService;
+    }
+
+    /// <summary>
+    /// 初始化具备 CLI 会话续接能力的宿主服务文本插件适配器。
+    /// </summary>
+    public HostTextPlugin(
+        IHostStructuredService hostService,
+        ICliRuntimeCoordinator cliRuntimeCoordinator,
+        IUserContextAccessor userContextAccessor)
+        : this(hostService)
+    {
+        _cliRuntimeCoordinator = cliRuntimeCoordinator;
+        _userContextAccessor = userContextAccessor;
     }
 
     [KernelFunction, Description("读取文本文件内容")]
@@ -92,4 +108,74 @@ public class HostTextPlugin
         return HostOperationTextFormatter.FormatCommand(
             await _hostService.ExecuteCommandResultAsync(command, arguments, workingDirectory, cancellationToken));
     }
+
+    [KernelFunction, Description("等待当前聊天会话中仍在运行的终端命令完成，或轮询最新终端输出")]
+    public async Task<string> WaitCommandAsync(
+        [Description("等待毫秒数，建议 1000 到 30000")] int timeoutMs = CliContinuationWaitBudgetPolicy.DefaultWaitMilliseconds,
+        CancellationToken cancellationToken = default)
+    {
+        var context = ResolveCliContext();
+        if (context == null)
+        {
+            return TaggedExecutionText.Failure("缺少 CLI 会话上下文，无法等待终端命令。");
+        }
+
+        var session = await _cliRuntimeCoordinator!.WaitForExitAsync(
+            context.Value.UserId,
+            context.Value.SessionId,
+            CliContinuationWaitBudgetPolicy.Normalize(timeoutMs),
+            cancellationToken);
+
+        return CliContinuationToolResponseFormatter.Format("等待终端命令完成", session);
+    }
+
+    [KernelFunction, Description("向当前聊天会话中等待输入的终端命令发送 stdin；传入空字符串可发送空行")]
+    public async Task<string> SendCommandInputAsync(
+        [Description("要发送到终端的输入内容；末尾换行由运行时协议统一处理")] string input,
+        CancellationToken cancellationToken = default)
+    {
+        var context = ResolveCliContext();
+        if (context == null)
+        {
+            return TaggedExecutionText.Failure("缺少 CLI 会话上下文，无法发送终端输入。");
+        }
+
+        var session = await _cliRuntimeCoordinator!.WriteInputAsync(
+            context.Value.UserId,
+            context.Value.SessionId,
+            input,
+            cancellationToken);
+
+        return CliContinuationToolResponseFormatter.Format("已发送终端输入", session);
+    }
+
+    [KernelFunction, Description("停止当前聊天会话中仍在运行的终端命令；用于结束卡住或不再需要的命令")]
+    public async Task<string> StopCommandAsync(CancellationToken cancellationToken = default)
+    {
+        var context = ResolveCliContext();
+        if (context == null)
+        {
+            return TaggedExecutionText.Failure("缺少 CLI 会话上下文，无法停止终端命令。");
+        }
+
+        var result = await _cliRuntimeCoordinator!.TerminateAsync(
+            context.Value.UserId,
+            context.Value.SessionId,
+            cancellationToken);
+
+        return CliContinuationToolResponseFormatter.FormatTermination("停止终端命令", result);
+    }
+
+    private (Guid UserId, Guid SessionId)? ResolveCliContext()
+    {
+        if (_cliRuntimeCoordinator == null || _userContextAccessor?.CurrentUserId == null)
+        {
+            return null;
+        }
+
+        return Guid.TryParse(_userContextAccessor.CurrentSessionId, out var sessionId)
+            ? (_userContextAccessor.CurrentUserId.Value, sessionId)
+            : null;
+    }
+
 }

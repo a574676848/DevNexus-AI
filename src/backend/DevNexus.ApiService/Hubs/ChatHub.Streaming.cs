@@ -164,18 +164,6 @@ public partial class ChatHub
     private async Task ForwardToRuntimeInputAsync(Guid userId, Guid sessionId, string userGroup, string content)
     {
         var session = await _cliRuntimeCoordinator.WriteInputAsync(userId, sessionId, content, Context.ConnectionAborted);
-        var stateDto = session.State;
-        if (stateDto == null)
-        {
-            return;
-        }
-
-        await _runtimeEventNotifier.NotifyAsync(
-            userId,
-            sessionId,
-            CliExecutionRuntimeMapper.ResolveEventType(stateDto),
-            stateDto,
-            Context.ConnectionAborted);
 
         _logger.LogDebug(
             "[SignalR.Chat] 输入已转发给 CLI 运行时 | SessionId={SessionId}", sessionId);

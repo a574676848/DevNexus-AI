@@ -35,7 +35,6 @@
             @if (IsAdmin)
             {
                 <button class="@GetViewTabClass(AuditViewSystem)" @onclick="() => SwitchAuditView(AuditViewSystem)">系统总览</button>
-                <button class="@GetViewTabClass(AuditViewAiOptimization)" @onclick="() => SwitchAuditView(AuditViewAiOptimization)">AI 优化</button>
                 <button class="@GetViewTabClass(AuditViewDetail)" @onclick="() => SwitchAuditView(AuditViewDetail)">审计明细</button>
             }
         </div>
@@ -120,87 +119,6 @@
                 </button>
             </div>
         </div>
-    }
-    else if (ShowAiOptimizationView)
-    {
-        <section class="ai-optimization-panel" aria-label="AI 优化指标">
-            <div class="metric-grid">
-                <div class="metric-card">
-                    <span class="metric-label">缓存命中率</span>
-                    <strong>@FormatPercent(aiOptimizationDashboard.CacheHitRatio)</strong>
-                    <small>@FormatNumber(aiOptimizationDashboard.CachedPromptTokens) / @FormatNumber(aiOptimizationDashboard.TotalInputTokens) Token</small>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">工具成功率</span>
-                    <strong>@FormatPercent(aiOptimizationDashboard.ToolSuccessRate)</strong>
-                    <small>@aiOptimizationDashboard.ToolSuccessCount 成功 / @aiOptimizationDashboard.ToolCallCount 调用</small>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">稳定前缀覆盖</span>
-                    <strong>@FormatNumber(aiOptimizationDashboard.StablePrefixTrackedRequests)</strong>
-                    <small>已记录 StablePrefixHash 的请求</small>
-                </div>
-                <div class="metric-card">
-                    <span class="metric-label">工具 Schema 覆盖</span>
-                    <strong>@FormatNumber(aiOptimizationDashboard.ToolSchemaTrackedRequests)</strong>
-                    <small>已记录 ToolSchemaHash 的请求</small>
-                </div>
-            </div>
-
-            <div class="ai-optimization-tables">
-                <section class="analytics-section">
-                    <h2>高频工具</h2>
-                    <div class="data-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>工具</th>
-                                    <th>调用</th>
-                                    <th>成功率</th>
-                                    <th>平均耗时</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var tool in aiOptimizationDashboard.ToolStats.Take(8))
-                                {
-                                    <tr>
-                                        <td>@tool.ToolName</td>
-                                        <td>@tool.RequestCount</td>
-                                        <td>@FormatPercent(tool.SuccessRate)</td>
-                                        <td>@($"{tool.AverageDurationMs:F0} ms")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <section class="analytics-section">
-                    <h2>失败原因</h2>
-                    <div class="data-table">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>原因</th>
-                                    <th>次数</th>
-                                    <th>占比</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var reason in aiOptimizationDashboard.ToolFailureReasonStats.Take(8))
-                                {
-                                    <tr>
-                                        <td>@reason.DisplayName</td>
-                                        <td>@reason.RequestCount</td>
-                                        <td>@FormatFailureReasonRatio(reason.RequestCount)</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-        </section>
     }
     else if (ShowAdminView)
     {

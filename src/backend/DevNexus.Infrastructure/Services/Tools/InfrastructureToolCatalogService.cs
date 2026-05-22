@@ -1,6 +1,5 @@
-using System.Text.Json;
 using DevNexus.Core.Abstractions;
-using DevNexus.Core.Services.Chat;
+using DevNexus.Core.Services.Tools;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 
@@ -19,8 +18,10 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
             DisplayName = AiOptimizationConstants.ToolDisplayNames.WebSearch,
             Category = AiOptimizationConstants.ToolCategories.Research,
             RiskLevel = AiOptimizationConstants.ToolRiskLevels.Low,
-            IsCore = true,
-            ResultContract = AiOptimizationConstants.ToolResultContracts.WebSearch
+            ExposureMode = AiOptimizationConstants.ToolExposureModes.Direct,
+            ResultContract = AiOptimizationConstants.ToolResultContracts.WebSearch,
+            SupportsParallelExecution = true,
+            Aliases = ["WebSearch", "web_search", "web-search"]
         },
         new ToolCatalogItemDto
         {
@@ -28,8 +29,10 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
             DisplayName = AiOptimizationConstants.ToolDisplayNames.KnowledgeBase,
             Category = AiOptimizationConstants.ToolCategories.Knowledge,
             RiskLevel = AiOptimizationConstants.ToolRiskLevels.Low,
-            IsCore = true,
-            ResultContract = AiOptimizationConstants.ToolResultContracts.KnowledgeBase
+            ExposureMode = AiOptimizationConstants.ToolExposureModes.Direct,
+            ResultContract = AiOptimizationConstants.ToolResultContracts.KnowledgeBase,
+            SupportsParallelExecution = true,
+            Aliases = ["KnowledgeBase", "knowledge_base", "knowledge-base"]
         },
         new ToolCatalogItemDto
         {
@@ -37,8 +40,9 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
             DisplayName = AiOptimizationConstants.ToolDisplayNames.HostService,
             Category = AiOptimizationConstants.ToolCategories.Coding,
             RiskLevel = AiOptimizationConstants.ToolRiskLevels.High,
-            IsCore = false,
-            ResultContract = AiOptimizationConstants.ToolResultContracts.HostService
+            ExposureMode = AiOptimizationConstants.ToolExposureModes.Deferred,
+            ResultContract = AiOptimizationConstants.ToolResultContracts.HostService,
+            RequiresTaggedOutput = true
         },
         new ToolCatalogItemDto
         {
@@ -46,8 +50,9 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
             DisplayName = AiOptimizationConstants.ToolDisplayNames.CodeExecution,
             Category = AiOptimizationConstants.ToolCategories.Coding,
             RiskLevel = AiOptimizationConstants.ToolRiskLevels.High,
-            IsCore = false,
-            ResultContract = AiOptimizationConstants.ToolResultContracts.CodeExecution
+            ExposureMode = AiOptimizationConstants.ToolExposureModes.Deferred,
+            ResultContract = AiOptimizationConstants.ToolResultContracts.CodeExecution,
+            RequiresTaggedOutput = true
         },
         new ToolCatalogItemDto
         {
@@ -55,22 +60,10 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
             DisplayName = AiOptimizationConstants.ToolDisplayNames.ImageGeneration,
             Category = AiOptimizationConstants.ToolCategories.Creative,
             RiskLevel = AiOptimizationConstants.ToolRiskLevels.Medium,
-            IsCore = false,
+            ExposureMode = AiOptimizationConstants.ToolExposureModes.Deferred,
             ResultContract = AiOptimizationConstants.ToolResultContracts.ImageGeneration
         }
     ];
-
-    /// <inheritdoc />
-    public IReadOnlyList<ToolCatalogItemDto> GetCoreTools()
-    {
-        return Tools.Where(tool => tool.IsCore).OrderBy(tool => tool.PluginName, StringComparer.Ordinal).ToList();
-    }
-
-    /// <inheritdoc />
-    public IReadOnlyList<ToolCatalogItemDto> GetDomainTools()
-    {
-        return Tools.Where(tool => !tool.IsCore).OrderBy(tool => tool.PluginName, StringComparer.Ordinal).ToList();
-    }
 
     /// <inheritdoc />
     public IReadOnlyList<ToolCatalogItemDto> GetAllTools()
@@ -79,9 +72,26 @@ public sealed class InfrastructureToolCatalogService : IToolCatalogService
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<ToolCatalogItemDto> GetDirectTools()
+    {
+        return Tools.DirectTools();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<ToolCatalogItemDto> GetDeferredTools()
+    {
+        return Tools.DeferredTools();
+    }
+
+    /// <inheritdoc />
+    public string? ResolvePluginName(string? requestedName)
+    {
+        return Tools.ResolvePluginName(requestedName);
+    }
+
+    /// <inheritdoc />
     public string ComputeSchemaHash()
     {
-        var json = JsonSerializer.Serialize(GetAllTools());
-        return PromptFingerprint.ComputeHash(json);
+        return ToolSchemaFingerprint.ComputeHash(Tools);
     }
 }

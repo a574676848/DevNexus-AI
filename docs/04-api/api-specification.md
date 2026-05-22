@@ -18,7 +18,7 @@
 - `/api/update`
 - `/api/update/events`
 
-## 3. 当前控制器清单（代码实况）
+## 3. 当前控制器清单
 
 ### 3.1 认证与用户
 
@@ -79,7 +79,7 @@
 - `/artifact-hub`
 - `/swarm-hub`
 
-### 5.2 ChatHub 客户端可调用方法（代码实况）
+### 5.2 ChatHub 客户端可调用方法
 
 - `SendMessage`
 - `CancelMessageGeneration`

@@ -90,6 +90,7 @@ public partial class SwarmMonitor
                         ?? new List<ContextWorkPackageDto>();
                     var changedPackageIds = GetChangedPackageIds(updatedPackages);
                     ContextPackages = updatedPackages;
+                    StatusSummary = TryReadStatusSummary(data);
                     foreach (var changedPackageId in changedPackageIds)
                     {
                         MarkPackageRecentlyChanged(changedPackageId);
@@ -138,9 +139,23 @@ public partial class SwarmMonitor
                 break;
 
             case ServerEventType.SwarmControlCommand:
+                StatusSummary = TryReadStatusSummary(data) ?? StatusSummary;
                 var command = TryGetElementString(data, "Command", out var upperCommand)
                     ? upperCommand
                     : null;
+                var accepted = !TryGetElementBool(data, "Accepted", out var acceptedValue) || acceptedValue;
+                var message = TryGetElementString(data, "Message", out var commandMessage)
+                    ? commandMessage
+                    : null;
+                if (!accepted)
+                {
+                    AddTimelineEntry(
+                        string.IsNullOrWhiteSpace(message) ? "Swarm 控制命令未生效" : message,
+                        "warning",
+                        "system");
+                    break;
+                }
+
                 if (command == "Paused")
                 {
                     IsPaused = true;
@@ -196,5 +211,33 @@ public partial class SwarmMonitor
 
         value = property.ValueKind == JsonValueKind.String ? property.GetString() : property.ToString();
         return true;
+    }
+
+    private static bool TryGetElementBool(JsonElement element, string propertyName, out bool value)
+    {
+        value = false;
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
+        {
+            return false;
+        }
+
+        if (property.ValueKind == JsonValueKind.True || property.ValueKind == JsonValueKind.False)
+        {
+            value = property.GetBoolean();
+            return true;
+        }
+
+        return bool.TryParse(property.ToString(), out value);
+    }
+
+    private static SwarmSessionStatusSummaryDto? TryReadStatusSummary(JsonElement data)
+    {
+        if (data.ValueKind != JsonValueKind.Object
+            || !data.TryGetProperty("StatusSummary", out var summaryElement))
+        {
+            return null;
+        }
+
+        return JsonSerializer.Deserialize<SwarmSessionStatusSummaryDto>(summaryElement.GetRawText());
     }
 }

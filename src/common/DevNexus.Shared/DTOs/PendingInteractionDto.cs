@@ -59,6 +59,11 @@ public class PendingInteractionDto
     /// 恢复令牌。
     /// </summary>
     public string? RetryToken { get; set; }
+
+    /// <summary>
+    /// 交互摘要。
+    /// </summary>
+    public PendingInteractionSummaryDto? Summary { get; set; }
 }
 
 /// <summary>

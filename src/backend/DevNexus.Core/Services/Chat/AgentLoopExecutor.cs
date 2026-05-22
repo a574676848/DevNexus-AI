@@ -1,5 +1,6 @@
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Evaluation;
+using DevNexus.Shared.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.ChatCompletion;
 
@@ -44,6 +45,51 @@ public class AgentLoopExecutor
         if (normalizedToolRecords.Count == 0)
         {
             return (false, null);
+        }
+
+        var toolValidation = AgentLoopToolValidationPolicy.Decide(userGoal, normalizedToolRecords);
+        if (toolValidation.NeedsRetry && !string.IsNullOrWhiteSpace(toolValidation.RepairPrompt))
+        {
+            _logger.LogInformation(
+                "[AgentLoop] Tool call validation selected deterministic repair | Attempt={Attempt}",
+                attempt + 1);
+            await ThinkingContext.EmitAsync("🔄 检测到工具调用协议异常，正在切换为小步重试...");
+
+            return (true, toolValidation.RepairPrompt);
+        }
+
+        if (!toolValidation.CanContinue)
+        {
+            _logger.LogWarning(
+                "[AgentLoop] Tool call validation stopped repair | Attempt={Attempt} Reason={Reason}",
+                attempt + 1,
+                toolValidation.StopMessage);
+            return (false, null);
+        }
+
+        var deterministicRepairPrompt = TryBuildDeterministicToolRecoveryPrompt(
+            userGoal,
+            result,
+            normalizedToolRecords);
+        if (!string.IsNullOrWhiteSpace(deterministicRepairPrompt))
+        {
+            _logger.LogInformation(
+                "[AgentLoop] Deterministic tool recovery selected | Attempt={Attempt}",
+                attempt + 1);
+            await ThinkingContext.EmitAsync("🔄 检测到工具运行态续接要求，正在生成确定性恢复步骤...");
+
+            return (true, deterministicRepairPrompt);
+        }
+
+        var overflowRepairPrompt = ContextOverflowRepairPromptBuilder.TryBuild(userGoal, normalizedToolRecords);
+        if (!string.IsNullOrWhiteSpace(overflowRepairPrompt))
+        {
+            _logger.LogInformation(
+                "[AgentLoop] Context overflow recovery selected | Attempt={Attempt}",
+                attempt + 1);
+            await ThinkingContext.EmitAsync("🔄 检测到上下文过长，正在切换为压缩恢复模式...");
+
+            return (true, overflowRepairPrompt);
         }
 
         // 选择评估器：
@@ -97,5 +143,36 @@ public class AgentLoopExecutor
             evaluation);
 
         return (true, repairPrompt);
+    }
+
+    private static string? TryBuildDeterministicToolRecoveryPrompt(
+        string userGoal,
+        string result,
+        IReadOnlyList<ToolExecutionRecord> toolRecords)
+    {
+        var summary = ToolRecoveryStrategySummaryBuilder.Build(toolRecords);
+        if (!RequiresDeterministicRecovery(summary.PrimaryAction, toolRecords))
+        {
+            return null;
+        }
+
+        return AgentRuntimeRecoveryPromptBuilder.Build(
+            userGoal,
+            result,
+            toolRecords,
+            summary);
+    }
+
+    private static bool RequiresDeterministicRecovery(
+        ToolSuggestedAction primaryAction,
+        IReadOnlyList<ToolExecutionRecord> toolRecords)
+    {
+        return primaryAction is ToolSuggestedAction.WaitForCompletion or ToolSuggestedAction.StopCommand
+            || toolRecords.Any(IsCliInputContinuation);
+    }
+
+    private static bool IsCliInputContinuation(ToolExecutionRecord record)
+    {
+        return CliContinuationRecoveryPolicy.IsInputContinuation(record);
     }
 }

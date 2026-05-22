@@ -1,5 +1,6 @@
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Cli;
+using DevNexus.Core.Services.Terminal;
 
 namespace DevNexus.Infrastructure.Services.CliTerminal;
 
@@ -41,10 +42,10 @@ public class CliSessionManager : IDisposable
     /// <summary>
     /// 带哨兵机制的执行命令，适用于后端 LLM 工具调用
     /// </summary>
-    public async Task<(string Output, int ExitCode)> ExecuteAndWaitAsync(
-        string sessionId, 
-        string command, 
-        TimeSpan timeout, 
+    public async Task<CliCommandExecutionResult> ExecuteAndWaitAsync(
+        string sessionId,
+        string command,
+        TimeSpan timeout,
         CancellationToken ct)
     {
         return await _processRegistry.ExecuteAndWaitAsync(sessionId, command, timeout, ct);
@@ -59,7 +60,7 @@ public class CliSessionManager : IDisposable
     {
         return _processRegistry.GetStrippedOutput(sessionId, startIndex);
     }
-    
+
     public string GetRawOutput(string sessionId, int startIndex = 0)
     {
         return _processRegistry.GetRawOutput(sessionId, startIndex);
@@ -70,7 +71,7 @@ public class CliSessionManager : IDisposable
     /// </summary>
     public string TruncateOutput(string output, int headLimit = 1500, int tailLimit = 3500)
     {
-        return _processRegistry.TruncateOutput(output, headLimit, tailLimit);
+        return TerminalOutputPreviewBuilder.Build(output, headLimit, tailLimit);
     }
 
     public void TerminateSession(string sessionId)

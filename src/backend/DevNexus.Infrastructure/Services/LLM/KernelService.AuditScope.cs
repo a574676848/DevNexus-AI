@@ -65,7 +65,19 @@ public partial class KernelService
             ProviderType = previousContext?.ProviderType ?? ModelInvocationProviderTypes.Llm,
             ProviderName = previousContext?.ProviderName ?? string.Empty,
             ProviderId = previousContext?.ProviderId ?? string.Empty,
-            LLMProviderId = previousContext?.LLMProviderId ?? Guid.Empty
+            LLMProviderId = previousContext?.LLMProviderId ?? Guid.Empty,
+            PromptCacheKey = previousContext?.PromptCacheKey,
+            StablePrefixHash = previousContext?.StablePrefixHash,
+            ToolSchemaHash = previousContext?.ToolSchemaHash,
+            DynamicContextTokens = previousContext?.DynamicContextTokens,
+            HistoryTokens = previousContext?.HistoryTokens,
+            CacheMarkerCandidateCount = previousContext?.CacheMarkerCandidateCount,
+            CacheDoubleMarkerReady = previousContext?.CacheDoubleMarkerReady,
+            CacheMarkerReadinessReason = previousContext?.CacheMarkerReadinessReason,
+            StablePrefixManifest = previousContext?.StablePrefixManifest
+                ?? Array.Empty<PromptFragmentManifestItemDto>(),
+            DynamicContextManifest = previousContext?.DynamicContextManifest
+                ?? Array.Empty<PromptFragmentManifestItemDto>()
         };
     }
 
@@ -96,10 +108,20 @@ public partial class KernelService
             ProviderName = providerName,
             ProviderId = providerId,
             LLMProviderId = llmProviderId,
+            PromptCacheKey = promptMetadata?.PromptCacheKey ?? context.PromptCacheKey,
             StablePrefixHash = promptMetadata?.StablePrefixHash ?? context.StablePrefixHash,
             ToolSchemaHash = promptMetadata?.ToolSchemaHash ?? context.ToolSchemaHash,
             DynamicContextTokens = promptMetadata?.DynamicContextTokens ?? context.DynamicContextTokens,
-            HistoryTokens = promptMetadata?.HistoryTokens ?? context.HistoryTokens
+            HistoryTokens = promptMetadata?.HistoryTokens ?? context.HistoryTokens,
+            CacheMarkerCandidateCount = promptMetadata?.CacheMarkerCandidateCount ?? context.CacheMarkerCandidateCount,
+            CacheDoubleMarkerReady = promptMetadata?.CacheDoubleMarkerReady ?? context.CacheDoubleMarkerReady,
+            CacheMarkerReadinessReason = promptMetadata?.CacheMarkerReadinessReason ?? context.CacheMarkerReadinessReason,
+            StablePrefixManifest = promptMetadata?.StablePrefixManifest.Count > 0
+                ? promptMetadata.StablePrefixManifest
+                : context.StablePrefixManifest,
+            DynamicContextManifest = promptMetadata?.DynamicContextManifest.Count > 0
+                ? promptMetadata.DynamicContextManifest
+                : context.DynamicContextManifest
         };
     }
 }

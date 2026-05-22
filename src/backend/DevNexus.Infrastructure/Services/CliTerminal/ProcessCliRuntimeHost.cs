@@ -1,9 +1,9 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
-using System.Text.RegularExpressions;
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Cli;
+using DevNexus.Core.Services.Cli;
 using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Shared.Enums;
@@ -15,7 +15,7 @@ namespace DevNexus.Infrastructure.Services.CliTerminal;
 /// <summary>
 /// 基于标准 Process 的 CLI 运行时宿主。
 /// </summary>
-public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
+public sealed partial class ProcessCliRuntimeHost : ICliProcessRegistry
 {
     private readonly ILogger<ProcessCliRuntimeHost> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
@@ -29,15 +29,6 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
 
     private const int MaxBufferSize = 1024 * 1024;
     private static readonly TimeSpan WarmShellMaxAge = TimeSpan.FromMinutes(2);
-    private static readonly Regex AnsiRegex = new(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", RegexOptions.Compiled);
-    private static readonly Regex[] WaitingInputPatterns =
-    [
-        new Regex(@"(?i)password\s*[:：]?$", RegexOptions.Compiled),
-        new Regex(@"(?i)continue\?\s*\[y/n\]", RegexOptions.Compiled),
-        new Regex(@"(?i)press\s+enter\s+to\s+continue", RegexOptions.Compiled),
-        new Regex(@"(?i)confirm\s*\[y/n\]", RegexOptions.Compiled),
-        new Regex(@"(?i)enter\s+.*[:：]$", RegexOptions.Compiled)
-    ];
 
     /// <inheritdoc />
     public event Action<string, string>? OnOutputReceived;
@@ -135,7 +126,7 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
     }
 
     /// <inheritdoc />
-    public async Task<(string Output, int ExitCode)> ExecuteAndWaitAsync(
+    public async Task<CliCommandExecutionResult> ExecuteAndWaitAsync(
         string sessionId,
         string command,
         TimeSpan timeout,
@@ -144,7 +135,10 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
         _lastAccessTimes[sessionId] = DateTime.UtcNow;
         if (!_sessions.TryGetValue(sessionId, out var process) || process.HasExited)
         {
-            return ("Shell process not available.", -1);
+            return new CliCommandExecutionResult(
+                "Shell process not available.",
+                -1,
+                CliCommandExecutionState.ProcessUnavailable);
         }
 
         if (_runtimeStates.TryGetValue(sessionId, out var runtimeState))
@@ -158,12 +152,11 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
 
         await PersistRuntimeSessionAsync(sessionId, command: command);
 
-        var isWindows = OperatingSystem.IsWindows();
-        var sentinel = $"__EXIT_{Guid.NewGuid():N}__";
-
-        var commandToRun = isWindows
-            ? $"{command}; echo '{sentinel}'; echo $LASTEXITCODE"
-            : $"{command}; echo '{sentinel}'; echo $?";
+        var sentinel = CliCommandCompletionProtocol.CreateSentinel();
+        var commandToRun = CliCommandCompletionProtocol.BuildCommand(
+            command,
+            sentinel,
+            OperatingSystem.IsWindows());
 
         var initialStrippedLength = _strippedBuffers.TryGetValue(sessionId, out var strippedBuffer)
             ? strippedBuffer.Length
@@ -180,29 +173,32 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
             while (!cts.IsCancellationRequested && !process.HasExited)
             {
                 var currentStripped = GetStrippedOutput(sessionId, initialStrippedLength);
-                if (currentStripped.Contains(sentinel, StringComparison.Ordinal))
+                if (CliCommandCompletionProtocol.TryParseCompletion(
+                    currentStripped,
+                    sentinel,
+                    out var completion))
                 {
-                    var lines = currentStripped.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-                    var exitCodeStr = lines.LastOrDefault();
-                    int.TryParse(exitCodeStr, out var exitCode);
-
-                    var cleanOutput = currentStripped[..currentStripped.IndexOf(sentinel, StringComparison.Ordinal)].TrimEnd();
                     if (_runtimeStates.TryGetValue(sessionId, out var completedState))
                     {
                         completedState.LastActivityAt = DateTime.UtcNow;
                         completedState.WaitingForInput = false;
                         completedState.WaitingForInputSince = null;
-                        completedState.State = exitCode == 0
+                        completedState.State = completion.ExitCode == 0
                             ? CliSessionExecutionState.Completed
                             : CliSessionExecutionState.Failed;
-                        completedState.TerminationReason = exitCode == 0
+                        completedState.TerminationReason = completion.ExitCode == 0
                             ? CliSessionTerminationReason.Completed
                             : CliSessionTerminationReason.ProcessExited;
                     }
 
-                    await PersistRuntimeSessionAsync(sessionId, exitCode: exitCode, command: command);
+                    await PersistRuntimeSessionAsync(sessionId, exitCode: completion.ExitCode, command: command);
 
-                    return (cleanOutput, exitCode);
+                    return new CliCommandExecutionResult(
+                        completion.CleanOutput,
+                        completion.ExitCode,
+                        completion.ExitCode == 0
+                            ? CliCommandExecutionState.Completed
+                            : CliCommandExecutionState.Failed);
                 }
 
                 await Task.Delay(50, ct);
@@ -210,19 +206,34 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
 
             if (cts.IsCancellationRequested)
             {
-                MarkTermination(sessionId, CliSessionExecutionState.TimedOut, CliSessionTerminationReason.MaxRuntimeExceeded);
-                TerminateSession(sessionId);
-                return (GetStrippedOutput(sessionId, initialStrippedLength) + "\n\n[Timeout] 进程执行超时被强制斩杀", 124);
+                if (_runtimeStates.TryGetValue(sessionId, out var runningState))
+                {
+                    runningState.LastActivityAt = DateTime.UtcNow;
+                    runningState.State = CliSessionExecutionState.Running;
+                    runningState.TerminationReason = CliSessionTerminationReason.None;
+                    _ = PersistRuntimeSessionAsync(sessionId, command: command);
+                }
+
+                return new CliCommandExecutionResult(
+                    GetStrippedOutput(sessionId, initialStrippedLength) + "\n\n[StillRunning] 本次等待预算已耗尽，终端命令仍在后台运行。可继续查看终端输出或等待会话结束。",
+                    0,
+                    CliCommandExecutionState.StillRunning);
             }
         }
         catch (OperationCanceledException)
         {
             MarkTermination(sessionId, CliSessionExecutionState.Cancelled, CliSessionTerminationReason.Cancelled);
             TerminateSession(sessionId);
-            return (GetStrippedOutput(sessionId, initialStrippedLength) + "\n\n[Aborted] 执行被取消", -1);
+            return new CliCommandExecutionResult(
+                GetStrippedOutput(sessionId, initialStrippedLength) + "\n\n[Aborted] 执行被取消",
+                -1,
+                CliCommandExecutionState.Cancelled);
         }
 
-        return (GetStrippedOutput(sessionId, initialStrippedLength), -1);
+        return new CliCommandExecutionResult(
+            GetStrippedOutput(sessionId, initialStrippedLength),
+            -1,
+            CliCommandExecutionState.ProcessUnavailable);
     }
 
     /// <inheritdoc />
@@ -468,51 +479,6 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
         _sandboxSessionProvider.CleanupOrphanedLeases(Array.Empty<string>());
     }
 
-    /// <summary>
-    /// 预热指定工作目录的可消费 shell。
-    /// </summary>
-    public async Task WarmShellAsync(string workingDirectory, CancellationToken cancellationToken)
-    {
-        CleanupExpiredWarmShells();
-
-        var normalizedWorkingDirectory = Path.GetFullPath(workingDirectory);
-        if (_warmShells.TryGetValue(normalizedWorkingDirectory, out var existing)
-            && !existing.Process.HasExited)
-        {
-            return;
-        }
-
-        var warmSessionId = $"warm:{Guid.NewGuid():N}";
-        var lease = await _sandboxSessionProvider.AcquireAsync(warmSessionId, normalizedWorkingDirectory, cancellationToken);
-        var process = StartPersistentShell(lease, warmSessionId);
-
-        if (process.HasExited)
-        {
-            _sandboxSessionProvider.Release(warmSessionId);
-            process.Dispose();
-            return;
-        }
-
-        var entry = new WarmShellEntry
-        {
-            WorkingDirectory = normalizedWorkingDirectory,
-            Lease = lease,
-            Process = process,
-            WarmedAt = DateTime.UtcNow
-        };
-
-        if (_warmShells.TryGetValue(normalizedWorkingDirectory, out var previous))
-        {
-            CleanupWarmShell(previous);
-        }
-
-        _warmShells[normalizedWorkingDirectory] = entry;
-        _logger.LogDebug(
-            "[CliRuntimeWarmPool] 已预热 shell | WorkingDirectory={WorkingDirectory} WarmSession={WarmSession}",
-            normalizedWorkingDirectory,
-            warmSessionId);
-    }
-
     private Process StartPersistentShell(CliSandboxSessionLease lease, string sessionId)
     {
         var shellKind = lease.StartInfo.Environment.TryGetValue("DEVNEXUS_SHELL_KIND", out var configuredShellKind)
@@ -580,11 +546,13 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
             return;
         }
 
+        var cleanText = CliOutputTextSanitizer.StripAnsi(text);
+
         if (_rawBuffers.TryGetValue(sessionId, out var raw))
         {
             lock (raw)
             {
-                raw.Append(text);
+                raw.Append(cleanText);
                 MaintainWatermark(raw);
             }
         }
@@ -593,14 +561,13 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
         {
             lock (stripped)
             {
-                var cleanText = AnsiRegex.Replace(text, string.Empty);
                 stripped.Append(cleanText);
                 MaintainWatermark(stripped);
                 UpdateRuntimeState(sessionId, cleanText);
             }
         }
 
-        OnOutputReceived?.Invoke(sessionId, text);
+        OnOutputReceived?.Invoke(sessionId, cleanText);
     }
 
     private void MaintainWatermark(StringBuilder sb)
@@ -622,7 +589,7 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
         runtimeState.LastActivityAt = DateTime.UtcNow;
         _lastAccessTimes[sessionId] = runtimeState.LastActivityAt;
 
-        if (WaitingInputPatterns.Any(pattern => pattern.IsMatch(text.Trim())))
+        if (CliOutputTextSanitizer.IsWaitingForInput(text))
         {
             runtimeState.WaitingForInput = true;
             runtimeState.WaitingForInputSince ??= DateTime.UtcNow;
@@ -658,14 +625,14 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
 
             using var scope = _scopeFactory.CreateScope();
             var repository = scope.ServiceProvider.GetRequiredService<ICliExecSessionRepository>();
-            var (userId, chatSessionId) = ParseSessionKey(sessionId);
+            var (userId, chatSessionId) = CliSessionPersistenceMapper.ParseSessionKey(sessionId);
 
             await repository.UpsertAsync(new CliExecSession
             {
                 SessionKey = sessionId,
                 UserId = userId,
                 ChatSessionId = chatSessionId,
-                ExecStatus = ToExecStatus(runtimeState.State),
+                ExecStatus = CliSessionPersistenceMapper.ToExecStatus(runtimeState.State),
                 SessionMode = CliSessionMode.InteractiveShell,
                 Command = command,
                 WorkingDirectory = runtimeState.WorkingDirectory,
@@ -687,145 +654,4 @@ public sealed class ProcessCliRuntimeHost : ICliProcessRegistry
         }
     }
 
-    private static CliExecStatus ToExecStatus(CliSessionExecutionState state)
-    {
-        return state switch
-        {
-            CliSessionExecutionState.Created => CliExecStatus.Requested,
-            CliSessionExecutionState.Running => CliExecStatus.Running,
-            CliSessionExecutionState.WaitingForInput => CliExecStatus.WaitingForInput,
-            CliSessionExecutionState.Completed => CliExecStatus.Completed,
-            CliSessionExecutionState.Cancelled => CliExecStatus.Cancelled,
-            CliSessionExecutionState.TimedOut => CliExecStatus.TimedOut,
-            CliSessionExecutionState.Reaped => CliExecStatus.Reaped,
-            CliSessionExecutionState.Failed => CliExecStatus.Failed,
-            _ => CliExecStatus.Unknown
-        };
-    }
-
-    private static (Guid? UserId, Guid? ChatSessionId) ParseSessionKey(string sessionKey)
-    {
-        var parts = sessionKey.Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length != 2)
-        {
-            return (null, null);
-        }
-
-        Guid? userId = null;
-        Guid? chatSessionId = null;
-
-        if (parts[0].Length == 32)
-        {
-            var hex = parts[0];
-            if (Guid.TryParseExact(
-                $"{hex[..8]}-{hex[8..12]}-{hex[12..16]}-{hex[16..20]}-{hex[20..32]}",
-                "D",
-                out var parsedUserId))
-            {
-                userId = parsedUserId;
-            }
-        }
-
-        if (Guid.TryParse(parts[1], out var parsedChatSessionId))
-        {
-            chatSessionId = parsedChatSessionId;
-        }
-
-        return (userId, chatSessionId);
-    }
-
-    private WarmShellEntry? TryTakeWarmShell(string workingDirectory)
-    {
-        if (!_warmShells.TryRemove(workingDirectory, out var entry))
-        {
-            return null;
-        }
-
-        if (entry.Process.HasExited)
-        {
-            CleanupWarmShell(entry);
-            return null;
-        }
-
-        return entry;
-    }
-
-    private void CleanupExpiredWarmShells()
-    {
-        var now = DateTime.UtcNow;
-        foreach (var entry in _warmShells.ToArray())
-        {
-            if (entry.Value.Process.HasExited || now - entry.Value.WarmedAt > WarmShellMaxAge)
-            {
-                if (_warmShells.TryRemove(entry.Key, out var removed))
-                {
-                    CleanupWarmShell(removed);
-                }
-            }
-        }
-    }
-
-    private void ReleaseWarmShell(string workingDirectory)
-    {
-        if (_warmShells.TryRemove(workingDirectory, out var entry))
-        {
-            CleanupWarmShell(entry);
-        }
-    }
-
-    private void CleanupWarmShell(WarmShellEntry entry)
-    {
-        try
-        {
-            _sandboxSessionProvider.Release(entry.Lease.SessionId);
-            if (!entry.Process.HasExited)
-            {
-                entry.Process.Kill(entireProcessTree: true);
-                entry.Process.WaitForExit();
-            }
-        }
-        catch
-        {
-        }
-        finally
-        {
-            entry.Process.Dispose();
-        }
-    }
-
-    private sealed class CliSessionRuntimeState
-    {
-        public string SessionKey { get; set; } = string.Empty;
-
-        public string WorkingDirectory { get; set; } = string.Empty;
-
-        public string LockKey { get; set; } = string.Empty;
-
-        public string LeaseSessionKey { get; set; } = string.Empty;
-
-        public DateTime CreatedAt { get; set; }
-
-        public DateTime StartedAt { get; set; }
-
-        public DateTime LastActivityAt { get; set; }
-
-        public bool WaitingForInput { get; set; }
-
-        public DateTime? WaitingForInputSince { get; set; }
-
-        public CliSessionExecutionState State { get; set; }
-
-        public CliSessionTerminationReason TerminationReason { get; set; }
-    }
-
-    private sealed class WarmShellEntry
-    {
-        public string WorkingDirectory { get; init; } = string.Empty;
-
-        public CliSandboxSessionLease Lease { get; init; } = new();
-
-        public Process Process { get; init; } = null!;
-
-        public DateTime WarmedAt { get; init; }
-    }
 }

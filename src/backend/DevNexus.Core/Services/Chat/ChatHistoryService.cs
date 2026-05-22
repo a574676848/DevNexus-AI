@@ -77,6 +77,11 @@ public class ChatHistoryService
 
         chatHistory.AddSystemMessage(promptBuildResult.Prompt);
         int systemTokens = EstimateTokenCount(promptBuildResult.Prompt);
+        if (!string.IsNullOrWhiteSpace(promptBuildResult.DynamicContextMessage))
+        {
+            chatHistory.AddUserMessage(promptBuildResult.DynamicContextMessage);
+        }
+
         if (!string.IsNullOrWhiteSpace(promptBuildResult.CriticalPrompt))
         {
             chatHistory.AddSystemMessage(promptBuildResult.CriticalPrompt);
@@ -102,33 +107,69 @@ public class ChatHistoryService
 
         if (!string.IsNullOrEmpty(artifactsContext))
         {
-            chatHistory.AddUserMessage(artifactsContext);
-            _logger.LogDebug("[AI.Chat] AI 聊天： Added RAG context message | SessionId={SessionId} Tokens={Tokens}", 
+            var artifactsContextMessage = PromptDynamicContextMessageBuilder.Build(
+                "文档与 RAG 上下文",
+                artifactsContext);
+            chatHistory.AddUserMessage(artifactsContextMessage ?? artifactsContext);
+            _logger.LogDebug("[AI.Chat] AI 聊天： Added RAG context message | SessionId={SessionId} Tokens={Tokens}",
                 sessionId, artifactsTokens);
         }
 
         // 计算已使用的 Token（系统提示 + Artifacts 上下文）
         int usedTokens = systemTokens + artifactsTokens;
         int remainingTokenBudget = Math.Min(maxHistoryTokens, maxTotalTokens - usedTokens);
-        
+
         _logger.LogDebug(
             "[AI.Chat] Token budget | MaxContext={MaxContext} SystemTokens={System} ArtifactsTokens={Artifacts} HistoryBudget={History}",
             maxContextTokens, systemTokens, artifactsTokens, remainingTokenBudget);
 
         // 构建历史消息
-        await _messageBuilder.AppendHistoryMessagesAsync(
+        var historyGovernance = await _messageBuilder.AppendHistoryMessagesAsync(
             chatHistory,
             sessionId,
             providerId,
             remainingTokenBudget,
             cancellationToken);
 
-        var actualHistoryTokens = Math.Max(0, remainingTokenBudget);
+        var actualHistoryTokens = historyGovernance.ConsumedTokens;
         if (promptBuildResult.LayerMetadata != null)
         {
+            var cacheMarkerPlan = PromptCacheMarkerPlanner.Plan(chatHistory);
             promptBuildResult.LayerMetadata.HistoryTokens = actualHistoryTokens;
+            promptBuildResult.LayerMetadata.HistoryGovernance = historyGovernance;
             promptBuildResult.LayerMetadata.ToolSchemaHash = _toolCatalogService.ComputeSchemaHash();
+            promptBuildResult.LayerMetadata.PromptCacheKey = PromptCacheKeyBuilder.Build(
+                promptBuildResult.LayerMetadata.StablePrefixHash,
+                promptBuildResult.LayerMetadata.ToolSchemaHash);
+            promptBuildResult.LayerMetadata.CacheMarkerCandidateCount = cacheMarkerPlan.MarkerIndexes.Count;
+            promptBuildResult.LayerMetadata.CacheDoubleMarkerReady = cacheMarkerPlan.IsDoubleMarkerReady;
+            promptBuildResult.LayerMetadata.CacheMarkerReadinessReason = cacheMarkerPlan.ReadinessReason;
         }
+
+        _logger.LogDebug(
+            "[AI.Context.Governance] History built | SessionId={SessionId} Strategy={Strategy} BudgetTokens={BudgetTokens} " +
+            "ConsumedTokens={ConsumedTokens} Fetched={Fetched} Replayable={Replayable} Direct={Direct} " +
+            "Compressed={Compressed} Summary={Summary} Recent={Recent} SkippedRepair={SkippedRepair} " +
+            "SkippedIncompleteAssistant={SkippedIncompleteAssistant} Truncated={Truncated} " +
+            "CompressionIndexed={CompressionIndexed} CompressionTopics={CompressionTopics} " +
+            "CompressionSummaryChars={CompressionSummaryChars} CompressionSummaryFingerprint={CompressionSummaryFingerprint}",
+            sessionId,
+            historyGovernance.Strategy,
+            historyGovernance.BudgetTokens,
+            historyGovernance.ConsumedTokens,
+            historyGovernance.FetchedMessageCount,
+            historyGovernance.ReplayableMessageCount,
+            historyGovernance.DirectMessageCount,
+            historyGovernance.CompressedMessageCount,
+            historyGovernance.SummaryMessageCount,
+            historyGovernance.RecentMessageCount,
+            historyGovernance.SkippedInternalRepairPromptCount,
+            historyGovernance.SkippedIncompleteAssistantMessageCount,
+            historyGovernance.TruncatedByBudget,
+            historyGovernance.CompressionIndex.HasIndex,
+            historyGovernance.CompressionIndex.TopicHints.Count,
+            historyGovernance.CompressionIndex.SummaryCharacterCount,
+            historyGovernance.CompressionIndex.SummaryFingerprint);
 
         return new ChatHistoryResult
         {
@@ -172,8 +213,8 @@ public class ChatHistoryService
     /// 补全会话上下文参数（UserId 和最新 MessageId）
     /// </summary>
     public async Task<(Guid UserId, Guid? MessageId)> EnrichSessionParamsAsync(
-        Guid sessionId, 
-        Guid? userId, 
+        Guid sessionId,
+        Guid? userId,
         CancellationToken cancellationToken)
     {
         return await _summaryService.EnrichSessionParamsAsync(

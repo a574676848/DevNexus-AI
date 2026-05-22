@@ -6,6 +6,7 @@ using DevNexus.Core.Services.Swarm.Execution;
 using DevNexus.Core.Services.Swarm.Routing;
 using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
+using DevNexus.Domain.Enums;
 using DevNexus.Domain.Models.Swarm;
 using DevNexus.Shared.Enums;
 using DevNexus.Shared.DTOs;
@@ -83,59 +84,77 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
             Array.Empty<ContextWorkPackage>());
         await _swarmSessionRepository.SaveAsync(persistedSession);
 
-        await blockWriter.WriteAsync(
-            new BlockDto
-            {
-                BlockType = BlockType.Thinking,
-                Content = "Swarm 正在进行上下文分析与工作包规划。",
-                SessionId = Guid.TryParse(sessionId, out var sessionGuid) ? sessionGuid : Guid.Empty
-            },
-            cancellationToken);
-
-        var draftPackages = await _contextAnalyzer.AnalyzeAsync(
-            userRequest,
-            sessionId,
-            complexity,
-            cancellationToken);
-        await PersistPackagesAsync(persistedSession, draftPackages, SwarmStatus.Running);
-        await NotifyContextPackagesAsync(sessionId, draftPackages, cancellationToken);
-
-        var segmentedPackages = await _contextSegmenter.SegmentAsync(draftPackages, cancellationToken);
-        var selectedPackages = new List<ContextWorkPackage>(segmentedPackages.Count);
-
-        foreach (var package in segmentedPackages)
+        try
         {
-            selectedPackages.Add(await _executionStrategySelector.SelectAsync(package, cancellationToken));
-        }
-        await PersistPackagesAsync(persistedSession, selectedPackages, SwarmStatus.Running);
-        await NotifyContextPackagesAsync(sessionId, selectedPackages, cancellationToken);
+            await blockWriter.WriteAsync(
+                new BlockDto
+                {
+                    BlockType = BlockType.Thinking,
+                    Content = "Swarm 正在进行上下文分析与工作包规划。",
+                    SessionId = Guid.TryParse(sessionId, out var sessionGuid) ? sessionGuid : Guid.Empty
+                },
+                cancellationToken);
 
-        var plan = await _workPackagePlanner.PlanAsync(sessionId, selectedPackages, cancellationToken);
-        await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Running);
-        await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
-        await _contextRoutingService.RouteAsync(plan, cancellationToken);
-        await _packageScheduler.ExecuteAsync(plan, providerId, userId, cancellationToken);
-        await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Running);
-        await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
-        await _contextEvaluationService.EvaluateAsync(plan, cancellationToken);
-        await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Completed);
-        await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
+            var draftPackages = await _contextAnalyzer.AnalyzeAsync(
+                userRequest,
+                sessionId,
+                complexity,
+                cancellationToken);
+            await PersistPackagesAsync(persistedSession, draftPackages, SwarmStatus.Running);
+            await NotifyContextPackagesAsync(sessionId, draftPackages, cancellationToken);
 
-        var summary = string.Join(Environment.NewLine, plan.Packages.Select(
-            package => $"- [{package.ExecutionStrategy}] {package.Title}: {package.Result}"));
+            var segmentedPackages = await _contextSegmenter.SegmentAsync(draftPackages, cancellationToken);
+            var selectedPackages = new List<ContextWorkPackage>(segmentedPackages.Count);
 
-        await blockWriter.WriteAsync(
-            new BlockDto
+            foreach (var package in segmentedPackages)
             {
-                BlockType = BlockType.TextDelta,
-                Content = $"# Swarm 上下文规划结果{Environment.NewLine}{summary}",
-                SessionId = Guid.TryParse(sessionId, out sessionGuid) ? sessionGuid : Guid.Empty
-            },
-            cancellationToken);
+                selectedPackages.Add(await _executionStrategySelector.SelectAsync(package, cancellationToken));
+            }
+            await PersistPackagesAsync(persistedSession, selectedPackages, SwarmStatus.Running);
+            await NotifyContextPackagesAsync(sessionId, selectedPackages, cancellationToken);
 
-        await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Completed, summary);
+            var plan = await _workPackagePlanner.PlanAsync(sessionId, selectedPackages, cancellationToken);
+            await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Running);
+            await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
+            await _contextRoutingService.RouteAsync(plan, cancellationToken);
+            await _packageScheduler.ExecuteAsync(plan, providerId, userId, cancellationToken);
+            await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Running);
+            await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
+            await _contextEvaluationService.EvaluateAsync(plan, cancellationToken);
+            await PersistPackagesAsync(persistedSession, plan.Packages, SwarmStatus.Completed);
+            await NotifyContextPackagesAsync(sessionId, plan.Packages, cancellationToken);
 
-        return summary;
+            var summary = string.Join(Environment.NewLine, plan.Packages.Select(
+                package => $"- [{package.ExecutionStrategy}] {package.Title}: {package.Result}"));
+
+            await blockWriter.WriteAsync(
+                new BlockDto
+                {
+                    BlockType = BlockType.TextDelta,
+                    Content = $"# Swarm 上下文规划结果{Environment.NewLine}{summary}",
+                    SessionId = Guid.TryParse(sessionId, out sessionGuid) ? sessionGuid : Guid.Empty
+                },
+                cancellationToken);
+
+            await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Completed, summary);
+
+            return summary;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            await FinalizeInterruptedSessionAsync(
+                persistedSession,
+                SwarmSessionFinalizationPolicy.BuildCancelled(ToDomainPackages(persistedSession)),
+                CancellationToken.None);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Swarm 上下文编排失败 | SessionId={SessionId}", sessionId);
+            var finalization = SwarmSessionFinalizationPolicy.BuildFailed(ToDomainPackages(persistedSession), ex);
+            await FinalizeInterruptedSessionAsync(persistedSession, finalization, cancellationToken);
+            return finalization.Reason;
+        }
     }
 
     /// <summary>
@@ -169,6 +188,34 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
     }
 
     /// <summary>
+    /// 按收尾策略持久化中断会话。
+    /// </summary>
+    private async Task FinalizeInterruptedSessionAsync(
+        ContextSwarmSession session,
+        SwarmSessionFinalizationResult finalization,
+        CancellationToken cancellationToken)
+    {
+        session.Status = finalization.Status;
+        session.Result = finalization.Reason;
+        session.CompletedAt = DateTime.UtcNow;
+        session.Packages = ToDomainPackages(session).Select(MapToSwarmTask).ToList();
+
+        await _swarmSessionRepository.SaveAsync(session);
+        await NotifyContextPackagesAsync(session.SessionId, ToDomainPackages(session), cancellationToken);
+
+        if (finalization.NotifyCancellation)
+        {
+            await _swarmEventService.NotifySwarmCancelledAsync(session.SessionId, finalization.Reason, cancellationToken);
+            return;
+        }
+
+        if (finalization.NotifyFailure)
+        {
+            await _swarmEventService.NotifySwarmFailedAsync(session.SessionId, finalization.Reason, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// 构建初始会话实体。
     /// </summary>
     private static ContextSwarmSession BuildSessionEntity(
@@ -191,6 +238,45 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
             ProviderId = providerId,
             Packages = packages.Select(MapToSwarmTask).ToList()
         };
+    }
+
+    /// <summary>
+    /// 将持久化工作包恢复为领域工作包。
+    /// </summary>
+    private static List<ContextWorkPackage> ToDomainPackages(ContextSwarmSession session)
+    {
+        return session.Packages.Select(package => new ContextWorkPackage
+        {
+            Id = package.TaskId,
+            SessionId = session.SessionId,
+            Title = package.Title,
+            Objective = package.Description,
+            ContextType = Enum.TryParse<SwarmContextType>(package.ContextType, out var contextType)
+                ? contextType
+                : SwarmContextType.Unknown,
+            ExecutionStrategy = Enum.TryParse<SwarmExecutionStrategy>(package.ExecutionStrategy, out var strategy)
+                ? strategy
+                : SwarmExecutionStrategy.SingleAgentSequential,
+            Status = MapToPackageStatus(package.Status),
+            Result = package.Result,
+            FailureReason = package.FailureReason,
+            ExecutorName = package.ExecutorName,
+            CommandLine = package.CommandLine,
+            WorkingDirectory = package.WorkingDirectory,
+            ExecutionReportArtifactId = package.ExecutionReportArtifactId,
+            OwnedFiles = package.OwnedFiles.ToList(),
+            OwnedSymbols = package.OwnedSymbols.ToList(),
+            InputContracts = package.InputContracts.Select(name => new ContextContract { Name = name }).ToList(),
+            OutputContracts = package.OutputContracts.Select(name => new ContextContract { Name = name }).ToList(),
+            Dependencies = package.Dependencies.Select(sourceId => new ContextDependency
+            {
+                SourcePackageId = sourceId,
+                TargetPackageId = package.TaskId,
+                Reason = "restore"
+            }).ToList(),
+            CreatedAt = package.CreatedAt,
+            UpdatedAt = package.UpdatedAt
+        }).ToList();
     }
 
     /// <summary>
@@ -239,6 +325,23 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
             DevNexus.Domain.Enums.SwarmPackageStatus.Evaluating => SwarmTaskStatus.Evaluating,
             DevNexus.Domain.Enums.SwarmPackageStatus.Aborted => SwarmTaskStatus.Skipped,
             _ => SwarmTaskStatus.Failed
+        };
+    }
+
+    /// <summary>
+    /// 将旧任务状态映射为工作包状态。
+    /// </summary>
+    private static SwarmPackageStatus MapToPackageStatus(SwarmTaskStatus status)
+    {
+        return status switch
+        {
+            SwarmTaskStatus.Pending => SwarmPackageStatus.Pending,
+            SwarmTaskStatus.Ready => SwarmPackageStatus.Ready,
+            SwarmTaskStatus.InProgress => SwarmPackageStatus.InProgress,
+            SwarmTaskStatus.Completed => SwarmPackageStatus.Completed,
+            SwarmTaskStatus.Evaluating => SwarmPackageStatus.Evaluating,
+            SwarmTaskStatus.Skipped => SwarmPackageStatus.Aborted,
+            _ => SwarmPackageStatus.Failed
         };
     }
 }

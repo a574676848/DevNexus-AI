@@ -8,6 +8,7 @@ namespace DevNexus.Core.Models.Evaluation;
 /// </summary>
 public record ToolExecutionRecord
 {
+    public Guid? ToolCallId { get; init; }
     public string ToolName { get; init; } = string.Empty;      // "HostService.ExecuteCommandAsync"
     public string Arguments { get; init; } = string.Empty;     // { command: "dotnet build", ... }
     public bool Success { get; init; }
@@ -53,27 +54,27 @@ public record EvaluationContext
     /// 任务/用户目标描述
     /// </summary>
     public string Goal { get; init; } = string.Empty;
-    
+
     /// <summary>
     /// LLM/Agent 的输出结果
     /// </summary>
     public string Result { get; init; } = string.Empty;
-    
+
     /// <summary>
     /// 预期输出格式/Schema（可选）
     /// </summary>
     public string? ExpectedOutputSchema { get; init; }
-    
+
     /// <summary>
     /// 工具执行记录
     /// </summary>
     public List<ToolExecutionRecord>? ToolRecords { get; init; }
-    
+
     /// <summary>
     /// 当前重试次数
     /// </summary>
     public int Attempt { get; init; }
-    
+
     /// <summary>
     /// 角色描述
     /// </summary>

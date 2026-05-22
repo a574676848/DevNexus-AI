@@ -1,5 +1,6 @@
 // using DevNexus.Domain.Abstractions via GlobalUsings
 using DevNexus.Infrastructure.Services.Jobs;
+using DevNexus.Domain.Models;
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.Extensions.Logging;
@@ -224,13 +225,30 @@ public class BackgroundJobService : IBackgroundJobService
     }
 
     /// <inheritdoc />
-    public string ScheduleExperienceDistillation(Guid sessionId, TimeSpan delay)
+    public string ScheduleExperienceDistillation(
+        Guid sessionId,
+        TimeSpan delay,
+        ExperienceDistillationScheduleContext? scheduleContext = null)
     {
+        var context = scheduleContext ?? ExperienceDistillationScheduleContext.Empty;
         var jobId = _jobClient.Schedule<ExperienceDistillationJob>(
-            job => job.DistillSessionAsync(sessionId, CancellationToken.None),
+            job => job.DistillSessionAsync(
+                sessionId,
+                context.CandidateReason,
+                context.ContextPressureReason,
+                context.ContextCompressionSummaryFingerprint,
+                CancellationToken.None),
             delay);
         
-        _logger.LogInformation("[BackgroundJob] 预定经验提纯任务，Delay = {Delay}", delay);
+        _logger.LogInformation(
+            "[BackgroundJob] 预定经验提纯任务 | SessionId={SessionId} Delay={Delay} " +
+            "CandidateReason={CandidateReason} ContextPressureReason={ContextPressureReason} " +
+            "ContextCompressionSummaryFingerprint={ContextCompressionSummaryFingerprint}",
+            sessionId,
+            delay,
+            context.CandidateReason,
+            context.ContextPressureReason,
+            context.ContextCompressionSummaryFingerprint);
         return jobId;
     }
 

@@ -7,6 +7,8 @@ namespace DevNexus.Core.Services.Chat;
 
 public sealed class ChatHistoryMessageBuilder
 {
+    private const string InternalRepairPromptMetadataKey = "internalRepairPrompt";
+
     private readonly IChatMessageRepository _chatMessageRepository;
     private readonly ISessionSummaryService _sessionSummaryService;
     private readonly ILogger<ChatHistoryMessageBuilder> _logger;
@@ -21,7 +23,10 @@ public sealed class ChatHistoryMessageBuilder
         _logger = logger;
     }
 
-    public async Task AppendHistoryMessagesAsync(
+    /// <summary>
+    /// 追加历史消息并返回上下文治理快照。
+    /// </summary>
+    public async Task<ChatHistoryGovernanceSnapshot> AppendHistoryMessagesAsync(
         ChatHistory chatHistory,
         Guid sessionId,
         Guid? providerId,
@@ -34,7 +39,11 @@ public sealed class ChatHistoryMessageBuilder
                 "[AI.Chat] History budget exhausted before loading messages | SessionId={SessionId} Budget={Budget}",
                 sessionId,
                 tokenBudget);
-            return;
+            return new ChatHistoryGovernanceSnapshot
+            {
+                BudgetTokens = tokenBudget,
+                Strategy = ChatHistoryGovernanceStrategies.BudgetExhausted
+            };
         }
 
         const int maxMessagesToFetch = 50;
@@ -48,19 +57,32 @@ public sealed class ChatHistoryMessageBuilder
 
         allMessages.Reverse();
 
+        var skippedInternalRepairPrompts = allMessages.Count(IsInternalRepairPrompt);
+        var skippedIncompleteAssistantMessages = allMessages
+            .Where(message => !IsInternalRepairPrompt(message))
+            .Count(message => !IsReplayableMessage(message));
         var validMessages = allMessages
-            .Select(message => new HistoryMessageEntry(
+            .Where(message => !IsInternalRepairPrompt(message))
+            .Where(IsReplayableMessage)
+            .Select(message => new ChatHistoryMessageEntry(
                 message.SenderType,
-                message.Content.ContainsKey("text")
-                    ? message.Content["text"].ToString() ?? string.Empty
-                    : string.Empty))
+                ChatHistoryReplayTextSanitizer.Clean(
+                    message.Content.ContainsKey("text")
+                        ? message.Content["text"].ToString()
+                        : string.Empty)))
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Content))
             .ToList();
 
         if (validMessages.Count == 0)
         {
             _logger.LogDebug("[AI.Chat] AI 聊天： No valid messages found | SessionId={SessionId}", sessionId);
-            return;
+            return new ChatHistoryGovernanceSnapshot
+            {
+                BudgetTokens = tokenBudget,
+                FetchedMessageCount = allMessages.Count,
+                SkippedInternalRepairPromptCount = skippedInternalRepairPrompts,
+                SkippedIncompleteAssistantMessageCount = skippedIncompleteAssistantMessages
+            };
         }
 
         var totalTokens = validMessages.Sum(entry => ChatHistoryTextHelper.EstimateTokenCount(entry.Content));
@@ -76,31 +98,62 @@ public sealed class ChatHistoryMessageBuilder
         var effectiveThreshold = Math.Min(tokenThreshold, tokenBudget);
         if (totalTokens <= effectiveThreshold || validMessages.Count <= recentMessagesToKeep)
         {
-            AppendDirectMessages(chatHistory, validMessages, sessionId, tokenBudget);
-            return;
+            var directResult = AppendDirectMessages(chatHistory, validMessages, sessionId, tokenBudget);
+            return new ChatHistoryGovernanceSnapshot
+            {
+                BudgetTokens = tokenBudget,
+                ConsumedTokens = directResult.AddedTokens,
+                FetchedMessageCount = allMessages.Count,
+                ReplayableMessageCount = validMessages.Count,
+                DirectMessageCount = directResult.AddedCount,
+                SkippedInternalRepairPromptCount = skippedInternalRepairPrompts,
+                SkippedIncompleteAssistantMessageCount = skippedIncompleteAssistantMessages,
+                TruncatedByBudget = directResult.Truncated,
+                Strategy = ChatHistoryGovernanceStrategies.DirectReplay
+            };
         }
 
-        var recentMessages = validMessages.TakeLast(recentMessagesToKeep).ToList();
+        var recentMessages = ChatHistoryRecentSlicePolicy
+            .Select(validMessages, recentMessagesToKeep)
+            .ToList();
         var olderMessages = validMessages.Take(validMessages.Count - recentMessagesToKeep).ToList();
 
-        remainingBudget = await AppendCompressedSummaryAsync(
+        var summaryResult = await AppendCompressedSummaryAsync(
             chatHistory,
             olderMessages,
             sessionId,
             providerId,
             remainingBudget,
             cancellationToken);
+        remainingBudget = summaryResult.RemainingBudget;
 
-        AppendRecentMessages(chatHistory, recentMessages, sessionId, remainingBudget, validMessages.Count);
+        var recentResult = AppendRecentMessages(chatHistory, recentMessages, sessionId, remainingBudget, validMessages.Count);
+        return new ChatHistoryGovernanceSnapshot
+        {
+            BudgetTokens = tokenBudget,
+            ConsumedTokens = summaryResult.AddedTokens + recentResult.AddedTokens,
+            FetchedMessageCount = allMessages.Count,
+            ReplayableMessageCount = validMessages.Count,
+            DirectMessageCount = recentResult.AddedCount,
+            CompressedMessageCount = summaryResult.SummaryAdded ? olderMessages.Count : 0,
+            SummaryMessageCount = summaryResult.SummaryAdded ? 1 : 0,
+            RecentMessageCount = recentResult.AddedCount,
+            CompressionIndex = summaryResult.CompressionIndex,
+            SkippedInternalRepairPromptCount = skippedInternalRepairPrompts,
+            SkippedIncompleteAssistantMessageCount = skippedIncompleteAssistantMessages,
+            TruncatedByBudget = recentResult.Truncated,
+            Strategy = ChatHistoryGovernanceStrategies.SummaryWithRecentSlice
+        };
     }
 
-    private void AppendDirectMessages(
+    private AppendMessagesResult AppendDirectMessages(
         ChatHistory chatHistory,
-        IReadOnlyList<HistoryMessageEntry> validMessages,
+        IReadOnlyList<ChatHistoryMessageEntry> validMessages,
         Guid sessionId,
         int tokenBudget)
     {
         var directAddedTokens = 0;
+        var addedCount = 0;
         foreach (var item in validMessages)
         {
             var processedContent = item.Content.Length > 5000
@@ -119,12 +172,15 @@ public sealed class ChatHistoryMessageBuilder
 
             ChatHistoryTextHelper.AddMessageToChatHistory(chatHistory, item.SenderType, processedContent);
             directAddedTokens += msgTokens;
+            addedCount++;
         }
+
+        return new AppendMessagesResult(directAddedTokens, addedCount, addedCount < validMessages.Count);
     }
 
-    private async Task<int> AppendCompressedSummaryAsync(
+    private async Task<AppendSummaryResult> AppendCompressedSummaryAsync(
         ChatHistory chatHistory,
-        IReadOnlyList<HistoryMessageEntry> olderMessages,
+        IReadOnlyList<ChatHistoryMessageEntry> olderMessages,
         Guid sessionId,
         Guid? providerId,
         int remainingBudget,
@@ -132,7 +188,7 @@ public sealed class ChatHistoryMessageBuilder
     {
         if (olderMessages.Count == 0 || !providerId.HasValue)
         {
-            return remainingBudget;
+            return new AppendSummaryResult(remainingBudget, 0, SummaryAdded: false);
         }
 
         var olderContent = new StringBuilder();
@@ -155,7 +211,7 @@ public sealed class ChatHistoryMessageBuilder
 
             if (string.IsNullOrWhiteSpace(summary))
             {
-                return remainingBudget;
+                return new AppendSummaryResult(remainingBudget, 0, SummaryAdded: false);
             }
 
             var summaryMessage = $"[对话历史摘要]\n以下是本次对话早期内容的摘要，供参考：\n{summary}";
@@ -163,12 +219,15 @@ public sealed class ChatHistoryMessageBuilder
 
             chatHistory.AddSystemMessage(summaryMessage);
             remainingBudget -= summaryTokens;
+            var compressionIndex = ChatHistoryCompressionIndexBuilder.Build(olderMessages, summary);
 
             _logger.LogDebug(
-                "[AI.Chat] Compressed {Count} older messages into summary | SessionId={SessionId} SummaryTokens={Tokens}",
+                "[AI.Chat] Compressed {Count} older messages into summary | SessionId={SessionId} SummaryTokens={Tokens} TopicHints={TopicHints}",
                 olderMessages.Count,
                 sessionId,
-                summaryTokens);
+                summaryTokens,
+                compressionIndex.TopicHints.Count);
+            return new AppendSummaryResult(remainingBudget, summaryTokens, SummaryAdded: true, compressionIndex);
         }
         catch (Exception ex)
         {
@@ -178,12 +237,12 @@ public sealed class ChatHistoryMessageBuilder
                 sessionId);
         }
 
-        return remainingBudget;
+        return new AppendSummaryResult(remainingBudget, 0, SummaryAdded: false);
     }
 
-    private void AppendRecentMessages(
+    private AppendMessagesResult AppendRecentMessages(
         ChatHistory chatHistory,
-        IReadOnlyList<HistoryMessageEntry> recentMessages,
+        IReadOnlyList<ChatHistoryMessageEntry> recentMessages,
         Guid sessionId,
         int remainingBudget,
         int totalMessageCount)
@@ -214,7 +273,42 @@ public sealed class ChatHistoryMessageBuilder
             sessionId,
             totalMessageCount,
             addedCount);
+
+        return new AppendMessagesResult(addedTokens, addedCount, addedCount < recentMessages.Count);
     }
 
-    private sealed record HistoryMessageEntry(string SenderType, string Content);
+    private static bool IsInternalRepairPrompt(ChatMessage message)
+    {
+        if (message.Metadata == null
+            || !message.Metadata.TryGetValue(InternalRepairPromptMetadataKey, out var value)
+            || value == null)
+        {
+            return false;
+        }
+
+        return bool.TryParse(value.ToString(), out var isInternal) && isInternal;
+    }
+
+    private static bool IsReplayableMessage(ChatMessage message)
+    {
+        return !ChatConstants.IsAssistantSender(message.SenderType)
+            || ChatConstants.IsCompletedStatus(message.Status);
+    }
+
+    private readonly record struct AppendMessagesResult(
+        int AddedTokens,
+        int AddedCount,
+        bool Truncated);
+
+    private readonly record struct AppendSummaryResult(
+        int RemainingBudget,
+        int AddedTokens,
+        bool SummaryAdded,
+        ChatHistoryCompressionIndex CompressionIndex)
+    {
+        public AppendSummaryResult(int remainingBudget, int addedTokens, bool SummaryAdded)
+            : this(remainingBudget, addedTokens, SummaryAdded, ChatHistoryCompressionIndex.Empty)
+        {
+        }
+    }
 }

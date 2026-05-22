@@ -1,5 +1,8 @@
 namespace DevNexus.Shared.DTOs;
 
+using System.Text.Json.Serialization;
+using DevNexus.Shared.Enums;
+
 /// <summary>
 /// 挂起交互解决请求。
 /// </summary>
@@ -30,6 +33,17 @@ public class PendingInteractionResolutionResponse
     /// 是否继续执行。
     /// </summary>
     public bool ShouldResume { get; set; }
+
+    /// <summary>
+    /// 归一后的解决动作。
+    /// </summary>
+    public string Action { get; set; } = "submit";
+
+    /// <summary>
+    /// CLI 审批授权范围。
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public CliApprovalGrantScope? ApprovalScope { get; set; }
 
     /// <summary>
     /// 建议用于继续执行的用户可见消息。

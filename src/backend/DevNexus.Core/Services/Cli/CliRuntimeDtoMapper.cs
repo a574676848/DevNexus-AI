@@ -17,10 +17,11 @@ public static class CliRuntimeDtoMapper
     public static CliSessionStateDto ToSessionState(Guid sessionId, CliSessionRuntimeSnapshot snapshot)
     {
         var sessionState = ToSessionState(snapshot.State);
+        var execStatus = ToExecStatus(snapshot.State);
         return new CliSessionStateDto
         {
             SessionId = sessionId,
-            ExecStatus = ToExecStatus(snapshot.State),
+            ExecStatus = execStatus,
             SessionMode = CliSessionMode.InteractiveShell,
             SessionKey = snapshot.SessionKey,
             Command = string.Empty,
@@ -33,7 +34,11 @@ public static class CliRuntimeDtoMapper
             StartedAt = snapshot.StartedAt,
             LastActivityAt = snapshot.LastActivityAt,
             TerminationReason = CliSessionTerminationReasons.Normalize(snapshot.TerminationReason.ToString(), string.Empty),
-            IsActive = sessionState.IsActive()
+            IsActive = sessionState.IsActive(),
+            StatusSummary = CliRuntimeStatusSummaryBuilder.Build(
+                execStatus,
+                snapshot.WaitingForInput,
+                snapshot.TerminationReason.ToString())
         };
     }
 
@@ -67,7 +72,11 @@ public static class CliRuntimeDtoMapper
             StartedAt = session.StartedAt,
             LastActivityAt = session.LastActivityAt,
             TerminationReason = session.TerminationReason,
-            IsActive = session.IsActive
+            IsActive = session.IsActive,
+            StatusSummary = CliRuntimeStatusSummaryBuilder.Build(
+                session.ExecStatus,
+                session.WaitingForInput,
+                session.TerminationReason)
         };
     }
 

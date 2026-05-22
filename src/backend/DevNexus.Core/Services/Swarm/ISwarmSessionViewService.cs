@@ -11,4 +11,9 @@ public interface ISwarmSessionViewService
     /// 获取当前会话的工作包快照。
     /// </summary>
     Task<IReadOnlyList<ContextWorkPackageDto>> GetContextPackagesAsync(string sessionId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 获取当前会话的工作包与状态摘要快照。
+    /// </summary>
+    Task<ContextSwarmPackageSnapshotDto> GetContextPackageSnapshotAsync(string sessionId, CancellationToken cancellationToken = default);
 }

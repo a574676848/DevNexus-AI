@@ -37,10 +37,6 @@
 - [08-user-auth.md](./08-user-auth.md) — 认证分层边界
 - [09-auth-token-model.md](./09-auth-token-model.md) — 访问令牌与刷新令牌模型
 
-### AI Agent 优化
-
-- [10-ai-agent-optimization-roadmap.md](./10-ai-agent-optimization-roadmap.md) — Token 缓存、工具调用成功率、上下文压缩和可观测性演进路线
-
 ## 边界说明
 
 - SmartDocument 是语义派生物，不是原始文件事实源

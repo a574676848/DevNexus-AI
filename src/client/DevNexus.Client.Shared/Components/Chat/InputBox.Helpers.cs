@@ -131,6 +131,11 @@ public partial class InputBox
 
     private string BuildPendingApprovalPlaceholder()
     {
+        if (!string.IsNullOrWhiteSpace(CurrentRuntime?.PrimaryPendingInteractionSummary?.InputPlaceholder))
+        {
+            return CurrentRuntime.PrimaryPendingInteractionSummary.InputPlaceholder;
+        }
+
         if (!string.IsNullOrWhiteSpace(CurrentRuntime?.PrimaryPendingInteractionTitle))
         {
             return CurrentRuntime.PrimaryPendingInteractionTitle!;
@@ -146,6 +151,11 @@ public partial class InputBox
 
     private string BuildPendingInputPlaceholder()
     {
+        if (!string.IsNullOrWhiteSpace(CurrentRuntime?.PrimaryPendingInteractionSummary?.InputPlaceholder))
+        {
+            return CurrentRuntime.PrimaryPendingInteractionSummary.InputPlaceholder;
+        }
+
         if (!string.IsNullOrWhiteSpace(CurrentRuntime?.PrimaryPendingInteractionTitle))
         {
             return CurrentRuntime.PrimaryPendingInteractionTitle!;

@@ -43,7 +43,7 @@ public partial class ChatService
             // === 初始化分布式追踪上下文 ===
             // 为当前请求生成唯一的 TraceId，用于关联所有日志
             var traceSnapshot = TraceContext.BeginTrace();
-            
+
             // 🟢 记录消息生成开始
             await _tracingService.LogStructuredEventAsync(
                 TraceEvent.MessageGenerationStarted,
@@ -124,10 +124,18 @@ public partial class ChatService
                     ? null
                     : new PromptOptimizationMetadataDto
                     {
+                        PromptCacheKey = preparation.PromptLayerMetadata.PromptCacheKey,
                         StablePrefixHash = preparation.PromptLayerMetadata.StablePrefixHash,
                         ToolSchemaHash = preparation.PromptLayerMetadata.ToolSchemaHash,
                         DynamicContextTokens = preparation.PromptLayerMetadata.DynamicContextTokens,
-                        HistoryTokens = preparation.PromptLayerMetadata.HistoryTokens
+                        HistoryTokens = preparation.PromptLayerMetadata.HistoryTokens,
+                        CacheMarkerCandidateCount = preparation.PromptLayerMetadata.CacheMarkerCandidateCount,
+                        CacheDoubleMarkerReady = preparation.PromptLayerMetadata.CacheDoubleMarkerReady,
+                        CacheMarkerReadinessReason = preparation.PromptLayerMetadata.CacheMarkerReadinessReason,
+                        StablePrefixManifest = PromptFragmentManifestMapper.ToDto(
+                            preparation.PromptLayerMetadata.StablePrefixManifest),
+                        DynamicContextManifest = PromptFragmentManifestMapper.ToDto(
+                            preparation.PromptLayerMetadata.DynamicContextManifest)
                     }))
             {
                 // 捕获 FinishReason（仅最后一个 chunk 有值："Stop" = 正常, "Length" = 截断）
@@ -286,10 +294,31 @@ public partial class ChatService
                 return;
             }
 
+            var pendingMemoryDecision = MemoryConsolidationTriggerPolicy.Decide(
+                await _chatMessageRepository.CountBySessionAsync(chatSession.Id, CancellationToken.None),
+                chatSession.LastConsolidatedMessageCount,
+                MemoryConsolidationMessageThreshold,
+                minimumDelayedMessageCount: 3,
+                preparation.PromptLayerMetadata?.HistoryGovernance,
+                !string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId));
+            var pendingTaskSnapshot = AgentTaskOrchestrationSnapshotBuilder.Build(
+                aiMessage.Id,
+                agentLoopAttempt,
+                agentLoopDecision.Action,
+                preparation.PromptLayerMetadata?.HistoryGovernance,
+                preparation.PromptLayerMetadata?.SystemExperienceReplay,
+                pendingMemoryDecision,
+                toolRecords,
+                fullResponse?.Length ?? 0);
+            var selfIterationCandidate = EvaluateExperienceDistillationCandidate(pendingTaskSnapshot);
+
+            var completedResponse = fullResponse?.ToString() ?? string.Empty;
+            aiMessage.Metadata ??= new Dictionary<string, object>();
+            SelfIterationCandidateMetadata.Apply(aiMessage.Metadata, selfIterationCandidate);
             await _chatStreamingFinalizer.FinalizeCompletedAsync(
                 aiMessage,
                 chatSession.Id,
-                fullResponse.ToString(),
+                completedResponse,
                 isTruncated,
                 preParserThinking,
                 parserThinking,
@@ -302,11 +331,24 @@ public partial class ChatService
                 userId,
                 agentLoopAttempt,
                 fullResponse?.Length ?? 0,
-                includeExperienceDistillation: true,
-                CancellationToken.None);
+                includeExperienceDistillation: selfIterationCandidate.ShouldDistillExperience,
+                selfIterationCandidate: selfIterationCandidate,
+                cancellationToken: CancellationToken.None);
 
             // 触发记忆沉淀检查
-            await TriggerMemoryConsolidationCheckAsync(chatSession, userId, CancellationToken.None);
+            var memoryDecision = await TriggerMemoryConsolidationCheckAsync(
+                chatSession,
+                userId,
+                preparation.PromptLayerMetadata?.HistoryGovernance,
+                CancellationToken.None);
+            LogTaskOrchestrationSnapshot(
+                aiMessage.Id,
+                agentLoopAttempt,
+                agentLoopDecision.Action,
+                preparation.PromptLayerMetadata?.HistoryGovernance,
+                preparation.PromptLayerMetadata?.SystemExperienceReplay,
+                memoryDecision,
+                toolRecords);
 
             if (agentLoopDecision.Action == AgentLoopAction.Stop)
             {

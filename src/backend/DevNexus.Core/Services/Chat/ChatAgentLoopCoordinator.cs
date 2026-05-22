@@ -101,10 +101,28 @@ public sealed class ChatAgentLoopCoordinator
         ChannelWriter<BlockDto> blockWriter,
         CancellationToken cancellationToken)
     {
-        if (toolRecords.Count == 0)
+        var completionDecision = AgentLoopCompletionPolicy.Decide(toolRecords);
+        if (completionDecision.IsComplete)
         {
+            _logger.LogDebug(
+                "[AgentLoop] 普通完成收尾 | Reason={Reason}",
+                completionDecision.Reason);
+
             return new AgentLoopDecision { Action = AgentLoopAction.None };
         }
+
+        var turnEventsUpdate = AgentTurnEventBuilder.BuildUpdatedDto(aiMessage.Id, toolRecords);
+        await _tracingService.LogStructuredEventAsync(
+            TraceEvent.AgentTurnEventsBuilt,
+            "Debug",
+            $"工具执行事件已归一化 | Count={turnEventsUpdate.Events.Count} Failed={turnEventsUpdate.Events.Count(item => item.Kind == AgentTurnEventKind.ToolFailed)}");
+
+        await _runtimeEventNotifier.NotifyAsync(
+            userId,
+            sessionId,
+            ServerEventType.AgentTurnEventsUpdated,
+            turnEventsUpdate,
+            cancellationToken);
 
         if (agentLoopAttempt >= MaxRepairAttempts)
         {
@@ -133,7 +151,7 @@ public sealed class ChatAgentLoopCoordinator
             return new AgentLoopDecision { Action = AgentLoopAction.Stop };
         }
 
-        if (fullResponse.Contains("[AGENT_LOOP_STOP]", StringComparison.Ordinal))
+        if (AgentLoopStopSignalPolicy.ShouldStop(fullResponse))
         {
             _logger.LogInformation(
                 "[AgentLoop] LLM 主动停止重试 | Attempt={Attempt}",

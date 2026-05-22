@@ -61,7 +61,7 @@ public sealed class ChatSwarmFinalizer
             agentLoopAttempt: 0,
             responseLength: swarmResult.Length,
             includeExperienceDistillation: false,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         await _swarmEventService.NotifySwarmCompletedAsync(
             chatSession.Id.ToString(),

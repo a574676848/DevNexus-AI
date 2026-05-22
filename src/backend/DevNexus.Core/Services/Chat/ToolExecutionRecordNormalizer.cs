@@ -9,6 +9,8 @@ namespace DevNexus.Core.Services.Chat;
 /// </summary>
 internal static class ToolExecutionRecordNormalizer
 {
+    private const int MaxErrorSummaryLength = 200;
+
     public static List<ToolExecutionRecord> Normalize(IReadOnlyCollection<ToolExecutionRecord> toolRecords)
     {
         if (toolRecords.Count == 0)
@@ -58,12 +60,12 @@ internal static class ToolExecutionRecordNormalizer
 
         if (!string.IsNullOrWhiteSpace(record.ErrorMessage))
         {
-            return Truncate(record.ErrorMessage!, 200);
+            return ToolOutputBudgetCompressor.Compress(record.ErrorMessage!, MaxErrorSummaryLength);
         }
 
         if (!string.IsNullOrWhiteSpace(record.Output))
         {
-            return Truncate(record.Output!, 200);
+            return ToolOutputBudgetCompressor.Compress(record.Output!, MaxErrorSummaryLength);
         }
 
         return "工具执行失败，但没有返回可用的错误摘要。";
@@ -124,10 +126,5 @@ internal static class ToolExecutionRecordNormalizer
         }
 
         return userMessage;
-    }
-
-    private static string Truncate(string value, int maxLength)
-    {
-        return value.Length <= maxLength ? value : value[..maxLength] + "...";
     }
 }

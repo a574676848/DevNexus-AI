@@ -74,13 +74,13 @@
         {
             @* 有会话时显示消息列表 *@
             <MessageList @ref="_messageList"
-                         Messages="@_messages" 
+                         Messages="@_messages"
                          CurrentSessionId="@ChatState.CurrentSessionId"
-                         CurrentBlocks="@_currentBlocks" 
-                         CurrentArtifacts="@_completedArtifacts" 
+                         CurrentBlocks="@_currentBlocks"
+                         CurrentArtifacts="@_completedArtifacts"
                          IsLoading="@_isLoadingMessages"
-                         UserDisplayName="@UserState.CurrentUser?.DisplayName" 
-                         UserAvatarUrl="@UserState.CurrentUser?.AvatarUrl" 
+                         UserDisplayName="@UserState.CurrentUser?.DisplayName"
+                         UserAvatarUrl="@UserState.CurrentUser?.AvatarUrl"
                          OnEditMessage="HandleEditMessageAsync"
                          OnRegenerateMessage="HandleRegenerateAsync"
                          OnContinueGeneration="HandleContinueGenerationAsync"
@@ -92,8 +92,41 @@
                                  Runtime="@(ChatState.CurrentSessionId != Guid.Empty ? ChatState.GetSessionRuntime(ChatState.CurrentSessionId) : null)"
                                  OnResolve="HandlePendingInteractionResolveAsync" />
 
-        <InputBox OnSendWithProvider="HandleSendWithProviderAsync" OnCancel="HandleCancelAsync" 
-                  OnProviderChanged="HandleProviderChangedAsync" 
+        @if (ChatState.CurrentAgentTurnEvents is { Events.Count: > 0 } agentTurnEvents)
+        {
+            <section class="@ResolveAgentTurnPanelClass(agentTurnEvents)"
+                     role="status"
+                     aria-live="polite"
+                     aria-label="工具执行摘要">
+                <div class="agent-turn-panel__summary">
+                    <div>
+                        <span class="agent-turn-panel__eyebrow">执行状态</span>
+                        <strong>@ResolveAgentTurnHeadline(agentTurnEvents)</strong>
+                    </div>
+                    @if (agentTurnEvents.FailedEventCount > 0
+                        && !string.IsNullOrWhiteSpace(agentTurnEvents.BatchDiagnostics.PrimarySuggestedActionText))
+                    {
+                        <div class="agent-turn-panel__chips">
+                            <span>@agentTurnEvents.BatchDiagnostics.PrimarySuggestedActionText</span>
+                        </div>
+                    }
+                </div>
+                @if (!string.IsNullOrWhiteSpace(agentTurnEvents.BatchDiagnostics.FirstFailureSummary))
+                {
+                    <p class="agent-turn-panel__failure">
+                        @if (!string.IsNullOrWhiteSpace(agentTurnEvents.BatchDiagnostics.FirstFailedToolName))
+                        {
+                            <span>失败工具：@agentTurnEvents.BatchDiagnostics.FirstFailedToolName</span>
+                            <span aria-hidden="true">；</span>
+                        }
+                        <span>失败原因：@agentTurnEvents.BatchDiagnostics.FirstFailureSummary</span>
+                    </p>
+                }
+            </section>
+        }
+
+        <InputBox OnSendWithProvider="HandleSendWithProviderAsync" OnCancel="HandleCancelAsync"
+                  OnProviderChanged="HandleProviderChangedAsync"
                   OnToggleSidekick="HandleToggleSidekickAsync"
                   OnCancelQueuedMessage="CancelQueuedMessageAsync"
                   OnClearQueuedMessages="ClearQueuedMessagesAsync"
@@ -101,7 +134,7 @@
                   DisabledPlaceholder="连接中..."
                   QueuedMessages="@ChatState.CurrentQueuedMessages"
                   SessionId="@ChatState.CurrentSessionId" />
-        
+
         @* 悬浮返回按钮 - 当有其他会话正在生成时显示 *@
         @if (HasOtherGeneratingSession())
         {

@@ -41,22 +41,6 @@ public static class AiOptimizationConstants
     public static readonly TimeSpan ApprovalTimeout = TimeSpan.FromMinutes(5);
 
     /// <summary>
-    /// 审计分析 API 路由常量。
-    /// </summary>
-    public static class AuditAnalyticsRoutes
-    {
-        /// <summary>
-        /// 审计分析控制器基础路由。
-        /// </summary>
-        public const string Base = "/api/v1/auditanalytics";
-
-        /// <summary>
-        /// AI Agent 优化看板路由。
-        /// </summary>
-        public const string AiOptimizationDashboard = "ai-optimization-dashboard";
-    }
-
-    /// <summary>
     /// 工具调用协议常量。
     /// </summary>
     public static class ToolProtocol
@@ -151,6 +135,22 @@ public static class AiOptimizationConstants
     }
 
     /// <summary>
+    /// 工具暴露模式。
+    /// </summary>
+    public static class ToolExposureModes
+    {
+        /// <summary>
+        /// 默认直接暴露给普通会话。
+        /// </summary>
+        public const string Direct = "Direct";
+
+        /// <summary>
+        /// 仅在 Skill 或领域场景命中后延迟暴露。
+        /// </summary>
+        public const string Deferred = "Deferred";
+    }
+
+    /// <summary>
     /// 工具目录展示名称。
     /// </summary>
     public static class ToolDisplayNames
@@ -223,6 +223,16 @@ public static class AiOptimizationConstants
         public const string MissingToolName = "缺少工具名称。";
 
         /// <summary>
+        /// 缺少工具调用标识。
+        /// </summary>
+        public const string MissingToolCallId = "工具调用缺少稳定标识，无法确认调用与结果是否匹配。";
+
+        /// <summary>
+        /// 工具调用标识重复。
+        /// </summary>
+        public const string DuplicateToolCallId = "工具调用标识重复，无法可靠关联调用结果。";
+
+        /// <summary>
         /// 缺少工具参数。
         /// </summary>
         public const string MissingArguments = "缺少工具参数。";
@@ -233,9 +243,19 @@ public static class AiOptimizationConstants
         public const string InvalidJson = "工具参数不是合法 JSON。";
 
         /// <summary>
+        /// 工具参数必须是 JSON 对象。
+        /// </summary>
+        public const string NonObjectArguments = "工具参数必须是 JSON 对象。";
+
+        /// <summary>
         /// 工具参数为空。
         /// </summary>
         public const string EmptyArguments = "工具参数为空。";
+
+        /// <summary>
+        /// 工具参数疑似被截断。
+        /// </summary>
+        public const string TruncatedArguments = "工具参数为空或不完整，疑似响应被截断。";
 
         /// <summary>
         /// 文件或工作目录参数不能为空。

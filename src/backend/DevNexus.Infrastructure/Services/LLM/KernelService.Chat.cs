@@ -1,6 +1,7 @@
 // using DevNexus.Domain.Abstractions via GlobalUsings
 using DevNexus.Shared.DTOs;
 using DevNexus.Domain.Models;
+using DevNexus.Core.Services.Tools;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -33,12 +34,12 @@ public partial class KernelService
     {
         var previousContext = TokenAuditContext.Current;
         Kernel kernel;
-        
+
         if (sessionId.HasValue)
         {
             // 会话级: 获取缓存的会话专用 Kernel (Session 隐式绑定了 User，安全)
             kernel = await GetKernelForSessionAsync(providerId, sessionId.Value, userId, cancellationToken);
-            
+
             // Register plugins with session context if available
             RegisterPlugins(kernel, sessionId.Value, userId);
         }
@@ -46,11 +47,11 @@ public partial class KernelService
         {
             // 全局级: 获取共享 Kernel
             var sharedKernel = await GetKernelAsync(providerId, cancellationToken);
-            
+
             // CRITICAL: 必须克隆 Kernel！
             // 否则在共享实例上注册用户级 Plugin 会导致并发请求时的用户上下文污染 (串号)
             kernel = sharedKernel.Clone();
-            
+
             if (userId.HasValue)
             {
                 RegisterKnowledgeBasePlugin(kernel, userId.Value);
@@ -67,7 +68,7 @@ public partial class KernelService
         var stopwatch = Stopwatch.StartNew();
         var estimatedOutputTokens = 0;
         StreamingChatMessageContent? lastChunk = null;
-        
+
         // 获取 Provider 信息并设置 Token 审计上下文（供函数调用过滤器使用）
         var providerInfo = _providerFactory.GetCurrentProviderInfo();
         var streamingContext = BuildAuditContext(previousContext, new ModelInvocationScopeDto
@@ -102,7 +103,9 @@ public partial class KernelService
         {
             executionSettings = new PromptExecutionSettings
             {
-                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+                FunctionChoiceBehavior = ToolInvocationConcurrencyPolicy.CreateAutoFunctionChoiceBehavior(
+                    _toolCatalogService.GetAllTools(),
+                    kernel.Plugins.Select(plugin => plugin.Name))
             };
         }
 
@@ -146,10 +149,10 @@ public partial class KernelService
             stopwatch.Stop();
 
             // 优先从 Metadata 提取实际 Token 使用量，否则使用估算值
-            var (actualInputTokens, actualOutputTokens) = ExtractTokenUsageFromMetadata(lastChunk?.Metadata);
-            var inputTokenCount = actualInputTokens ?? EstimateChatHistoryTokens(chatHistory);
-            var outputTokenCount = actualOutputTokens ?? estimatedOutputTokens;
-            var tokenSource = actualInputTokens.HasValue ? "Actual" : "Estimated";
+            var tokenUsage = ExtractTokenUsageFromMetadata(lastChunk?.Metadata);
+            var inputTokenCount = tokenUsage.InputTokens ?? EstimateChatHistoryTokens(chatHistory);
+            var outputTokenCount = tokenUsage.OutputTokens ?? estimatedOutputTokens;
+            var tokenSource = tokenUsage.InputTokens.HasValue ? "Actual" : "Estimated";
 
             _logger.LogDebug(
                 "[AI.TokenAudit] Streaming completion finished | " +
@@ -178,7 +181,15 @@ public partial class KernelService
                 sceneCategory: auditScope?.SceneCategory ?? ModelInvocationSceneCategories.UserFacing,
                 resourceType: auditScope?.ResourceType ?? (messageId.HasValue ? ModelInvocationResourceTypes.Message : ModelInvocationResourceTypes.Session),
                 resourceId: auditScope?.ResourceId ?? messageId?.ToString() ?? sessionId?.ToString(),
-                usageSource: actualInputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated);
+                usageSource: tokenUsage.InputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated,
+                cachedPromptTokens: tokenUsage.CachedPromptTokens,
+                promptCacheKey: promptMetadata?.PromptCacheKey,
+                stablePrefixHash: promptMetadata?.StablePrefixHash,
+                toolSchemaHash: promptMetadata?.ToolSchemaHash,
+                dynamicContextTokens: promptMetadata?.DynamicContextTokens,
+                historyTokens: promptMetadata?.HistoryTokens,
+                cacheMarkerCandidateCount: promptMetadata?.CacheMarkerCandidateCount,
+                cacheDoubleMarkerReady: promptMetadata?.CacheDoubleMarkerReady);
         }
         finally
         {
@@ -219,7 +230,9 @@ public partial class KernelService
             {
                 executionSettings = new OpenAIPromptExecutionSettings
                 {
-                    FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
+                    FunctionChoiceBehavior = ToolInvocationConcurrencyPolicy.CreateAutoFunctionChoiceBehavior(
+                        _toolCatalogService.GetAllTools(),
+                        kernel.Plugins.Select(plugin => plugin.Name))
                 };
             }
 
@@ -241,12 +254,17 @@ public partial class KernelService
                 ProviderName = providerInfo?.ProviderName ?? "unknown",
                 ProviderId = providerInfo?.ProviderId ?? "unknown",
                 LLMProviderId = providerInfo?.LLMProviderId ?? Guid.Empty,
+                PromptCacheKey = promptMetadata?.PromptCacheKey,
                 StablePrefixHash = promptMetadata?.StablePrefixHash,
                 ToolSchemaHash = promptMetadata?.ToolSchemaHash,
                 DynamicContextTokens = promptMetadata?.DynamicContextTokens,
-                HistoryTokens = promptMetadata?.HistoryTokens
+                HistoryTokens = promptMetadata?.HistoryTokens,
+                StablePrefixManifest = promptMetadata?.StablePrefixManifest
+                    ?? Array.Empty<PromptFragmentManifestItemDto>(),
+                DynamicContextManifest = promptMetadata?.DynamicContextManifest
+                    ?? Array.Empty<PromptFragmentManifestItemDto>()
             };
-            
+
             var result = await chatCompletion.GetChatMessageContentAsync(
                 chatHistory,
                 executionSettings: executionSettings,
@@ -254,13 +272,13 @@ public partial class KernelService
                 cancellationToken: cancellationToken);
 
             stopwatch.Stop();
-            
+
             // 优先从 Metadata 提取实际 Token 使用量，否则使用估算值
-            var (actualInputTokens, actualOutputTokens) = ExtractTokenUsageFromMetadata(result.Metadata);
-            var inputTokenCount = actualInputTokens ?? EstimateChatHistoryTokens(chatHistory);
-            var outputTokenCount = actualOutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
-            var tokenSource = actualInputTokens.HasValue ? "Actual" : "Estimated";
-            
+            var tokenUsage = ExtractTokenUsageFromMetadata(result.Metadata);
+            var inputTokenCount = tokenUsage.InputTokens ?? EstimateChatHistoryTokens(chatHistory);
+            var outputTokenCount = tokenUsage.OutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
+            var tokenSource = tokenUsage.InputTokens.HasValue ? "Actual" : "Estimated";
+
             _logger.LogDebug(
                 "[AI.TokenAudit] Non-streaming completion finished | " +
                 "ProviderId={ProviderId} InputTokens={InputTokens} OutputTokens={OutputTokens} " +
@@ -272,7 +290,7 @@ public partial class KernelService
                 stopwatch.ElapsedMilliseconds,
                 tokenSource);
 
-            try 
+            try
             {
                 _tokenAuditService.RecordStreamingCompletion(
                     sessionId,
@@ -290,7 +308,15 @@ public partial class KernelService
                     sceneCategory: auditScope?.SceneCategory ?? ModelInvocationSceneCategories.UserFacing,
                     resourceType: auditScope?.ResourceType ?? (messageId.HasValue ? ModelInvocationResourceTypes.Message : ModelInvocationResourceTypes.Session),
                     resourceId: auditScope?.ResourceId ?? messageId?.ToString() ?? sessionId?.ToString(),
-                    usageSource: actualInputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated);
+                    usageSource: tokenUsage.InputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated,
+                    cachedPromptTokens: tokenUsage.CachedPromptTokens,
+                    promptCacheKey: promptMetadata?.PromptCacheKey,
+                    stablePrefixHash: promptMetadata?.StablePrefixHash,
+                    toolSchemaHash: promptMetadata?.ToolSchemaHash,
+                    dynamicContextTokens: promptMetadata?.DynamicContextTokens,
+                    historyTokens: promptMetadata?.HistoryTokens,
+                    cacheMarkerCandidateCount: promptMetadata?.CacheMarkerCandidateCount,
+                    cacheDoubleMarkerReady: promptMetadata?.CacheDoubleMarkerReady);
             }
             catch (Exception ex)
             {
@@ -350,16 +376,16 @@ public partial class KernelService
 
         // 构建包含图片的聊天历史
         var chatHistory = new ChatHistory();
-        
+
         ImageContent imageContent;
         if (imageDataUrl.StartsWith("data:"))
         {
             var dataUriParts = imageDataUrl.Split(',', 2);
             if (dataUriParts.Length == 2)
             {
-                var mimeTypePart = dataUriParts[0]; 
+                var mimeTypePart = dataUriParts[0];
                 var base64Data = dataUriParts[1];
-                var mimeType = "image/png"; 
+                var mimeType = "image/png";
                 if (mimeTypePart.StartsWith("data:") && mimeTypePart.Contains(";"))
                 {
                     mimeType = mimeTypePart.Substring(5, mimeTypePart.IndexOf(';') - 5);
@@ -383,7 +409,7 @@ public partial class KernelService
             imageContent
         });
 
-        try 
+        try
         {
             var result = await chatCompletion.GetChatMessageContentAsync(
                 chatHistory,
@@ -391,10 +417,10 @@ public partial class KernelService
 
             stopwatch.Stop();
 
-            var (actualInputTokens, actualOutputTokens) = ExtractTokenUsageFromMetadata(result.Metadata);
-            var inputTokenCount = actualInputTokens ?? EstimateTokenCount(prompt); 
-            var outputTokenCount = actualOutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
-            
+            var tokenUsage = ExtractTokenUsageFromMetadata(result.Metadata);
+            var inputTokenCount = tokenUsage.InputTokens ?? EstimateTokenCount(prompt);
+            var outputTokenCount = tokenUsage.OutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
+
             _tokenAuditService.RecordStreamingCompletion(
                 null,
                 null,
@@ -411,7 +437,8 @@ public partial class KernelService
                 sceneCategory: auditScope?.SceneCategory ?? ModelInvocationSceneCategories.Parsing,
                 resourceType: auditScope?.ResourceType ?? ModelInvocationResourceTypes.Artifact,
                 resourceId: auditScope?.ResourceId,
-                usageSource: actualInputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated);
+                usageSource: tokenUsage.InputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated,
+                cachedPromptTokens: tokenUsage.CachedPromptTokens);
 
             _logger.LogInformation(
                 "[AI.TokenAudit] Vision completion finished | ProviderId={ProviderId} Tokens={Tokens}",
@@ -442,7 +469,7 @@ public partial class KernelService
         var kernel = await GetKernelAsync(cancellationToken);
         var chatCompletion = kernel.GetRequiredService<IChatCompletionService>();
         var stopwatch = Stopwatch.StartNew();
-        
+
         var chatHistory = new ChatHistory();
         chatHistory.AddUserMessage(prompt);
 
@@ -450,7 +477,7 @@ public partial class KernelService
             "[AI.Kernel] Generating text | Provider={Provider}",
             _currentProvider?.ProviderName ?? "unknown");
 
-        try 
+        try
         {
             var providerInfo = _providerFactory.GetCurrentProviderInfo();
             TokenAuditContext.Current = new TokenAuditContext
@@ -476,9 +503,9 @@ public partial class KernelService
                 cancellationToken: cancellationToken);
             stopwatch.Stop();
 
-            var (actualInputTokens, actualOutputTokens) = ExtractTokenUsageFromMetadata(result.Metadata);
-            var inputTokenCount = actualInputTokens ?? EstimateTokenCount(prompt);
-            var outputTokenCount = actualOutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
+            var tokenUsage = ExtractTokenUsageFromMetadata(result.Metadata);
+            var inputTokenCount = tokenUsage.InputTokens ?? EstimateTokenCount(prompt);
+            var outputTokenCount = tokenUsage.OutputTokens ?? EstimateTokenCount(result.Content ?? string.Empty);
 
             _tokenAuditService.RecordStreamingCompletion(
                 TokenAuditContext.Current?.SessionId,
@@ -496,7 +523,8 @@ public partial class KernelService
                 sceneCategory: TokenAuditContext.Current?.SceneCategory ?? ModelInvocationSceneCategories.Other,
                 resourceType: TokenAuditContext.Current?.ResourceType ?? ModelInvocationResourceTypes.None,
                 resourceId: TokenAuditContext.Current?.ResourceId,
-                usageSource: actualInputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated);
+                usageSource: tokenUsage.InputTokens.HasValue ? ModelInvocationUsageSources.Actual : ModelInvocationUsageSources.Estimated,
+                cachedPromptTokens: tokenUsage.CachedPromptTokens);
 
             return result.Content ?? string.Empty;
         }

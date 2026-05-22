@@ -152,10 +152,22 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
         CancellationToken cancellationToken = default)
     {
         var sessionKey = BuildSessionKey(userId, sessionId);
-        await _cliProcessRegistry.WriteAsync(sessionKey, input, cancellationToken);
+        var currentSession = await GetSessionAsync(userId, sessionId, cancellationToken);
+        if (currentSession?.State == null)
+        {
+            return new CliExecSessionDto { SessionId = sessionId };
+        }
+
+        if (!currentSession.State.IsActive)
+        {
+            return currentSession;
+        }
+
+        var inputEnvelope = CliRuntimeInputProtocol.Build(input);
+        await _cliProcessRegistry.WriteAsync(sessionKey, inputEnvelope.Input, cancellationToken);
 
         var session = await GetSessionAsync(userId, sessionId, cancellationToken)
-            ?? CreateFallbackSession(sessionId, sessionKey, _cliProcessRegistry.GetRuntimeSnapshot(sessionKey));
+            ?? currentSession;
 
         if (session.State != null)
         {
@@ -165,6 +177,11 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
                 ResolveEventType(session.State),
                 session.State,
                 cancellationToken);
+        }
+
+        if (session.State != null && string.IsNullOrWhiteSpace(session.State.Command))
+        {
+            session.State.Command = inputEnvelope.ModelVisiblePreview;
         }
 
         return session;
@@ -180,26 +197,12 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
         var currentSession = await GetSessionAsync(userId, sessionId, cancellationToken);
         if (currentSession?.State == null)
         {
-            return new CliExecTerminateResultDto
-            {
-                SessionId = sessionId,
-                Terminated = false,
-                AlreadyExited = true,
-                Message = "当前终端会话不存在或已结束。",
-                State = null
-            };
+            return CliTerminationResultBuilder.BuildMissing(sessionId);
         }
 
         if (!currentSession.State.IsActive)
         {
-            return new CliExecTerminateResultDto
-            {
-                SessionId = sessionId,
-                Terminated = false,
-                AlreadyExited = true,
-                Message = "当前终端会话已结束。",
-                State = currentSession.State
-            };
+            return CliTerminationResultBuilder.BuildAlreadyExited(sessionId, currentSession.State);
         }
 
         _cliProcessRegistry.MarkSessionTerminated(
@@ -209,40 +212,22 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
         _cliProcessRegistry.TerminateSession(sessionKey);
         _cliProcessRegistry.CleanupBuffers(sessionKey);
 
-        var terminatedState = new CliSessionStateDto
+        var result = CliTerminationResultBuilder.BuildTerminated(sessionId, currentSession.State);
+        if (result.State != null)
         {
-            SessionId = sessionId,
-            ExecStatus = CliExecStatus.Cancelled,
-            SessionMode = CliSessionMode.InteractiveShell,
-            SessionKey = sessionKey,
-            Command = currentSession.State.Command,
-            WorkingDirectory = currentSession.State.WorkingDirectory,
-            Status = TerminalStreamStatus.Failed.ToWireValue(),
-            SessionState = CliSessionState.Cancelled.ToWireValue(),
-            RuntimeHost = currentSession.State.RuntimeHost ?? "process-cli",
-            StartedAt = currentSession.State.StartedAt,
-            LastActivityAt = DateTime.UtcNow,
-            WaitingForInput = false,
-            WaitingForInputSince = null,
-            TerminationReason = CliSessionTerminationReasons.Cancelled,
-            IsActive = false
-        };
+            await _cliExecSessionRepository.UpsertAsync(
+                CliTerminationResultBuilder.BuildPersistedSession(userId, result.State),
+                cancellationToken);
+        }
 
         await _runtimeEventNotifier.NotifyAsync(
             userId,
             sessionId,
             ServerEventType.CliExecCancelled,
-            terminatedState,
+            result.State,
             cancellationToken);
 
-        return new CliExecTerminateResultDto
-        {
-            SessionId = sessionId,
-            Terminated = true,
-            AlreadyExited = false,
-            Message = "已停止当前终端会话。",
-            State = terminatedState
-        };
+        return result;
     }
 
     /// <inheritdoc />
@@ -254,13 +239,7 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
         var currentSession = await GetSessionAsync(userId, sessionId, cancellationToken);
         if (currentSession?.State?.IsActive == true)
         {
-            return new CliExecRollbackResultDto
-            {
-                SessionId = sessionId,
-                RolledBack = false,
-                Message = "终端仍在执行，不能在运行中回滚。",
-                WorkingDirectory = currentSession.State.WorkingDirectory
-            };
+            return CliRollbackResultBuilder.BuildBlockedByActiveSession(sessionId, currentSession.State);
         }
 
         var sessionKey = BuildSessionKey(userId, sessionId);
@@ -274,25 +253,10 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
         {
             _cliProcessRegistry.CleanupBuffers(sessionKey);
             var existing = await _cliExecSessionRepository.GetBySessionKeyAsync(sessionKey, cancellationToken);
-            await _cliExecSessionRepository.UpsertAsync(new CliExecSession
-            {
-                SessionKey = sessionKey,
-                UserId = userId,
-                ChatSessionId = sessionId,
-                ExecStatus = CliExecStatus.RolledBack,
-                SessionMode = existing?.SessionMode ?? CliSessionMode.InteractiveShell,
-                Command = existing?.Command,
-                WorkingDirectory = result.WorkingDirectory,
-                RuntimeHost = existing?.RuntimeHost ?? "process-cli",
-                TerminalStreamId = existing?.TerminalStreamId,
-                StartedAt = existing?.StartedAt ?? DateTime.UtcNow,
-                LastActivityAt = DateTime.UtcNow,
-                WaitingForInput = false,
-                WaitingForInputSince = null,
-                ExitCode = existing?.ExitCode,
-                TerminationReason = CliSessionTerminationReasons.Completed,
-                IsActive = false
-            }, cancellationToken);
+            result = CliRollbackResultBuilder.BuildRolledBack(sessionId, sessionKey, result, existing);
+            await _cliExecSessionRepository.UpsertAsync(
+                CliRollbackResultBuilder.BuildPersistedSession(userId, result.State!),
+                cancellationToken);
             await _runtimeEventNotifier.NotifyAsync(
                 userId,
                 sessionId,
@@ -356,7 +320,11 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
                 LastActivityAt = DateTime.UtcNow,
                 WaitingForInput = false,
                 TerminationReason = CliSessionTerminationReasons.None,
-                IsActive = true
+                IsActive = true,
+                StatusSummary = CliRuntimeStatusSummaryBuilder.Build(
+                    CliExecStatus.Queued,
+                    waitingForInput: false,
+                    CliSessionTerminationReasons.None)
             }
             : CliRuntimeDtoMapper.ToSessionState(sessionId, snapshot);
 

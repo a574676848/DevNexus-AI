@@ -21,6 +21,62 @@ public static class ChatMessageMetadataKeys
     public const string Similarity = "similarity";
 
     /// <summary>
+    /// 系统经验动态上下文。
+    /// </summary>
+    public const string SystemExperienceContext = "systemExperienceContext";
+
+    /// <summary>
+    /// 系统经验标识。
+    /// </summary>
+    public const string SystemExperienceId = "systemExperienceId";
+
+    /// <summary>
+    /// 系统经验相似度。
+    /// </summary>
+    public const string SystemExperienceSimilarity = "systemExperienceSimilarity";
+
+    /// <summary>
+    /// 系统经验回放原因。
+    /// </summary>
+    public const string SystemExperienceReplayReason = "systemExperienceReplayReason";
+
+    /// <summary>
+    /// 系统经验上下文标签。
+    /// </summary>
+    public const string SystemExperienceContextTags = "systemExperienceContextTags";
+
+    /// <summary>
+    /// 自我迭代候选原因。
+    /// </summary>
+    public const string SelfIterationCandidateReason = "selfIterationCandidateReason";
+
+    /// <summary>
+    /// 自我迭代是否应提纯经验。
+    /// </summary>
+    public const string SelfIterationShouldDistill = "selfIterationShouldDistill";
+
+    /// <summary>
+    /// 自我迭代是否只观察。
+    /// </summary>
+    public const string SelfIterationObserveOnly = "selfIterationObserveOnly";
+
+    /// <summary>
+    /// 自我迭代上下文压力原因。
+    /// </summary>
+    public const string SelfIterationContextPressureReason = "selfIterationContextPressureReason";
+
+    /// <summary>
+    /// 自我迭代上下文压缩摘要指纹。
+    /// </summary>
+    public const string SelfIterationContextCompressionSummaryFingerprint =
+        "selfIterationContextCompressionSummaryFingerprint";
+
+    /// <summary>
+    /// 复用经验引用指纹。
+    /// </summary>
+    public const string ReusedExperienceCitationFingerprint = "reusedExperienceCitationFingerprint";
+
+    /// <summary>
     /// Swarm 模式标记。
     /// </summary>
     public const string SwarmMode = "swarmMode";
@@ -71,7 +127,7 @@ public static class ChatMessageMetadataKeys
     public const string EntryAnimationReplay = "replay";
 
     /// <summary>
-    /// 判断 metadata 是否标记为 Swarm 模式。
+    /// 挂起交互标识。
     /// </summary>
     public const string PendingInteractionId = "pendingInteractionId";
 
@@ -79,6 +135,16 @@ public static class ChatMessageMetadataKeys
     /// 恢复挂起交互的消息标记。
     /// </summary>
     public const string ResumePendingInteraction = "resumePendingInteraction";
+
+    /// <summary>
+    /// 恢复挂起交互的归一动作。
+    /// </summary>
+    public const string PendingInteractionResolutionAction = PendingInteractionMetadataKeys.ResolutionAction;
+
+    /// <summary>
+    /// 恢复挂起交互的审批授权范围。
+    /// </summary>
+    public const string PendingInteractionApprovalScope = PendingInteractionMetadataKeys.ApprovalScope;
 
     /// <summary>
     /// 判断 metadata 是否标记为 Swarm 模式。

@@ -305,7 +305,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<Core.Services.Swarm.Planning.ISwarmOrchestrator, Core.Services.Swarm.Planning.ContextDrivenSwarmOrchestrator>();
 
         // Evaluation — 统一响应评估与修复机制 (Phase 1 & 4)
-        services.AddScoped<IRepairContextBuilder, RepairContextBuilder>();
+        services.AddScoped<IRepairContextBuilder, Core.Services.Chat.AgentRepairPromptBuilder>();
         services.AddScoped<RuleBasedResponseEvaluator>();
         services.AddScoped<LlmResponseEvaluator>();
         services.AddScoped<IRuleResponseEvaluator, RuleBasedResponseEvaluator>();
@@ -328,7 +328,7 @@ public static class InfrastructureServiceExtensions
         services.AddScoped<ICliRuntimeCoordinator, CliRuntimeCoordinator>();
         services.AddSingleton<CliSessionManager>();
         services.AddHostedService<CliReaperJob>();
-        
+
         // Plugins (Phase 3)
         services.AddScoped<CodeExecutionPlugin>();
 

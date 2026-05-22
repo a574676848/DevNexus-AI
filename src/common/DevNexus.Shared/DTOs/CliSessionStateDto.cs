@@ -89,4 +89,9 @@ public sealed class CliSessionStateDto
     /// 是否仍为活动会话。
     /// </summary>
     public bool IsActive { get; set; }
+
+    /// <summary>
+    /// CLI 运行时状态摘要。
+    /// </summary>
+    public CliRuntimeStatusSummaryDto? StatusSummary { get; set; }
 }

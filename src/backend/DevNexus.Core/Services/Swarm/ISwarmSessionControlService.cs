@@ -1,4 +1,5 @@
 using DevNexus.Shared.Enums;
+using DevNexus.Shared.DTOs.Swarm;
 
 namespace DevNexus.Core.Services.Swarm;
 
@@ -25,7 +26,7 @@ public interface ISwarmSessionControlService
     /// <summary>
     /// 重试指定会话中的失败工作包。
     /// </summary>
-    Task RetryPackageAsync(string sessionId, string packageId, CancellationToken cancellationToken = default);
+    Task<SwarmControlCommandDto> RetryPackageAsync(string sessionId, string packageId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取当前会话控制状态。

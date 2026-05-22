@@ -9,17 +9,17 @@ public enum ServerEventType
     /// 接收区块数据
     /// </summary>
     ReceiveBlock,
-    
+
     /// <summary>
     /// 生成开始
     /// </summary>
     GenerationStarted,
-    
+
     /// <summary>
     /// 生成结束
     /// </summary>
     GenerationCompleted,
-    
+
     /// <summary>
     /// 生成被打断
     /// </summary>
@@ -29,7 +29,7 @@ public enum ServerEventType
     /// 生成失败。
     /// </summary>
     GenerationFailed,
-    
+
     /// <summary>
     /// CLI 执行已请求。
     /// </summary>
@@ -89,7 +89,7 @@ public enum ServerEventType
     /// 队列状态已变更。
     /// </summary>
     QueueStateChanged,
-    
+
     /// <summary>
     /// 系统通知
     /// </summary>
@@ -109,6 +109,11 @@ public enum ServerEventType
     /// 工具调用失败。
     /// </summary>
     ToolInvocationFailed,
+
+    /// <summary>
+    /// 工具执行事件批次已更新。
+    /// </summary>
+    AgentTurnEventsUpdated,
 
     /// <summary>
     /// 挂起交互已创建。

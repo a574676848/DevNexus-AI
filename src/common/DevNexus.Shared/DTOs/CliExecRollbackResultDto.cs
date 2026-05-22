@@ -24,4 +24,9 @@ public sealed class CliExecRollbackResultDto
     /// 工作目录。
     /// </summary>
     public string? WorkingDirectory { get; set; }
+
+    /// <summary>
+    /// 回滚后的会话状态快照。
+    /// </summary>
+    public CliSessionStateDto? State { get; set; }
 }

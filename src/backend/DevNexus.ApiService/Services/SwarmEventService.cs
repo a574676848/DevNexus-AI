@@ -17,11 +17,16 @@ namespace DevNexus.ApiService.Services;
 public class SwarmEventService : ISwarmEventService
 {
     private readonly IHubContext<SwarmHub> _hubContext;
+    private readonly DevNexus.Core.Services.Swarm.SwarmSessionRegistry _sessionRegistry;
     private readonly ILogger<SwarmEventService> _logger;
 
-    public SwarmEventService(IHubContext<SwarmHub> hubContext, ILogger<SwarmEventService> logger)
+    public SwarmEventService(
+        IHubContext<SwarmHub> hubContext,
+        DevNexus.Core.Services.Swarm.SwarmSessionRegistry sessionRegistry,
+        ILogger<SwarmEventService> logger)
     {
         _hubContext = hubContext;
+        _sessionRegistry = sessionRegistry;
         _logger = logger;
     }
 
@@ -87,14 +92,17 @@ public class SwarmEventService : ISwarmEventService
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Broadcasting context package snapshot for {id}", sessionId);
+        var isPaused = _sessionRegistry.GetStatus(sessionId) == DevNexus.Core.Services.Swarm.SwarmControlStatus.Paused;
+        var statusSummary = DevNexus.Core.Services.Swarm.SwarmSessionStatusSummaryBuilder.Build(packages, isPaused);
         await SendServerEventAsync(
             sessionId,
             ServerEventType.SwarmContextPackagesUpdated,
-            new
+            new ContextSwarmPackageSnapshotDto
             {
                 SessionId = sessionId,
-                Packages = packages,
-                PackageCount = packages.Count
+                Packages = packages.ToList(),
+                PackageCount = packages.Count,
+                StatusSummary = statusSummary
             },
             cancellationToken);
     }
@@ -122,13 +130,16 @@ public class SwarmEventService : ISwarmEventService
     }
 
     /// <inheritdoc />
-    public async Task NotifyControlCommandAsync(string sessionId, string command, CancellationToken cancellationToken = default)
+    public async Task NotifyControlCommandAsync(
+        string sessionId,
+        SwarmControlCommandDto command,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Broadcasting control command {Command} for {SessionId}", command, sessionId);
+        _logger.LogDebug("Broadcasting control command {Command} for {SessionId}", command.Command, sessionId);
         await SendServerEventAsync(
             sessionId,
             ServerEventType.SwarmControlCommand,
-            new { SessionId = sessionId, Command = command },
+            command,
             cancellationToken);
     }
 
@@ -152,14 +163,14 @@ public class SwarmEventService : ISwarmEventService
             },
             cancellationToken);
     }
- 
+
     public async Task NotifySessionFinalizedAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Cleaning up session cache for {id}", sessionId);
         SwarmHub.ClearSessionCache(sessionId);
         await Task.CompletedTask;
     }
- 
+
     private async Task SendServerEventAsync(
         string sessionId,
         ServerEventType eventType,

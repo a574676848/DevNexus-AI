@@ -1,4 +1,5 @@
 using DevNexus.Domain.Entities;
+using DevNexus.Core.Services.Chat;
 using DevNexus.Shared.DTOs;
 
 namespace DevNexus.Core.Services;
@@ -25,7 +26,11 @@ internal static class PendingInteractionDtoMapper
             SuggestedAction = interaction.SuggestedAction?.ToWireValue(),
             RequestedFields = ParseRequestedFields(interaction.RequestedData),
             ExpiresAt = interaction.ExpiresAt,
-            RetryToken = interaction.RetryToken
+            RetryToken = interaction.RetryToken,
+            Summary = PendingInteractionSummaryBuilder.Build(
+                interaction.Kind,
+                interaction.Title,
+                interaction.Description)
         };
     }
 

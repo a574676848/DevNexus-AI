@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text;
-using System.Text.RegularExpressions;
 using DevNexus.Core.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Shared.Enums;
@@ -31,21 +30,6 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
     private const int FlushIntervalMs = 500; // 定时刷新间隔
     private const int FlushThresholdBytes = 1024; // 1KB 阈值
     private const int FlushThresholdSeconds = 1; // 1 秒未更新则刷新
-    private const int MaxPreviewChars = 120_000;
-    private const int TargetPreviewChars = 90_000;
-    private const string PreviewTrimBanner = "[较早输出已归档，当前仅保留最近内容]";
-    private static readonly Regex ErrorWatchPattern = new(
-        @"(?im)\b(error|exception|failed|fatal|traceback)\b",
-        RegexOptions.Compiled);
-    private static readonly Regex WarningWatchPattern = new(
-        @"(?im)\bwarning\b",
-        RegexOptions.Compiled);
-    private static readonly Regex ApprovalWatchPattern = new(
-        @"(?im)(permission denied|access denied|not allowed|approval required)",
-        RegexOptions.Compiled);
-    private static readonly Regex WaitingInputWatchPattern = new(
-        @"(?im)(password\s*[:：]?$|continue\?\s*\[y/n\]|press\s+enter\s+to\s+continue|confirm\s*\[y/n\]|enter\s+.*[:：]$)",
-        RegexOptions.Compiled);
 
     public TerminalOutputBuffer(
         IServiceScopeFactory scopeFactory,
@@ -82,7 +66,7 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
             buffer.LastAppendAt = DateTime.UtcNow;
             buffer.PendingLength += outputDelta.Length;
             buffer.TotalLength += outputDelta.Length;
-            var newlineCount = CountNewLines(outputDelta);
+            var newlineCount = TerminalOutputWatchSummaryBuilder.CountNewLines(outputDelta);
             buffer.PendingNewlineCount += newlineCount;
             buffer.TotalNewlineCount += newlineCount;
             buffer.PendingChunkCount++;
@@ -153,7 +137,7 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
                 totalLength = buffer.TotalLength;
                 totalNewlineCount = buffer.TotalNewlineCount;
                 totalChunkCount = buffer.TotalChunkCount;
-                watchSummary = BuildWatchSummary(buffer.WatchLabels);
+                watchSummary = TerminalOutputWatchSummaryBuilder.Build(buffer.WatchLabels);
 
                 // 清空缓冲（准备下次累积）
                 buffer.Output.Clear();
@@ -401,7 +385,7 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
                 TerminationReason = CliSessionTerminationReasons.Normalize(
                     GetStringFromMetadata(metadata, TerminalBlockMetadataKeys.TerminationReason),
                     string.Empty),
-                Output = NormalizePreview(output),
+                Output = TerminalArchivedOutputPreview.Normalize(output),
                 HasArchivedOutput = !string.IsNullOrWhiteSpace(archivedOutputPath),
                 ArchivedOutputPath = archivedOutputPath,
                 OutputLength = pendingLength,
@@ -428,7 +412,8 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
                 output,
                 metadata,
                 cancellationToken);
-            existing.Output = NormalizePreview($"{StripPreviewBanner(existing.Output)}{output}");
+            existing.Output = TerminalArchivedOutputPreview.Normalize(
+                $"{TerminalArchivedOutputPreview.StripBanner(existing.Output)}{output}");
             var parsedStatus = TerminalStreamStatusExtensions.Parse(GetStringFromMetadata(metadata, TerminalBlockMetadataKeys.Status));
             var parsedSessionState = CliSessionStateExtensions.Parse(GetStringFromMetadata(metadata, TerminalBlockMetadataKeys.SessionState));
 
@@ -458,7 +443,7 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
                 ? Math.Max(existing.OutputLineCount + pendingNewlineCount, totalNewlineCount + 1)
                 : 0;
             existing.OutputChunkCount = Math.Max(existing.OutputChunkCount + pendingChunkCount, totalChunkCount);
-            existing.WatchSummary = MergeWatchSummaries(existing.WatchSummary, watchSummary);
+            existing.WatchSummary = TerminalOutputWatchSummaryBuilder.Merge(existing.WatchSummary, watchSummary);
 
             await repository.UpdateAsync(existing, cancellationToken);
         }
@@ -505,93 +490,12 @@ public class TerminalOutputBuffer : ITerminalOutputBuffer, IDisposable
         return Path.Combine(root, $"{streamId:N}.log");
     }
 
-    private static string NormalizePreview(string output)
-    {
-        if (string.IsNullOrEmpty(output) || output.Length <= MaxPreviewChars)
-        {
-            return output;
-        }
-
-        var startIndex = Math.Max(0, output.Length - TargetPreviewChars);
-        var lineBreakIndex = output.IndexOf('\n', startIndex);
-        if (lineBreakIndex >= 0 && lineBreakIndex < output.Length - 1)
-        {
-            startIndex = lineBreakIndex + 1;
-        }
-
-        var suffix = output[startIndex..];
-        return $"{PreviewTrimBanner}{Environment.NewLine}{suffix}";
-    }
-
-    private static int CountNewLines(string output)
-    {
-        if (string.IsNullOrEmpty(output))
-        {
-            return 0;
-        }
-
-        return output.Count(character => character == '\n');
-    }
-
     private static void UpdateWatchLabels(StreamBuffer buffer, string outputDelta)
     {
-        if (ErrorWatchPattern.IsMatch(outputDelta))
+        foreach (var label in TerminalOutputWatchSummaryBuilder.DetectLabels(outputDelta))
         {
-            buffer.WatchLabels.Add("检测到错误输出");
+            buffer.WatchLabels.Add(label);
         }
-
-        if (WarningWatchPattern.IsMatch(outputDelta))
-        {
-            buffer.WatchLabels.Add("检测到警告输出");
-        }
-
-        if (ApprovalWatchPattern.IsMatch(outputDelta))
-        {
-            buffer.WatchLabels.Add("检测到权限或审批拦截");
-        }
-
-        if (WaitingInputWatchPattern.IsMatch(outputDelta))
-        {
-            buffer.WatchLabels.Add("检测到交互输入提示");
-        }
-    }
-
-    private static string? BuildWatchSummary(IEnumerable<string> labels)
-    {
-        var normalized = labels
-            .Where(label => !string.IsNullOrWhiteSpace(label))
-            .Distinct(StringComparer.Ordinal)
-            .ToList();
-        return normalized.Count == 0 ? null : string.Join("；", normalized);
-    }
-
-    private static string? MergeWatchSummaries(string? existing, string? next)
-    {
-        if (string.IsNullOrWhiteSpace(existing))
-        {
-            return next;
-        }
-
-        if (string.IsNullOrWhiteSpace(next))
-        {
-            return existing;
-        }
-
-        return BuildWatchSummary(existing.Split('；', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Concat(next.Split('；', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
-    }
-
-    private static string StripPreviewBanner(string output)
-    {
-        if (string.IsNullOrEmpty(output))
-        {
-            return string.Empty;
-        }
-
-        var prefix = $"{PreviewTrimBanner}{Environment.NewLine}";
-        return output.StartsWith(prefix, StringComparison.Ordinal)
-            ? output[prefix.Length..]
-            : output;
     }
 
     /// <summary>

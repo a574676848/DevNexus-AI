@@ -267,16 +267,6 @@ public static partial class PromptConstants
 
     public static class Experience
     {
-        public const string ChatFewShotPrompt = """
-[系统经验参考]
-你可以参考以下成熟解决路径（SOP）：
-{0}
-
----
-用户原始请求：
-{1}
-""";
-
         public const string SwarmFewShotPrompt = """
 [系统经验参考]
 你可以参考以下类似需求的成熟上下文工作包拓扑：

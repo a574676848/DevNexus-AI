@@ -117,6 +117,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
             && string.IsNullOrWhiteSpace(_skillRuntimePathResolver.TryResolveAccessiblePath(userId, effectiveWorkingDirectory)))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.WorkingDirectoryOutOfScope,
                 $"指定工作目录 '{workingDirectory}' 不在允许范围内。",
                 ToolFailureReason.PermissionDenied,
                 ToolSuggestedAction.Fallback);
@@ -147,6 +148,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (_options.EnforceSafeBins && !string.IsNullOrWhiteSpace(commandRoot) && !IsSafeBin(commandRoot))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.UnsafeCommandRequiresApproval,
                 $"当前命令不在 safeBins/allowlist 中，需审批后才能执行：{fullCommand}",
                 ToolFailureReason.ApprovalRequired,
                 ToolSuggestedAction.RequestApproval,
@@ -158,6 +160,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (DangerousCommandPatterns.Any(pattern => lowered.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.DangerousCommandRequiresApproval,
                 $"当前命令命中高风险模式，已被策略层拦截：{fullCommand}",
                 ToolFailureReason.ApprovalRequired,
                 ToolSuggestedAction.RequestApproval,
@@ -170,6 +173,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (!string.IsNullOrWhiteSpace(externalPathViolation))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.ExternalPathViolation,
                 externalPathViolation,
                 ToolFailureReason.PermissionDenied,
                 ToolSuggestedAction.Fallback,
@@ -180,6 +184,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (StrictInlineEvalPatterns.Any(pattern => pattern.IsMatch(fullCommand)))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.StrictInlineEvalRequiresApproval,
                 $"当前命令命中 strict inline eval 策略，不能直接执行：{fullCommand}",
                 ToolFailureReason.ApprovalRequired,
                 ToolSuggestedAction.RequestApproval,
@@ -191,6 +196,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (IsLooping(sessionId, effectiveWorkingDirectory, fullCommand))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.RepeatedCommandLoop,
                 $"检测到重复命令循环，已阻止继续执行：{fullCommand}",
                 ToolFailureReason.FatalExecutionError,
                 ToolSuggestedAction.Abort,
@@ -207,6 +213,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (string.IsNullOrWhiteSpace(code))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.EmptyCodeContent,
                 "代码内容不能为空。",
                 ToolFailureReason.FatalExecutionError,
                 ToolSuggestedAction.Abort);
@@ -215,6 +222,7 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         if (DangerousCodePatterns.Any(pattern => code.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
         {
             return CliExecutionPolicyResult.Block(
+                CliExecutionPolicyDecisionCode.DangerousCodeRequiresApproval,
                 $"代码内容命中高风险模式，已被策略层拦截：{language}",
                 ToolFailureReason.ApprovalRequired,
                 ToolSuggestedAction.RequestApproval,

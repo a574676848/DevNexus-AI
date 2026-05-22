@@ -16,74 +16,82 @@ public partial class ChatService
     /// 触发记忆沉淀检查。
     /// 策略1：重置30分钟不活跃延迟任务；策略2：检查消息阈值，达到10条增量时立即触发。
     /// </summary>
-    private async Task TriggerMemoryConsolidationCheckAsync(
+    private async Task<MemoryConsolidationTriggerDecision?> TriggerMemoryConsolidationCheckAsync(
         ChatSession chatSession,
         Guid userId,
+        ChatHistoryGovernanceSnapshot? historyGovernance,
         CancellationToken cancellationToken)
     {
         try
         {
-            // 获取当前消息数
             var currentMessageCount = await _chatMessageRepository.CountBySessionAsync(chatSession.Id, cancellationToken);
-
             var lastConsolidatedCount = chatSession.LastConsolidatedMessageCount;
-            var messagesSinceLastConsolidation = currentMessageCount - lastConsolidatedCount;
+            var decision = MemoryConsolidationTriggerPolicy.Decide(
+                currentMessageCount,
+                lastConsolidatedCount,
+                MemoryConsolidationMessageThreshold,
+                minimumDelayedMessageCount: 3,
+                historyGovernance,
+                !string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId));
 
             _logger.LogDebug(
-                "[MemoryConsolidation.Trigger] Checking session | SessionId={SessionId} CurrentCount={Current} LastCount={Last} Delta={Delta}",
+                "[MemoryConsolidation.Trigger] Checking session | SessionId={SessionId} CurrentCount={Current} " +
+                "LastCount={Last} Delta={Delta} Reason={Reason} ContextStrategy={ContextStrategy} ContextPressureReason={ContextPressureReason}",
                 chatSession.Id,
                 currentMessageCount,
                 lastConsolidatedCount,
-                messagesSinceLastConsolidation);
+                decision.MessageDelta,
+                decision.Reason,
+                historyGovernance?.Strategy ?? ChatHistoryGovernanceStrategies.Empty,
+                decision.ContextPressureReason);
 
-            // 策略2: 消息阈值检查 - 每增加10条消息立即触发
-            if (messagesSinceLastConsolidation >= MemoryConsolidationMessageThreshold)
+            if (decision.ShouldEnqueueImmediately)
             {
                 _logger.LogInformation(
-                    "[MemoryConsolidation.Trigger] Threshold reached, enqueueing immediately | SessionId={SessionId} Delta={Delta}",
+                    "[MemoryConsolidation.Trigger] Enqueueing immediately | SessionId={SessionId} Delta={Delta} Reason={Reason} ContextPressureReason={ContextPressureReason}",
                     chatSession.Id,
-                    messagesSinceLastConsolidation);
+                    decision.MessageDelta,
+                    decision.Reason,
+                    decision.ContextPressureReason);
 
-                // 取消现有的延迟任务
-                if (!string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId))
+                if (decision.ShouldCancelExistingJob && !string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId))
                 {
                     _backgroundJobService.CancelMemoryConsolidation(chatSession.MemoryConsolidationJobId);
                 }
 
-                // 立即入队
                 var jobId = _backgroundJobService.EnqueueMemoryConsolidation(chatSession.Id, userId);
-
-                // 更新会话状态
                 chatSession.MemoryConsolidationJobId = jobId;
                 await _chatSessionRepository.UpdateAsync(chatSession, cancellationToken);
 
-                return;
+                return decision;
             }
 
-            // 策略1: 30分钟不活跃延迟触发
-            // 取消现有的延迟任务（如果有）
-            if (!string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId))
+            if (!decision.ShouldScheduleDelayed)
+            {
+                return decision;
+            }
+
+            if (decision.ShouldCancelExistingJob && !string.IsNullOrEmpty(chatSession.MemoryConsolidationJobId))
             {
                 _backgroundJobService.CancelMemoryConsolidation(chatSession.MemoryConsolidationJobId);
             }
 
-            // 只有有足够消息时才调度延迟任务
-            if (currentMessageCount >= 3)
-            {
-                var newJobId = _backgroundJobService.ScheduleMemoryConsolidation(
-                    chatSession.Id,
-                    userId,
-                    MemoryConsolidationDelay);
+            var newJobId = _backgroundJobService.ScheduleMemoryConsolidation(
+                chatSession.Id,
+                userId,
+                MemoryConsolidationDelay);
 
-                chatSession.MemoryConsolidationJobId = newJobId;
-                await _chatSessionRepository.UpdateAsync(chatSession, cancellationToken);
+            chatSession.MemoryConsolidationJobId = newJobId;
+            await _chatSessionRepository.UpdateAsync(chatSession, cancellationToken);
 
-                _logger.LogDebug(
-                    "[MemoryConsolidation.Trigger] Scheduled delayed consolidation | SessionId={SessionId} JobId={JobId} Delay={Delay}",
-                    chatSession.Id,
-                    newJobId,
-                    MemoryConsolidationDelay);
-            }
+            _logger.LogDebug(
+                "[MemoryConsolidation.Trigger] Scheduled delayed consolidation | SessionId={SessionId} JobId={JobId} Delay={Delay} Reason={Reason}",
+                chatSession.Id,
+                newJobId,
+                MemoryConsolidationDelay,
+                decision.Reason);
+
+            return decision;
         }
         catch (Exception ex)
         {
@@ -92,6 +100,7 @@ public partial class ChatService
                 ex,
                 "[MemoryConsolidation.Trigger] Failed to trigger consolidation check | SessionId={SessionId}",
                 chatSession.Id);
+            return null;
         }
     }
 

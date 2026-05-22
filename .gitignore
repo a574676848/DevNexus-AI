@@ -223,6 +223,7 @@ temp/
 *.backup
 
 # User requested ignores
+_reference_repos/
 src/backend/DevNexus.ApiService/wwwroot/uploads/
 .qoder/
 .trae/

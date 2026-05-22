@@ -10,6 +10,7 @@ namespace DevNexus.Core.Services.Swarm;
 public class SwarmSessionViewService : ISwarmSessionViewService
 {
     private readonly IContextSwarmSessionRepository _swarmSessionRepository;
+    private readonly ISwarmSessionControlService _sessionControlService;
     private readonly ILogger<SwarmSessionViewService> _logger;
 
     /// <summary>
@@ -17,23 +18,32 @@ public class SwarmSessionViewService : ISwarmSessionViewService
     /// </summary>
     public SwarmSessionViewService(
         IContextSwarmSessionRepository swarmSessionRepository,
+        ISwarmSessionControlService sessionControlService,
         ILogger<SwarmSessionViewService> logger)
     {
         _swarmSessionRepository = swarmSessionRepository;
+        _sessionControlService = sessionControlService;
         _logger = logger;
     }
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<ContextWorkPackageDto>> GetContextPackagesAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        var snapshot = await GetContextPackageSnapshotAsync(sessionId, cancellationToken);
+        return snapshot.Packages;
+    }
+
+    /// <inheritdoc />
+    public async Task<ContextSwarmPackageSnapshotDto> GetContextPackageSnapshotAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
         var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
         if (session == null)
         {
             _logger.LogDebug("Swarm 会话不存在，无法获取工作包快照 | SessionId={SessionId}", sessionId);
-            return Array.Empty<ContextWorkPackageDto>();
+            return BuildSnapshot(sessionId, Array.Empty<ContextWorkPackageDto>());
         }
 
-        return session.Packages
+        var packages = session.Packages
             .OrderBy(package => package.CreatedAt)
             .Select(package => new ContextWorkPackageDto
             {
@@ -57,5 +67,21 @@ public class SwarmSessionViewService : ISwarmSessionViewService
                 OwnedSymbols = package.OwnedSymbols
             })
             .ToList();
+
+        return BuildSnapshot(sessionId, packages);
+    }
+
+    private ContextSwarmPackageSnapshotDto BuildSnapshot(
+        string sessionId,
+        IReadOnlyCollection<ContextWorkPackageDto> packages)
+    {
+        var isPaused = _sessionControlService.GetStatus(sessionId) == SwarmControlStatus.Paused;
+        return new ContextSwarmPackageSnapshotDto
+        {
+            SessionId = sessionId,
+            Packages = packages.ToList(),
+            PackageCount = packages.Count,
+            StatusSummary = SwarmSessionStatusSummaryBuilder.Build(packages, isPaused)
+        };
     }
 }

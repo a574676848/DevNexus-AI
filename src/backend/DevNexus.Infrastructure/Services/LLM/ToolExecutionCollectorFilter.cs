@@ -1,6 +1,7 @@
 using DevNexus.Core.Models.Evaluation;
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Services.Chat;
+using DevNexus.Core.Services.Tools;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.Enums;
@@ -20,18 +21,23 @@ namespace DevNexus.Infrastructure.Services.LLM;
 /// </summary>
 public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
 {
+    private const int MaxErrorSummaryLength = 200;
+
     private readonly ILogger<ToolExecutionCollectorFilter> _logger;
     private readonly ITokenAuditQueue _auditQueue;
     private readonly IToolInvocationValidationService _validationService;
+    private readonly IToolCatalogService _toolCatalogService;
 
     public ToolExecutionCollectorFilter(
         ILogger<ToolExecutionCollectorFilter> logger,
         ITokenAuditQueue auditQueue,
-        IToolInvocationValidationService validationService)
+        IToolInvocationValidationService validationService,
+        IToolCatalogService toolCatalogService)
     {
         _logger = logger;
         _auditQueue = auditQueue;
         _validationService = validationService;
+        _toolCatalogService = toolCatalogService;
     }
 
     public async Task OnAutoFunctionInvocationAsync(
@@ -56,6 +62,7 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
             sw.Stop();
             var validationRecord = new ToolExecutionRecord
             {
+                ToolCallId = ChatExecutionContext.CurrentToolCallId,
                 ToolName = toolName,
                 Arguments = argumentsJson,
                 Success = false,
@@ -96,7 +103,9 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         var resultObj = context.Result.GetValue<object>();
         var outputString = resultObj?.ToString() ?? string.Empty;
 
-        var classification = ToolExecutionResultClassifier.Classify(outputString);
+        var classification = ToolExecutionResultClassifier.Classify(
+            outputString,
+            RequiresTaggedOutput(toolName));
 
         string? errorMessage = null;
         string? errorSummary = null;
@@ -105,13 +114,14 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         if (!classification.Success)
         {
             errorMessage = outputString;
-            errorSummary = outputString.Length > 200 ? outputString[..200] + "..." : outputString;
+            errorSummary = ToolOutputBudgetCompressor.Compress(outputString, MaxErrorSummaryLength);
             exitCode = ExtractExitCode(outputString);
         }
 
         // 构造记录
         var record = new ToolExecutionRecord
         {
+            ToolCallId = ChatExecutionContext.CurrentToolCallId,
             ToolName = toolName,
             Arguments = argumentsJson,
             Success = classification.Success,
@@ -124,7 +134,7 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
             UserMessage = classification.UserMessage,
             RequestedUserInputKind = classification.RequestedUserInputKind,
             RequestedUserInputLabel = classification.RequestedUserInputLabel,
-            Output = TruncateOutput(outputString, AiOptimizationConstants.ToolOutputContextMaxChars),
+            Output = ToolOutputBudgetCompressor.Compress(outputString, AiOptimizationConstants.ToolOutputContextMaxChars),
             ErrorMessage = errorMessage,
             ErrorSummary = errorSummary,
             ExitCode = exitCode,
@@ -207,17 +217,6 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         }
     }
 
-    private static string TruncateOutput(string input, int maxLen)
-    {
-        if (string.IsNullOrEmpty(input) || input.Length <= maxLen) return input;
-        
-        // 采用 Head 500 + ... + Tail 1000 策略（保留关键上下文）
-        int headLen = maxLen / AiOptimizationConstants.ToolOutputHeadDivisor;
-        int tailLen = maxLen * AiOptimizationConstants.ToolOutputTailMultiplier / AiOptimizationConstants.ToolOutputHeadDivisor;
-        
-        return input[..headLen] + "\n... [TRUNCATED] ...\n" + input[^tailLen..];
-    }
-
     private static int ExtractExitCode(string input)
     {
         // ✅ 改进：支持中英文退出码提取
@@ -246,5 +245,14 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         }
 
         return 0;
+    }
+
+    private bool RequiresTaggedOutput(string? toolName)
+    {
+        var pluginName = _toolCatalogService.ResolvePluginName(ToolInvocationNameParser.Parse(toolName).PluginName);
+        return _toolCatalogService
+            .GetAllTools()
+            .Any(tool => string.Equals(tool.PluginName, pluginName, StringComparison.Ordinal)
+                         && tool.RequiresTaggedOutput);
     }
 }

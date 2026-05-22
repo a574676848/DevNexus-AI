@@ -1,6 +1,5 @@
 using DevNexus.Domain.Abstractions;
 using DevNexus.Shared.Constants;
-using DevNexus.Shared.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -89,8 +88,15 @@ public class SwarmSessionRecoveryService : BackgroundService
         Domain.Entities.ContextSwarmSession session,
         CancellationToken cancellationToken)
     {
-        var failureReason = "Swarm 会话在服务重启前异常中断，已终止本次执行。";
-        await sessionRepository.UpdateSessionStatusAsync(session.SessionId, SwarmStatus.Failed, failureReason);
+        var finalization = SwarmSessionFinalizationPolicy.BuildInterruptedRecovery(
+            session.Packages,
+            "Swarm 会话在服务重启前异常中断，已终止本次执行。");
+
+        session.Status = finalization.Status;
+        session.Result = finalization.Reason;
+        session.CompletedAt = DateTime.UtcNow;
+        session.UpdatedAt = DateTime.UtcNow;
+        await sessionRepository.SaveAsync(session);
 
         if (Guid.TryParse(session.SessionId, out var chatSessionId))
         {
@@ -103,7 +109,7 @@ public class SwarmSessionRecoveryService : BackgroundService
             {
                 lastAiMessage.Content = new Dictionary<string, object>
                 {
-                    ["text"] = failureReason
+                    ["text"] = finalization.Reason
                 };
                 lastAiMessage.Status = ChatConstants.StatusCancelled;
                 lastAiMessage.UpdatedAt = DateTime.UtcNow;
@@ -113,7 +119,7 @@ public class SwarmSessionRecoveryService : BackgroundService
 
         await swarmEventService.NotifySwarmFailedAsync(
             session.SessionId,
-            failureReason,
+            finalization.Reason,
             cancellationToken);
 
         _logger.LogWarning("[Swarm 恢复] 会话已标记失败 | SessionId={SessionId}", session.SessionId);

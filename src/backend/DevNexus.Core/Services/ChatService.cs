@@ -241,52 +241,32 @@ public partial class ChatService : IChatService
 
             if (matchResult != null)
             {
-                if (matchResult.Similarity >= MemoryConstants.ChatPerfectHitThreshold)
+                var replayDecision = SystemExperienceReplayPolicy.Decide(matchResult);
+                if (replayDecision.ShouldAnswerDirectly)
                 {
                     _logger.LogInformation(
                         "[AI.Chat] Semantic Cache Hit | SessionId={SessionId} Score={Score} UUID={Id}",
                         chatSession.Id, matchResult.Similarity, matchResult.Experience.Id);
-                    
-                    // 命中则直接作为系统响应流出并触发提升，结束大模型消耗流程
-                    var directContent = matchResult.Experience.SolutionSop;
-                    await blockWriter.WriteAsync(new BlockDto
-                    {
-                        BlockType = BlockType.TextDelta,
-                        Content = directContent,
-                        MessageId = aiMessage.Id,
-                        SessionId = chatSession.Id
-                    }, cts.Token);
-                    
-                    // 异步触发效用评分提升
-                    _ = Task.Run(() => _agentMemoryService.BoostExperienceAsync(matchResult.Experience.Id), CancellationToken.None);
 
-                    aiMessage.Metadata ??= new Dictionary<string, object>();
-                    aiMessage.Metadata[ChatMessageMetadataKeys.CacheHit] = true;
-                    aiMessage.Metadata[ChatMessageMetadataKeys.Similarity] = matchResult.Similarity;
-                    aiMessage.Content = new Dictionary<string, object> { { "text", directContent } };
-                    
-                    await _chatMessageRepository.UpdateAsync(aiMessage, cts.Token);
-
-                    return new ChatMessageDto
-                    {
-                        Id = aiMessage.Id,
-                        ChatSessionId = chatSession.Id,
-                        SenderId = aiMessage.SenderId,
-                        SenderType = aiMessage.SenderType,
-                        Content = directContent,
-                        MessageType = aiMessage.MessageType,
-                        CreatedAt = aiMessage.CreatedAt,
-                        Metadata = aiMessage.Metadata
-                    };
+                    return await CompleteSystemExperienceReplayAsync(
+                        aiMessage,
+                        chatSession,
+                        userId,
+                        matchResult,
+                        replayDecision,
+                        blockWriter,
+                        cts.Token);
                 }
-                else if (matchResult.Similarity >= MemoryConstants.ChatPartialHitThreshold)
+                else if (replayDecision.ShouldInjectDynamicContext)
                 {
                     _logger.LogInformation(
-                        "[AI.Chat] Partial Cache Hit (Few-Shot) | SessionId={SessionId} Score={Score}",
+                        "[AI.Chat] Partial Cache Hit (DynamicContext) | SessionId={SessionId} Score={Score}",
                         chatSession.Id, matchResult.Similarity);
-                    
-                    // 部分命中，附加 Context
-                    chatRequest.Content = string.Format(PromptConstants.Experience.ChatFewShotPrompt, matchResult.Experience.SolutionSop, chatRequest.Content);
+
+                    chatRequest.Metadata ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    chatRequest.Metadata[ChatMessageMetadataKeys.SystemExperienceContext] =
+                        SystemExperienceReplayContextBuilder.Build(matchResult);
+                    SystemExperienceReplayMetadata.Apply(chatRequest.Metadata, replayDecision);
                 }
             }
 

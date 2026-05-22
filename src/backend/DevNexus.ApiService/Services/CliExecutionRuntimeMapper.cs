@@ -46,10 +46,11 @@ internal static class CliExecutionRuntimeMapper
             return null;
         }
 
+        var execStatus = ToExecStatus(sessionState);
         return new CliSessionStateDto
         {
             SessionId = sessionId,
-            ExecStatus = ToExecStatus(sessionState),
+            ExecStatus = execStatus,
             SessionMode = CliSessionMode.InteractiveShell,
             SessionKey = sessionKey ?? string.Empty,
             TerminalStreamId = GetGuidFromMetadata(metadata, TerminalBlockMetadataKeys.TerminalStreamId),
@@ -65,7 +66,11 @@ internal static class CliExecutionRuntimeMapper
             TerminationReason = CliSessionTerminationReasons.Normalize(
                 GetStringFromMetadata(metadata, TerminalBlockMetadataKeys.TerminationReason),
                 string.Empty),
-            IsActive = sessionState.IsActive()
+            IsActive = sessionState.IsActive(),
+            StatusSummary = CliRuntimeStatusSummaryBuilder.Build(
+                execStatus,
+                GetBoolFromMetadata(metadata, TerminalBlockMetadataKeys.WaitingForInput) ?? false,
+                GetStringFromMetadata(metadata, TerminalBlockMetadataKeys.TerminationReason))
         };
     }
 

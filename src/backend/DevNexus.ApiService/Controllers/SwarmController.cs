@@ -41,13 +41,10 @@ public class SwarmController : AuthenticatedControllerBase
     {
         var userId = RequireCurrentUserId();
         var sessions = await _sessionRepository.GetUserSessionsAsync(userId);
-        
-        var result = sessions.Select(s => new ContextSwarmSessionDto
+
+        var result = sessions.Select(session =>
         {
-            SessionId = s.SessionId,
-            Title = s.Title,
-            Status = s.Status.ToString(),
-            Packages = s.Packages.Select(package => new ContextWorkPackageDto
+            var packages = session.Packages.Select(package => new ContextWorkPackageDto
             {
                 Id = package.TaskId,
                 Title = package.Title,
@@ -66,12 +63,22 @@ public class SwarmController : AuthenticatedControllerBase
                 CanRetry = package.Status == Shared.Enums.SwarmTaskStatus.Failed,
                 OwnedFiles = package.OwnedFiles,
                 OwnedSymbols = package.OwnedSymbols
-            }).ToList()
+            }).ToList();
+            var isPaused = _sessionControlService.GetStatus(session.SessionId) == DevNexus.Core.Services.Swarm.SwarmControlStatus.Paused;
+
+            return new ContextSwarmSessionDto
+            {
+                SessionId = session.SessionId,
+                Title = session.Title,
+                Status = session.Status.ToString(),
+                Packages = packages,
+                StatusSummary = DevNexus.Core.Services.Swarm.SwarmSessionStatusSummaryBuilder.Build(packages, isPaused)
+            };
         }).ToList();
 
         return Ok(result);
     }
- 
+
     /// <summary>
     /// 中止指定的 Swarm 会话
     /// </summary>
@@ -115,8 +122,19 @@ public class SwarmController : AuthenticatedControllerBase
         }
 
         _logger.LogInformation("HTTP Request to retry Swarm package {PackageId} in session {SessionId}", packageId, sessionId);
-        await _sessionControlService.RetryPackageAsync(sessionId, packageId, cancellationToken);
+        var command = await _sessionControlService.RetryPackageAsync(sessionId, packageId, cancellationToken);
+        if (!command.Accepted)
+        {
+            return Conflict(new
+            {
+                success = false,
+                SessionId = sessionId,
+                PackageId = packageId,
+                message = command.Message,
+                command
+            });
+        }
 
-        return Ok(new { success = true, SessionId = sessionId, PackageId = packageId, message = "Package retry started." });
+        return Ok(new { success = true, SessionId = sessionId, PackageId = packageId, message = command.Message, command });
     }
 }

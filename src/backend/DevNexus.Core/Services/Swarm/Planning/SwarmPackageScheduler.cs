@@ -54,11 +54,25 @@ public class SwarmPackageScheduler : ISwarmPackageScheduler
 
         foreach (var package in sequentialPackages)
         {
+            if (SwarmPackageCancellationPolicy.MarkPendingPackagesAborted(
+                plan.Packages,
+                cancellationToken))
+            {
+                await NotifyPackageSnapshotAsync(plan, CancellationToken.None);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             await ExecutePackageByStrategyAsync(plan, package, providerId, userId, cancellationToken);
         }
 
         if (parallelPackages.Count > 0)
         {
+            if (SwarmPackageCancellationPolicy.MarkPendingPackagesAborted(plan.Packages, cancellationToken))
+            {
+                await NotifyPackageSnapshotAsync(plan, CancellationToken.None);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             var parallelExecutions = parallelPackages.Select(package =>
                 ExecutePackageByStrategyAsync(plan, package, providerId, userId, cancellationToken));
             await Task.WhenAll(parallelExecutions);
@@ -96,6 +110,7 @@ public class SwarmPackageScheduler : ISwarmPackageScheduler
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             switch (package.ExecutionStrategy)
             {
                 case SwarmExecutionStrategy.SingleAgentSequential:
@@ -149,6 +164,11 @@ public class SwarmPackageScheduler : ISwarmPackageScheduler
                 ? "当前为默认调度路径，尚未接入真实证据收集。"
                 : package.EvidenceContext;
             package.UpdatedAt = DateTime.UtcNow;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            SwarmPackageCancellationPolicy.MarkCurrentPackageAborted(package);
+            throw;
         }
         catch (Exception ex)
         {

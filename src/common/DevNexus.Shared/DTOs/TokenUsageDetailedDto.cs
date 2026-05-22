@@ -111,31 +111,6 @@ public class TokenUsageDetailedDto
     public int? TotalTokens { get; set; }
 
     /// <summary>
-    /// Provider 返回的缓存命中输入 Token 数
-    /// </summary>
-    public int? CachedPromptTokens { get; set; }
-
-    /// <summary>
-    /// 稳定 Prompt 前缀内容指纹
-    /// </summary>
-    public string? StablePrefixHash { get; set; }
-
-    /// <summary>
-    /// 工具 Schema 与排序指纹
-    /// </summary>
-    public string? ToolSchemaHash { get; set; }
-
-    /// <summary>
-    /// 动态上下文 Token 数
-    /// </summary>
-    public int? DynamicContextTokens { get; set; }
-
-    /// <summary>
-    /// 历史消息 Token 数
-    /// </summary>
-    public int? HistoryTokens { get; set; }
-
-    /// <summary>
     /// 工具名称，格式通常为 Plugin.Function
     /// </summary>
     public string? ToolName { get; set; }

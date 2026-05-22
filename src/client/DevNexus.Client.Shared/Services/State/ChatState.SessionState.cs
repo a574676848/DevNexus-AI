@@ -20,6 +20,7 @@ public partial class ChatState
         public Guid? FocusedTerminalRecordId { get; set; }
         public List<QueuedChatMessageDto> QueuedMessages { get; } = new();
         public List<PendingInteractionDto> PendingInteractions { get; } = new();
+        public AgentTurnEventsUpdatedDto? AgentTurnEvents { get; set; }
 
         public SessionChatState(Guid sessionId)
         {
@@ -58,6 +59,7 @@ public partial class ChatState
             IsSwarmActive = false;
             FocusedTerminalRecordId = null;
             IsGeneratingOptimistic = false;
+            AgentTurnEvents = null;
             LastActiveAt = DateTime.UtcNow;
         }
     }

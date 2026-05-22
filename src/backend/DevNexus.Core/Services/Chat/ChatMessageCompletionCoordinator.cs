@@ -1,4 +1,5 @@
 using DevNexus.Core.Abstractions.Observability;
+using DevNexus.Domain.Models;
 using Microsoft.Extensions.Logging;
 
 namespace DevNexus.Core.Services.Chat;
@@ -19,6 +20,7 @@ public interface IChatMessageCompletionCoordinator
         int agentLoopAttempt,
         int responseLength,
         bool includeExperienceDistillation = true,
+        SelfIterationCandidateDecision? selfIterationCandidate = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -51,6 +53,7 @@ internal sealed class ChatMessageCompletionCoordinator : IChatMessageCompletionC
         int agentLoopAttempt,
         int responseLength,
         bool includeExperienceDistillation = true,
+        SelfIterationCandidateDecision? selfIterationCandidate = null,
         CancellationToken cancellationToken = default)
     {
         await _chatSearchService.SyncSessionToElasticsearchAsync(chatSession, cancellationToken);
@@ -58,7 +61,13 @@ internal sealed class ChatMessageCompletionCoordinator : IChatMessageCompletionC
 
         if (includeExperienceDistillation)
         {
-            _backgroundJobService.ScheduleExperienceDistillation(chatSession.Id, TimeSpan.FromMinutes(2));
+            _backgroundJobService.ScheduleExperienceDistillation(
+                chatSession.Id,
+                TimeSpan.FromMinutes(2),
+                ExperienceDistillationScheduleContext.Create(
+                    selfIterationCandidate?.Reason,
+                    selfIterationCandidate?.ContextPressureReason,
+                    selfIterationCandidate?.ContextCompressionSummaryFingerprint));
         }
 
         await _tracingService.LogStructuredEventAsync(

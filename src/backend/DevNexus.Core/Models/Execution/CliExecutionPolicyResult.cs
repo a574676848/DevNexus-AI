@@ -18,6 +18,11 @@ public sealed record CliExecutionPolicyResult
     public string? EffectiveWorkingDirectory { get; init; }
 
     /// <summary>
+    /// 策略裁决码。
+    /// </summary>
+    public CliExecutionPolicyDecisionCode DecisionCode { get; init; } = CliExecutionPolicyDecisionCode.Allowed;
+
+    /// <summary>
     /// 失败原因。
     /// </summary>
     public ToolFailureReason FailureReason { get; init; } = ToolFailureReason.None;
@@ -63,6 +68,7 @@ public sealed record CliExecutionPolicyResult
     /// 创建拒绝结果。
     /// </summary>
     public static CliExecutionPolicyResult Block(
+        CliExecutionPolicyDecisionCode decisionCode,
         string message,
         ToolFailureReason failureReason,
         ToolSuggestedAction suggestedAction,
@@ -73,6 +79,7 @@ public sealed record CliExecutionPolicyResult
         return new CliExecutionPolicyResult
         {
             Allowed = false,
+            DecisionCode = decisionCode,
             Message = message,
             FailureReason = failureReason,
             SuggestedAction = suggestedAction,

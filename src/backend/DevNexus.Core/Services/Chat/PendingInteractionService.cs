@@ -1,6 +1,7 @@
 using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Core.Models.Evaluation;
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.Enums;
 
 namespace DevNexus.Core.Services.Chat;
@@ -113,40 +114,45 @@ internal sealed class PendingInteractionService : IPendingInteractionService
             return interaction;
         }
 
-        var normalizedAction = NormalizeResolutionAction(action);
-        await ApplyCliApprovalGrantAsync(userId, interaction, normalizedAction, cancellationToken);
-        interaction.Status = normalizedAction == "deny"
+        var decision = PendingInteractionResolutionPolicy.Resolve(action);
+        await ApplyCliApprovalGrantAsync(userId, interaction, decision, cancellationToken);
+        interaction.Status = decision.IsDenied
             ? PendingInteractionStatus.Cancelled
             : PendingInteractionStatus.Resolved;
-        interaction.ResolutionData = values.ToDictionary(
-            pair => pair.Key,
-            pair => (object)(pair.Value ?? string.Empty),
-            StringComparer.OrdinalIgnoreCase);
+        interaction.ResolutionData = BuildResolutionData(values, decision);
         interaction.UpdatedAt = DateTime.UtcNow;
 
         await _repository.UpdateAsync(interaction, cancellationToken);
         return interaction;
     }
 
-    private static string NormalizeResolutionAction(string? action)
+    private static Dictionary<string, object> BuildResolutionData(
+        IReadOnlyDictionary<string, string?> values,
+        PendingInteractionResolutionDecision decision)
     {
-        return action?.Trim().ToLowerInvariant() switch
+        var resolutionData = values.ToDictionary(
+            pair => pair.Key,
+            pair => (object)(pair.Value ?? string.Empty),
+            StringComparer.OrdinalIgnoreCase);
+
+        resolutionData[PendingInteractionMetadataKeys.ResolutionAction] = decision.Action;
+        if (decision.ApprovalScope.HasValue)
         {
-            "approve" => "approve-once",
-            "approve-once" => "approve-once",
-            "approve-pattern" => "approve-pattern",
-            "deny" => "deny",
-            _ => "submit"
-        };
+            resolutionData[PendingInteractionMetadataKeys.ApprovalScope] = decision.ApprovalScope.Value.ToString();
+        }
+
+        return resolutionData;
     }
 
     private async Task ApplyCliApprovalGrantAsync(
         Guid? userId,
         PendingInteraction interaction,
-        string normalizedAction,
+        PendingInteractionResolutionDecision decision,
         CancellationToken cancellationToken)
     {
-        if (interaction.Kind != PendingInteractionKind.Approval || normalizedAction == "deny")
+        if (interaction.Kind != PendingInteractionKind.Approval
+            || decision.ApprovalScope is null
+            || decision.IsDenied)
         {
             return;
         }
@@ -166,7 +172,7 @@ internal sealed class PendingInteractionService : IPendingInteractionService
             ? patternValue?.ToString()
             : null;
 
-        if (normalizedAction == "approve-pattern")
+        if (decision.ApprovalScope == CliApprovalGrantScope.Pattern)
         {
             await _cliApprovalGrantService.GrantPatternAsync(
                 userId,

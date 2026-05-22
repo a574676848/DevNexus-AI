@@ -57,6 +57,7 @@ internal sealed class ChatSessionRuntimeService : IChatSessionRuntimeService
             PrimaryPendingInteractionId = runtime.PrimaryPendingInteractionId,
             PrimaryPendingInteractionTitle = runtime.PrimaryPendingInteractionTitle,
             PrimaryPendingInteractionDescription = runtime.PrimaryPendingInteractionDescription,
+            PrimaryPendingInteractionSummary = runtime.PrimaryPendingInteractionSummary,
             QueuedCount = runtime.QueuedCount,
             HasActiveCliSession = runtime.HasActiveCliSession,
             CliWaitingForInput = runtime.CliWaitingForInput,

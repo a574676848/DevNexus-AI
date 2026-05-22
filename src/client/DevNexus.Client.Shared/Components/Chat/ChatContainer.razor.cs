@@ -51,7 +51,7 @@ public partial class ChatContainer : IAsyncDisposable
     private CancellationTokenSource? _connectionRecoveryCts;
     private DateTime _lastStreamingActivityAt = DateTime.UtcNow;
     private bool _generationTimeoutNotified;
-    
+
     // 🔥 P1-5 性能优化：差量块索引器 - O(1) 增量处理
     private BlockIndexer? _blockIndexer;
 
@@ -135,6 +135,7 @@ public partial class ChatContainer : IAsyncDisposable
             _messages.Clear();
             ClearBlocksWithCache();
             ChatState.ClearSessionRuntime(sessionId);
+            ChatState.ClearAgentTurnEvents(sessionId);
             _streamingMessage = null;
             _isFirstMessage = true;
             ChatState.ClearCliExecSession(sessionId);

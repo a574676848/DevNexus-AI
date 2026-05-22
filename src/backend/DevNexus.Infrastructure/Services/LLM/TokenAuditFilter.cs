@@ -4,6 +4,7 @@ using DevNexus.Shared.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
+using System.Text.Json;
 using System.Diagnostics;
 using DevNexus.Core.Services.Chat;
 
@@ -26,7 +27,7 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
     /// <param name="serviceProvider">服务提供者</param>
     /// <param name="auditQueue">Token 审计队列</param>
     public TokenAuditFilter(
-        ILogger<TokenAuditFilter> logger, 
+        ILogger<TokenAuditFilter> logger,
         IServiceProvider serviceProvider,
         ITokenAuditQueue auditQueue)
     {
@@ -252,17 +253,13 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
                 InputTokens = inputTokens,
                 OutputTokens = outputTokens,
                 TotalTokens = inputTokens + outputTokens,
-                CachedPromptTokens = ctx?.CachedPromptTokens,
-                StablePrefixHash = ctx?.StablePrefixHash,
-                ToolSchemaHash = ctx?.ToolSchemaHash,
-                DynamicContextTokens = ctx?.DynamicContextTokens,
-                HistoryTokens = ctx?.HistoryTokens,
                 MeteringValue = inputTokens + outputTokens,
                 UsageSource = ModelInvocationUsageSources.Actual,
                 Status = ModelInvocationStatuses.Succeeded,
                 DurationMs = durationMs
             };
 
+            LogPromptDiagnostics(ctx, ctx?.CachedPromptTokens, "function");
             await _auditQueue.QueueBackgroundWorkItemAsync(record);
         }
         catch (Exception ex)
@@ -321,6 +318,48 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
 
         return (null, null);
     }
+
+    private static string? SerializeStablePrefixManifest(
+        IReadOnlyList<PromptFragmentManifestItemDto>? manifest)
+    {
+        return manifest == null || manifest.Count == 0
+            ? null
+            : JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
+
+    private void LogPromptDiagnostics(
+        TokenAuditContext? context,
+        int? cachedPromptTokens,
+        string invocationKind)
+    {
+        if (context == null)
+        {
+            return;
+        }
+
+        _logger.LogDebug(
+            "[AI.Prompt.Diagnostics] Prompt diagnostics | InvocationKind={InvocationKind} SessionId={SessionId} MessageId={MessageId} " +
+            "CachedPromptTokens={CachedPromptTokens} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
+            "ToolSchemaHash={ToolSchemaHash} DynamicContextTokens={DynamicContextTokens} HistoryTokens={HistoryTokens} " +
+            "CacheMarkerCandidateCount={CacheMarkerCandidateCount} CacheDoubleMarkerReady={CacheDoubleMarkerReady} " +
+            "CacheMarkerReadinessReason={CacheMarkerReadinessReason} StablePrefixManifest={StablePrefixManifest} " +
+            "DynamicContextManifest={DynamicContextManifest}",
+            invocationKind,
+            context.SessionId,
+            context.MessageId,
+            cachedPromptTokens,
+            context.PromptCacheKey,
+            context.StablePrefixHash,
+            context.ToolSchemaHash,
+            context.DynamicContextTokens,
+            context.HistoryTokens,
+            context.CacheMarkerCandidateCount,
+            context.CacheDoubleMarkerReady,
+            context.CacheMarkerReadinessReason,
+            SerializeStablePrefixManifest(context.StablePrefixManifest),
+            SerializeStablePrefixManifest(context.DynamicContextManifest));
+    }
+
 }
 
 
@@ -333,7 +372,7 @@ public class TokenAuditService : ITokenAuditService
 {
     private readonly ILogger<TokenAuditService> _logger;
     private readonly ITokenAuditQueue _auditQueue;
-    
+
     /// <summary>
     /// 构造函数
     /// </summary>
@@ -403,10 +442,13 @@ public class TokenAuditService : ITokenAuditService
         string meteringType = ModelInvocationMeteringTypes.Token,
         decimal? meteringValue = null,
         int? cachedPromptTokens = null,
+        string? promptCacheKey = null,
         string? stablePrefixHash = null,
         string? toolSchemaHash = null,
         int? dynamicContextTokens = null,
-        int? historyTokens = null)
+        int? historyTokens = null,
+        int? cacheMarkerCandidateCount = null,
+        bool? cacheDoubleMarkerReady = null)
     {
         var auditContext = TokenAuditContext.Current;
         var resolvedUserId = userId ?? auditContext?.OwnerUserId;
@@ -448,11 +490,6 @@ public class TokenAuditService : ITokenAuditService
             InputTokens = inputTokens,
             OutputTokens = outputTokens,
             TotalTokens = inputTokens + outputTokens,
-            CachedPromptTokens = cachedPromptTokens ?? auditContext?.CachedPromptTokens,
-            StablePrefixHash = stablePrefixHash ?? auditContext?.StablePrefixHash,
-            ToolSchemaHash = toolSchemaHash ?? auditContext?.ToolSchemaHash,
-            DynamicContextTokens = dynamicContextTokens ?? auditContext?.DynamicContextTokens,
-            HistoryTokens = historyTokens ?? auditContext?.HistoryTokens,
             MeteringValue = meteringValue ?? inputTokens + outputTokens,
             UsageSource = usageSource,
             Status = status,
@@ -461,7 +498,9 @@ public class TokenAuditService : ITokenAuditService
             DurationMs = durationMs
         };
 
-        // 1. 记录日志 (Seq)
+        LogPromptDiagnostics(auditContext, cachedPromptTokens ?? auditContext?.CachedPromptTokens, invocationKind);
+
+        // 1. 记录产品化审计日志 (Seq)
         RecordUsage(record);
 
         // 2. 异步推入队列（不阻塞主流程）
@@ -477,5 +516,46 @@ public class TokenAuditService : ITokenAuditService
                 "SessionId={SessionId} MessageId={MessageId} UserId={UserId}",
                 resolvedSessionId, resolvedMessageId, resolvedUserId);
         }
+    }
+
+    private void LogPromptDiagnostics(
+        TokenAuditContext? context,
+        int? cachedPromptTokens,
+        string invocationKind)
+    {
+        if (context == null)
+        {
+            return;
+        }
+
+        _logger.LogDebug(
+            "[AI.Prompt.Diagnostics] Prompt diagnostics | InvocationKind={InvocationKind} SessionId={SessionId} MessageId={MessageId} " +
+            "CachedPromptTokens={CachedPromptTokens} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
+            "ToolSchemaHash={ToolSchemaHash} DynamicContextTokens={DynamicContextTokens} HistoryTokens={HistoryTokens} " +
+            "CacheMarkerCandidateCount={CacheMarkerCandidateCount} CacheDoubleMarkerReady={CacheDoubleMarkerReady} " +
+            "CacheMarkerReadinessReason={CacheMarkerReadinessReason} StablePrefixManifest={StablePrefixManifest} " +
+            "DynamicContextManifest={DynamicContextManifest}",
+            invocationKind,
+            context.SessionId,
+            context.MessageId,
+            cachedPromptTokens,
+            context.PromptCacheKey,
+            context.StablePrefixHash,
+            context.ToolSchemaHash,
+            context.DynamicContextTokens,
+            context.HistoryTokens,
+            context.CacheMarkerCandidateCount,
+            context.CacheDoubleMarkerReady,
+            context.CacheMarkerReadinessReason,
+            SerializePromptManifest(context.StablePrefixManifest),
+            SerializePromptManifest(context.DynamicContextManifest));
+    }
+
+    private static string? SerializePromptManifest(
+        IReadOnlyList<PromptFragmentManifestItemDto>? manifest)
+    {
+        return manifest == null || manifest.Count == 0
+            ? null
+            : JsonSerializer.Serialize(manifest, new JsonSerializerOptions(JsonSerializerDefaults.Web));
     }
 }

@@ -14,7 +14,6 @@ public partial class AuditDashboard : IDisposable
 {
     private const string AuditViewMine = "mine";
     private const string AuditViewSystem = "system";
-    private const string AuditViewAiOptimization = "ai";
     private const string AuditViewDetail = "detail";
     private const string AuditViewTabClass = "audit-view-tab";
     private const string ActiveAuditViewTabClass = "audit-view-tab active";
@@ -51,14 +50,12 @@ public partial class AuditDashboard : IDisposable
 
     private TokenUsageStatsDto adminStats = new();
     private AuditDashboardDto adminDashboard = new();
-    private AiOptimizationDashboardDto aiOptimizationDashboard = new();
     private List<ProviderUsageStatsDto> providerStats = new();
     private List<UserRankingDto> userRanking = new();
     private PagedResult<TokenUsageDetailedDto> allRecords = new();
     private int adminCurrentPage = 1;
     private const int AdminPageSize = 5;
 
-    private bool ShowAiOptimizationView => IsAdmin && selectedAuditView == AuditViewAiOptimization;
     private bool ShowAdminView => IsAdmin && selectedAuditView is AuditViewSystem or AuditViewDetail;
 
     protected override async Task OnInitializedAsync()
@@ -136,11 +133,7 @@ public partial class AuditDashboard : IDisposable
                 auditDictionary = await ApiService.GetAuditDictionaryAsync();
             }
 
-            if (ShowAiOptimizationView)
-            {
-                await LoadAiOptimizationDataAsync();
-            }
-            else if (ShowAdminView)
+            if (ShowAdminView)
             {
                 await LoadAdminDataAsync();
             }
@@ -319,20 +312,6 @@ public partial class AuditDashboard : IDisposable
             providerStats = new();
             userRanking = new();
             allRecords = new();
-            throw;
-        }
-    }
-
-    private async Task LoadAiOptimizationDataAsync()
-    {
-        try
-        {
-            aiOptimizationDashboard = await ApiService.GetAiOptimizationDashboardAsync(startDate, endDate);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "加载 AI 优化看板失败");
-            aiOptimizationDashboard = new();
             throw;
         }
     }
@@ -600,19 +579,19 @@ public partial class AuditDashboard : IDisposable
 
     private static string FormatNumber(int number) => FormatNumber((long)number);
 
+    private static string FormatNumber(double number)
+    {
+        return number switch
+        {
+            >= 1_000_000 => $"{number / 1_000_000.0:F1}M",
+            >= 1_000 => $"{number / 1_000.0:F1}K",
+            _ => number.ToString("N0")
+        };
+    }
+
     private static string FormatPercent(double value)
     {
         return $"{value:P1}";
-    }
-
-    private string FormatFailureReasonRatio(int requestCount)
-    {
-        if (aiOptimizationDashboard.ToolFailureCount <= 0)
-        {
-            return "0.0%";
-        }
-
-        return FormatPercent((double)requestCount / aiOptimizationDashboard.ToolFailureCount);
     }
 
     private static string GetTrendIcon(string trend)

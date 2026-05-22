@@ -2,6 +2,7 @@ using DevNexus.Core.Models.Cli;
 using DevNexus.Domain.Entities;
 using DevNexus.Domain.Enums;
 using DevNexus.Shared.Constants;
+using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
 
 namespace DevNexus.Core.Services.Chat;
@@ -45,6 +46,11 @@ public sealed record ChatSessionRuntimeSnapshot
     /// 主挂起交互说明。
     /// </summary>
     public string? PrimaryPendingInteractionDescription { get; init; }
+
+    /// <summary>
+    /// 主挂起交互摘要。
+    /// </summary>
+    public PendingInteractionSummaryDto? PrimaryPendingInteractionSummary { get; init; }
 
     /// <summary>
     /// 排队数量。
@@ -100,6 +106,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -116,6 +123,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -132,6 +140,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -148,6 +157,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -164,6 +174,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -180,6 +191,7 @@ internal static class ChatSessionRuntimeResolver
                 primaryPendingInteraction?.Id,
                 primaryPendingInteraction?.Title,
                 primaryPendingInteraction?.Description,
+                BuildPendingInteractionSummary(primaryPendingInteraction),
                 queuedCount,
                 hasActiveCliSession,
                 cliWaitingForInput,
@@ -194,6 +206,7 @@ internal static class ChatSessionRuntimeResolver
             primaryPendingInteraction?.Id,
             primaryPendingInteraction?.Title,
             primaryPendingInteraction?.Description,
+            BuildPendingInteractionSummary(primaryPendingInteraction),
             queuedCount,
             hasActiveCliSession,
             cliWaitingForInput,
@@ -208,6 +221,7 @@ internal static class ChatSessionRuntimeResolver
         Guid? primaryPendingInteractionId,
         string? primaryPendingInteractionTitle,
         string? primaryPendingInteractionDescription,
+        PendingInteractionSummaryDto? primaryPendingInteractionSummary,
         int queuedCount,
         bool hasActiveCliSession,
         bool cliWaitingForInput,
@@ -222,6 +236,7 @@ internal static class ChatSessionRuntimeResolver
             PrimaryPendingInteractionId = primaryPendingInteractionId,
             PrimaryPendingInteractionTitle = primaryPendingInteractionTitle,
             PrimaryPendingInteractionDescription = primaryPendingInteractionDescription,
+            PrimaryPendingInteractionSummary = primaryPendingInteractionSummary,
             QueuedCount = queuedCount,
             HasActiveCliSession = hasActiveCliSession,
             CliWaitingForInput = cliWaitingForInput,
@@ -248,5 +263,12 @@ internal static class ChatSessionRuntimeResolver
         return pendingInteractions
             .OrderByDescending(interaction => interaction.CreatedAt)
             .FirstOrDefault();
+    }
+
+    private static PendingInteractionSummaryDto? BuildPendingInteractionSummary(PendingInteraction? interaction)
+    {
+        return interaction == null
+            ? null
+            : PendingInteractionSummaryBuilder.Build(interaction.Kind, interaction.Title, interaction.Description);
     }
 }

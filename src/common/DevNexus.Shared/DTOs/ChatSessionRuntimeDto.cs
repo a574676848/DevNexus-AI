@@ -46,6 +46,11 @@ public class ChatSessionRuntimeDto
     public string? PrimaryPendingInteractionDescription { get; set; }
 
     /// <summary>
+    /// 主挂起交互摘要。
+    /// </summary>
+    public PendingInteractionSummaryDto? PrimaryPendingInteractionSummary { get; set; }
+
+    /// <summary>
     /// 当前等待中的排队消息数量。
     /// </summary>
     public int QueuedCount { get; set; }

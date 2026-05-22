@@ -1,4 +1,5 @@
 using DevNexus.Core.Abstractions;
+using DevNexus.Core.Models.Cli;
 using DevNexus.Core.Models.Execution;
 using DevNexus.Core.Models.Evaluation;
 using DevNexus.Core.Services.Chat;
@@ -242,7 +243,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
 
         // 如果存在已活跃的持久化会话，使用哨兵机制执行并截获
         var fullCommand = string.IsNullOrWhiteSpace(arguments) ? command : $"{command} {arguments}";
-        
+
         try
         {
             // 确保会话已初始化
@@ -262,10 +263,10 @@ public partial class HostService : IHostStructuredService, ICliExecService
                 sessionId,
                 targetWd,
                 cancellationToken);
-            
+
             // 订阅实时输出流 (Phase 7)
             var effectiveUserId = userId.Value;
-            
+
             // 【AsyncLocal 降低依赖】在方法入口捕获上下文快照到局部变量，
             // 确保 HandleOutput 回调通过闭包使用稳定的局部变量，而非直接读取可能失效的上下文
             var contextSnapshot = ChatExecutionContext.GetSnapshot();
@@ -369,11 +370,17 @@ public partial class HostService : IHostStructuredService, ICliExecService
             try
             {
                 // 使用 5 分钟默认超时执行
-                var (output, exitCode) = await _sessionManager.ExecuteAndWaitAsync(
-                    sessionId, 
-                    fullCommand, 
-                    TimeSpan.FromMinutes(5), 
+                var executionResult = await _sessionManager.ExecuteAndWaitAsync(
+                    sessionId,
+                    fullCommand,
+                    TimeSpan.FromMinutes(5),
                     cancellationToken);
+                var output = executionResult.Output;
+                var exitCode = executionResult.ExitCode;
+                var commandFinished = executionResult.State is CliCommandExecutionState.Completed
+                    or CliCommandExecutionState.Failed
+                    or CliCommandExecutionState.Cancelled
+                    or CliCommandExecutionState.ProcessUnavailable;
 
                 // 发送结束标识
                 if (parsedSessionId != Guid.Empty)
@@ -387,12 +394,8 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         [TerminalBlockMetadataKeys.Command] = fullCommand,
                         [TerminalBlockMetadataKeys.WorkingDirectory] = targetWd,
                         [TerminalBlockMetadataKeys.LockKey] = lockKey,
-                        [TerminalBlockMetadataKeys.Status] = exitCode == 0
-                            ? TerminalStreamStatus.Completed.ToWireValue()
-                            : TerminalStreamStatus.Failed.ToWireValue(),
-                        [TerminalBlockMetadataKeys.SessionState] = exitCode == 0
-                            ? CliSessionState.Completed.ToWireValue()
-                            : CliSessionState.Failed.ToWireValue(),
+                        [TerminalBlockMetadataKeys.Status] = ResolveTerminalStatus(executionResult),
+                        [TerminalBlockMetadataKeys.SessionState] = ResolveCliSessionState(executionResult),
                         [TerminalBlockMetadataKeys.RuntimeHost] = "process-cli",
                         [TerminalBlockMetadataKeys.ExitCode] = exitCode,
                         [TerminalBlockMetadataKeys.AttemptNumber] = attemptNumber,
@@ -400,9 +403,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         [TerminalBlockMetadataKeys.StartedAt] = DateTime.UtcNow,
                         [TerminalBlockMetadataKeys.LastActivityAt] = DateTime.UtcNow,
                         [TerminalBlockMetadataKeys.WaitingForInput] = false,
-                        [TerminalBlockMetadataKeys.TerminationReason] = exitCode == 0
-                            ? CliSessionTerminationReasons.Completed
-                            : CliSessionTerminationReasons.ProcessExited,
+                        [TerminalBlockMetadataKeys.TerminationReason] = ResolveTerminationReason(executionResult),
                         [TerminalBlockMetadataKeys.TerminalStreamId] = terminalStreamId
                     };
 
@@ -438,8 +439,20 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         parsedSessionId,
                         messageId,
                         "",
-                        true,
+                        commandFinished,
                         metadata);
+                }
+
+                if (executionResult.State == CliCommandExecutionState.StillRunning)
+                {
+                    return new HostCommandExecutionResult
+                    {
+                        Status = HostOperationStatus.Info,
+                        Message = "命令仍在运行，已保留终端会话用于继续查看输出。",
+                        Output = output,
+                        ExitCode = exitCode,
+                        SuggestedAction = ToolSuggestedAction.WaitForCompletion
+                    };
                 }
 
                 if (exitCode != 0)
@@ -525,6 +538,37 @@ public partial class HostService : IHostStructuredService, ICliExecService
                 IsActive = false
             },
             cancellationToken);
+    }
+
+    private static string ResolveTerminalStatus(CliCommandExecutionResult result)
+    {
+        return result.State switch
+        {
+            CliCommandExecutionState.Completed => TerminalStreamStatus.Completed.ToWireValue(),
+            CliCommandExecutionState.StillRunning => TerminalStreamStatus.Running.ToWireValue(),
+            _ => TerminalStreamStatus.Failed.ToWireValue()
+        };
+    }
+
+    private static string ResolveCliSessionState(CliCommandExecutionResult result)
+    {
+        return result.State switch
+        {
+            CliCommandExecutionState.Completed => CliSessionState.Completed.ToWireValue(),
+            CliCommandExecutionState.StillRunning => CliSessionState.Running.ToWireValue(),
+            _ => CliSessionState.Failed.ToWireValue()
+        };
+    }
+
+    private static string ResolveTerminationReason(CliCommandExecutionResult result)
+    {
+        return result.State switch
+        {
+            CliCommandExecutionState.Completed => CliSessionTerminationReasons.Completed,
+            CliCommandExecutionState.StillRunning => CliSessionTerminationReasons.None,
+            CliCommandExecutionState.Cancelled => CliSessionTerminationReasons.Cancelled,
+            _ => CliSessionTerminationReasons.ProcessExited
+        };
     }
 
 }

@@ -1,3 +1,5 @@
+using DevNexus.Domain.Models;
+
 namespace DevNexus.Domain.Abstractions;
 
 /// <summary>
@@ -72,7 +74,13 @@ public interface IBackgroundJobService
     /// <summary>
     /// 触发会话经验提纯（对话拦截或 Swarm 结束后）
     /// </summary>
-    string ScheduleExperienceDistillation(Guid sessionId, TimeSpan delay);
+    /// <param name="sessionId">会话 ID。</param>
+    /// <param name="delay">延迟时间。</param>
+    /// <param name="scheduleContext">调度上下文。</param>
+    string ScheduleExperienceDistillation(
+        Guid sessionId,
+        TimeSpan delay,
+        ExperienceDistillationScheduleContext? scheduleContext = null);
 
     /// <summary>
     /// 每日系统经验修剪（低分清理与效用衰减）

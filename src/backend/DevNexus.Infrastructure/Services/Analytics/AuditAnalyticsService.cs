@@ -1,5 +1,6 @@
 // using DevNexus.Domain.Abstractions via GlobalUsings
 // using DevNexus.Domain.Entities via GlobalUsings
+using DevNexus.Core.Services.Chat;
 using DevNexus.Shared.DTOs;
 using DevNexus.Infrastructure.Models;
 using Microsoft.EntityFrameworkCore;
@@ -71,11 +72,6 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
                 InputTokens = record.InputTokens,
                 OutputTokens = record.OutputTokens,
                 TotalTokens = totalTokens,
-                CachedPromptTokens = record.CachedPromptTokens,
-                StablePrefixHash = record.StablePrefixHash,
-                ToolSchemaHash = record.ToolSchemaHash,
-                DynamicContextTokens = record.DynamicContextTokens,
-                HistoryTokens = record.HistoryTokens,
                 ToolName = record.ToolName,
                 ToolArgumentsValid = record.ToolArgumentsValid,
                 ToolFailureReason = record.ToolFailureReason,
@@ -106,7 +102,7 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, 
+            _logger.LogError(ex,
                 "[AuditAnalytics] Failed to record usage | SessionId={SessionId} MessageId={MessageId} " +
                 "UserId={UserId} ModelId={ModelId} ProviderId={ProviderId} ExceptionType={ExceptionType}",
                 record.SessionId, record.MessageId, record.OwnerUserId, record.ModelId, record.ProviderId, ex.GetType().Name);
@@ -125,7 +121,7 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
             .Where(t => t.OwnerUserId == userId || t.UserId == userId);
 
         var totalCount = await query.CountAsync(cancellationToken);
-        
+
         _logger.LogInformation(
             "[AuditAnalytics] Querying user stats | UserId={UserId} TotalRecords={TotalRecords} StartDate={StartDate} EndDate={EndDate}",
             userId,
@@ -163,90 +159,6 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
     public Task<AuditDictionaryDto> GetAuditDictionaryAsync(CancellationToken cancellationToken = default)
     {
         return GetAuditDictionaryInternalAsync(cancellationToken);
-    }
-
-    /// <inheritdoc />
-    public async Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
-        DateTime? startDate = null,
-        DateTime? endDate = null,
-        CancellationToken cancellationToken = default)
-    {
-        var query = _dbContext.ModelInvocationAudits.AsNoTracking();
-        var startUtc = EnsureUtc(startDate);
-        var endUtc = EnsureUtc(endDate);
-
-        if (startUtc.HasValue)
-        {
-            query = query.Where(item => item.CreatedAt >= startUtc.Value);
-        }
-
-        if (endUtc.HasValue)
-        {
-            var endOfDay = endUtc.Value.Date.AddDays(1);
-            query = query.Where(item => item.CreatedAt < endOfDay);
-        }
-
-        var totalInputTokens = await query.SumAsync(item => (long)(item.InputTokens ?? 0), cancellationToken);
-        var cachedPromptTokens = await query.SumAsync(item => (long)(item.CachedPromptTokens ?? 0), cancellationToken);
-        var stablePrefixTrackedRequests = await query.CountAsync(
-            item => item.StablePrefixHash != null && item.StablePrefixHash != string.Empty,
-            cancellationToken);
-        var toolSchemaTrackedRequests = await query.CountAsync(
-            item => item.ToolSchemaHash != null && item.ToolSchemaHash != string.Empty,
-            cancellationToken);
-
-        var toolQuery = query.Where(item => item.InvocationKind == ModelInvocationKinds.FunctionCall && item.ToolName != null);
-        var toolCallCount = await toolQuery.CountAsync(cancellationToken);
-        var toolSuccessCount = await toolQuery.CountAsync(item => item.IsSuccess, cancellationToken);
-        var toolArgumentValidCount = await toolQuery.CountAsync(item => item.ToolArgumentsValid == true, cancellationToken);
-        var toolRetryableFailureCount = await toolQuery.CountAsync(item => !item.IsSuccess && item.ToolRetryable == true, cancellationToken);
-        var toolHumanInterventionCount = await toolQuery.CountAsync(item => item.ToolRequiresHumanIntervention == true, cancellationToken);
-
-        var dashboard = new AiOptimizationDashboardDto
-        {
-            TotalInputTokens = totalInputTokens,
-            CachedPromptTokens = cachedPromptTokens,
-            CacheHitRatio = totalInputTokens > 0 ? (double)cachedPromptTokens / totalInputTokens : 0,
-            StablePrefixTrackedRequests = stablePrefixTrackedRequests,
-            ToolSchemaTrackedRequests = toolSchemaTrackedRequests,
-            ToolCallCount = toolCallCount,
-            ToolSuccessCount = toolSuccessCount,
-            ToolFailureCount = toolCallCount - toolSuccessCount,
-            ToolSuccessRate = toolCallCount > 0 ? (double)toolSuccessCount / toolCallCount : 0,
-            ToolArgumentValidCount = toolArgumentValidCount,
-            ToolRetryableFailureCount = toolRetryableFailureCount,
-            ToolHumanInterventionCount = toolHumanInterventionCount
-        };
-
-        dashboard.ToolStats = await toolQuery
-            .GroupBy(item => item.ToolName!)
-            .Select(group => new ToolInvocationStatsDto
-            {
-                ToolName = group.Key,
-                RequestCount = group.Count(),
-                SuccessCount = group.Count(item => item.IsSuccess),
-                FailureCount = group.Count(item => !item.IsSuccess),
-                SuccessRate = group.Count() > 0 ? (double)group.Count(item => item.IsSuccess) / group.Count() : 0,
-                AverageDurationMs = group.Average(item => (double)item.DurationMs)
-            })
-            .OrderByDescending(item => item.RequestCount)
-            .Take(20)
-            .ToListAsync(cancellationToken);
-
-        dashboard.ToolFailureReasonStats = await toolQuery
-            .Where(item => !item.IsSuccess && item.ToolFailureReason != null)
-            .GroupBy(item => item.ToolFailureReason!)
-            .Select(group => new AuditBreakdownDto
-            {
-                Code = group.Key,
-                DisplayName = group.Key,
-                RequestCount = group.Count(),
-                FailedCount = group.Count()
-            })
-            .OrderByDescending(item => item.RequestCount)
-            .ToListAsync(cancellationToken);
-
-        return dashboard;
     }
 
     /// <inheritdoc />
@@ -382,210 +294,6 @@ public partial class AuditAnalyticsService : IAuditAnalyticsReadService, IAuditA
             OwnerBreakdown = ownerBreakdown,
             InvocationBreakdown = invocationBreakdown,
             ExceptionSpots = exceptionSpots
-        };
-    }
-
-    /// <inheritdoc />
-    public async Task<List<TokenUsageDto>> GetUsageRecordsAsync(
-        Guid? userId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
-        int pageNumber = 1,
-        int pageSize = 50,
-        CancellationToken cancellationToken = default)
-    {
-        var query = _dbContext.ModelInvocationAudits.AsQueryable();
-
-        if (userId.HasValue)
-        {
-            query = query.Where(t => t.OwnerUserId == userId.Value);
-        }
-
-        var startUtc = EnsureUtc(startDate);
-        var endUtc = EnsureUtc(endDate);
-
-        if (startUtc.HasValue)
-        {
-            query = query.Where(t => t.CreatedAt >= startUtc.Value);
-        }
-
-        if (endUtc.HasValue)
-        {
-            // 包含当天的所有记录
-            var endOfDay = endUtc.Value.Date.AddDays(1);
-            query = query.Where(t => t.CreatedAt < endOfDay);
-        }
-
-        var records = await query
-            .OrderByDescending(t => t.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => new TokenUsageDto
-            {
-                Id = t.Id,
-                OwnerType = t.OwnerType,
-                OwnerUserId = t.OwnerUserId,
-                SessionId = t.SessionId,
-                MessageId = t.MessageId,
-                UserId = t.UserId,
-                InvocationKind = t.InvocationKind,
-                SceneCode = t.SceneCode,
-                SceneCategory = t.SceneCategory,
-                ResourceType = t.ResourceType,
-                ResourceId = t.ResourceId,
-                ModelId = t.ModelId,
-                ProviderName = t.ProviderName,
-                ProviderId = t.ProviderId,
-                MeteringType = t.MeteringType,
-                InputTokens = t.InputTokens,
-                OutputTokens = t.OutputTokens,
-                TotalTokens = t.TotalTokens,
-                CachedPromptTokens = t.CachedPromptTokens,
-                StablePrefixHash = t.StablePrefixHash,
-                ToolSchemaHash = t.ToolSchemaHash,
-                DynamicContextTokens = t.DynamicContextTokens,
-                HistoryTokens = t.HistoryTokens,
-                ToolName = t.ToolName,
-                ToolArgumentsValid = t.ToolArgumentsValid,
-                ToolFailureReason = t.ToolFailureReason,
-                ToolSuggestedAction = t.ToolSuggestedAction,
-                ToolRetryable = t.ToolRetryable,
-                ToolRequiresHumanIntervention = t.ToolRequiresHumanIntervention,
-                ToolExitCode = t.ToolExitCode,
-                MeteringValue = t.MeteringValue,
-                DurationMs = t.DurationMs,
-                Cost = t.Cost,
-                RequestType = t.RequestType,
-                UsageSource = t.UsageSource,
-                Status = t.Status,
-                IsSuccess = t.IsSuccess,
-                ErrorCode = t.ErrorCode,
-                ErrorMessage = t.ErrorMessage,
-                StartedAt = t.StartedAt,
-                CompletedAt = t.CompletedAt,
-                CreatedAt = t.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        return records;
-    }
-
-    /// <inheritdoc />
-    public async Task<PagedResult<TokenUsageDto>> GetUsageRecordsPagedAsync(
-        Guid? userId = null,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
-        string? ownerType = null,
-        string? sceneCode = null,
-        string? invocationKind = null,
-        string? status = null,
-        int pageNumber = 1,
-        int pageSize = 50,
-        CancellationToken cancellationToken = default)
-    {
-        var query = _dbContext.ModelInvocationAudits.AsQueryable();
-
-        if (userId.HasValue)
-        {
-            query = query.Where(t => t.OwnerUserId == userId.Value || t.UserId == userId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(ownerType))
-        {
-            query = query.Where(t => t.OwnerType == ownerType);
-        }
-
-        if (!string.IsNullOrWhiteSpace(sceneCode))
-        {
-            query = query.Where(t => t.SceneCode == sceneCode);
-        }
-
-        if (!string.IsNullOrWhiteSpace(invocationKind))
-        {
-            query = query.Where(t => t.InvocationKind == invocationKind);
-        }
-
-        if (!string.IsNullOrWhiteSpace(status))
-        {
-            query = query.Where(t => t.Status == status);
-        }
-
-        var startUtc = EnsureUtc(startDate);
-        var endUtc = EnsureUtc(endDate);
-
-        if (startUtc.HasValue)
-        {
-            query = query.Where(t => t.CreatedAt >= startUtc.Value);
-        }
-
-        if (endUtc.HasValue)
-        {
-            // 包含当天的所有记录
-            var endOfDay = endUtc.Value.Date.AddDays(1);
-            query = query.Where(t => t.CreatedAt < endOfDay);
-        }
-
-        // 获取总数
-        var totalCount = await query.CountAsync(cancellationToken);
-
-        // 获取分页数据
-        var records = await query
-            .OrderByDescending(t => t.CreatedAt)
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(t => new TokenUsageDto
-            {
-                Id = t.Id,
-                OwnerType = t.OwnerType,
-                OwnerUserId = t.OwnerUserId,
-                SessionId = t.SessionId,
-                MessageId = t.MessageId,
-                UserId = t.UserId,
-                InvocationKind = t.InvocationKind,
-                SceneCode = t.SceneCode,
-                SceneCategory = t.SceneCategory,
-                ResourceType = t.ResourceType,
-                ResourceId = t.ResourceId,
-                ModelId = t.ModelId,
-                ProviderName = t.ProviderName,
-                ProviderId = t.ProviderId,
-                MeteringType = t.MeteringType,
-                InputTokens = t.InputTokens,
-                OutputTokens = t.OutputTokens,
-                TotalTokens = t.TotalTokens,
-                CachedPromptTokens = t.CachedPromptTokens,
-                StablePrefixHash = t.StablePrefixHash,
-                ToolSchemaHash = t.ToolSchemaHash,
-                DynamicContextTokens = t.DynamicContextTokens,
-                HistoryTokens = t.HistoryTokens,
-                ToolName = t.ToolName,
-                ToolArgumentsValid = t.ToolArgumentsValid,
-                ToolFailureReason = t.ToolFailureReason,
-                ToolSuggestedAction = t.ToolSuggestedAction,
-                ToolRetryable = t.ToolRetryable,
-                ToolRequiresHumanIntervention = t.ToolRequiresHumanIntervention,
-                ToolExitCode = t.ToolExitCode,
-                MeteringValue = t.MeteringValue,
-                DurationMs = t.DurationMs,
-                Cost = t.Cost,
-                RequestType = t.RequestType,
-                UsageSource = t.UsageSource,
-                Status = t.Status,
-                IsSuccess = t.IsSuccess,
-                ErrorCode = t.ErrorCode,
-                ErrorMessage = t.ErrorMessage,
-                StartedAt = t.StartedAt,
-                CompletedAt = t.CompletedAt,
-                CreatedAt = t.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        return new PagedResult<TokenUsageDto>
-        {
-            Items = records,
-            TotalCount = totalCount,
-            PageNumber = pageNumber,
-            PageSize = pageSize
         };
     }
 

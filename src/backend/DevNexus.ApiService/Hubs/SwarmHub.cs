@@ -25,7 +25,7 @@ public class SwarmHub : Hub
     private readonly DevNexus.Core.Abstractions.IConfirmationService _confirmationService;
 
     public SwarmHub(
-        ILogger<SwarmHub> logger, 
+        ILogger<SwarmHub> logger,
         DevNexus.Core.Services.Swarm.ISwarmSessionControlService sessionControlService,
         DevNexus.Core.Services.Swarm.ISwarmSessionViewService sessionViewService,
         DevNexus.Core.Abstractions.IConfirmationService confirmationService)
@@ -57,8 +57,8 @@ public class SwarmHub : Hub
         _logger.LogInformation("Client {ConnectionId} joined session {SessionId}", Context.ConnectionId, sessionId);
 
         // 连接后立即推送当前工作包快照，避免客户端晚于会话启动时看不到历史状态。
-        var packageSnapshot = await _sessionViewService.GetContextPackagesAsync(sessionId);
-        if (packageSnapshot.Any())
+        var packageSnapshot = await _sessionViewService.GetContextPackageSnapshotAsync(sessionId);
+        if (packageSnapshot.PackageCount > 0)
         {
             await Clients.Caller.SendAsync(
                 "ServerEventReceived",
@@ -66,13 +66,13 @@ public class SwarmHub : Hub
                 {
                     SessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : Guid.Empty,
                     EventType = ServerEventType.SwarmContextPackagesUpdated,
-                    Data = new { SessionId = sessionId, Packages = packageSnapshot, PackageCount = packageSnapshot.Count },
+                    Data = packageSnapshot,
                     Timestamp = DateTime.UtcNow
                 });
             _logger.LogInformation("Pushed current package snapshot ({Count} packages) to client {ConnectionId} for session {SessionId}",
-                packageSnapshot.Count, Context.ConnectionId, sessionId);
+                packageSnapshot.PackageCount, Context.ConnectionId, sessionId);
         }
- 
+
         // 5.2 推送当前智能体状态缓存
         if (_activeAgents.TryGetValue(sessionId, out var agents) && agents.Any())
         {
@@ -91,14 +91,14 @@ public class SwarmHub : Hub
             _logger.LogInformation("Pushed {Count} cached agents to client {ConnectionId}", agents.Count, Context.ConnectionId);
         }
     }
-    
+
     // 供外部 Service 更新缓存的静态入口
     public static void TrackAgentStatus(string sessionId, string agentName, string status, string currentAction)
     {
         var sessionCache = _activeAgents.GetOrAdd(sessionId, _ => new ConcurrentDictionary<string, AgentStatusDto>());
         sessionCache[agentName] = new AgentStatusDto { Name = agentName, Status = status, CurrentAction = currentAction };
     }
- 
+
     // 会话结束时清理缓存
     public static void ClearSessionCache(string sessionId)
     {

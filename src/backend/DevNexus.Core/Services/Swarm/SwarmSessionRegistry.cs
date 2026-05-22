@@ -51,6 +51,7 @@ public class SwarmSessionRegistry
     public void Abort(string sessionId)
     {
         SetStatus(sessionId, SwarmControlStatus.Aborted);
+        ClearPackageRetries(sessionId);
         if (_sessionCts.TryGetValue(sessionId, out var cts))
         {
             cts.Cancel();
@@ -69,6 +70,7 @@ public class SwarmSessionRegistry
     public void UnregisterSession(string sessionId)
     {
         _sessionStates.TryRemove(sessionId, out _);
+        ClearPackageRetries(sessionId);
         if (_sessionCts.TryRemove(sessionId, out var cts))
         {
             cts.Dispose();
@@ -77,4 +79,16 @@ public class SwarmSessionRegistry
 
     private static string BuildPackageRetryKey(string sessionId, string packageId)
         => $"{sessionId}::{packageId}";
+
+    private void ClearPackageRetries(string sessionId)
+    {
+        var prefix = $"{sessionId}::";
+        foreach (var key in _activePackageRetries.Keys)
+        {
+            if (key.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                _activePackageRetries.TryRemove(key, out _);
+            }
+        }
+    }
 }

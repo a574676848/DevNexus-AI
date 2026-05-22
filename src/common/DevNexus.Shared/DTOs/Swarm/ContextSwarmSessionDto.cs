@@ -24,4 +24,9 @@ public record ContextSwarmSessionDto
     /// 工作包列表。
     /// </summary>
     public List<ContextWorkPackageDto> Packages { get; init; } = new();
+
+    /// <summary>
+    /// 会话状态摘要。
+    /// </summary>
+    public SwarmSessionStatusSummaryDto? StatusSummary { get; init; }
 }

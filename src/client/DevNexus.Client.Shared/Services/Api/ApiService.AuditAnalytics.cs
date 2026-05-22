@@ -1,6 +1,5 @@
 using System.Net.Http.Json;
 using DevNexus.Client.Shared.DTOs;
-using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using Microsoft.Extensions.Logging;
 namespace DevNexus.Client.Shared.Services.Api;
@@ -59,18 +58,6 @@ public partial class ApiService
     }
 
     /// <inheritdoc />
-    public async Task<AiOptimizationDashboardDto> GetAiOptimizationDashboardAsync(
-        DateTime? startDate = null,
-        DateTime? endDate = null)
-    {
-        var query = BuildDateQuery(startDate, endDate);
-        var response = await _httpClient.GetAsync(
-            $"{AiOptimizationConstants.AuditAnalyticsRoutes.Base}/{AiOptimizationConstants.AuditAnalyticsRoutes.AiOptimizationDashboard}{query}");
-        await EnsureSuccessAsync(response);
-        return await response.Content.ReadFromJsonAsync<AiOptimizationDashboardDto>() ?? new();
-    }
-
-    /// <inheritdoc />
     public async Task<PagedResultDto<TokenUsageDto>> GetMyTokenRecordsAsync(
         DateTime? startDate = null,
         DateTime? endDate = null,
@@ -101,10 +88,10 @@ public partial class ApiService
 
         var response = await _httpClient.GetAsync($"/api/v1/auditanalytics/my-records{query}");
         await EnsureSuccessAsync(response);
-        
+
         // 后端返回 PagedResult，前端转换为 PagedResultDto
         var result = await response.Content.ReadFromJsonAsync<PagedResult<TokenUsageDto>>() ?? new();
-        
+
         return new PagedResultDto<TokenUsageDto>
         {
             Items = result.Items,

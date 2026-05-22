@@ -13,6 +13,11 @@ public partial class SwarmMonitor
 {
     private string GetSwarmPhaseTone()
     {
+        if (StatusSummary != null)
+        {
+            return StatusSummary.Tone;
+        }
+
         if (ContextPackages.Count == 0)
         {
             return "neutral";
@@ -43,6 +48,11 @@ public partial class SwarmMonitor
 
     private string GetSwarmPhaseLabel()
     {
+        if (StatusSummary != null)
+        {
+            return StatusSummary.Label;
+        }
+
         if (ContextPackages.Count == 0)
         {
             return "等待工作包进入 Swarm";
@@ -78,6 +88,11 @@ public partial class SwarmMonitor
 
     private string GetSwarmPhaseDescription()
     {
+        if (StatusSummary != null)
+        {
+            return StatusSummary.Description;
+        }
+
         if (ContextPackages.Count == 0)
         {
             return "等待系统拆解工作包并生成执行计划。";
@@ -113,6 +128,13 @@ public partial class SwarmMonitor
 
     private IReadOnlyList<SwarmStageMetric> GetSwarmStageMetrics()
     {
+        if (StatusSummary?.StageMetrics.Count > 0)
+        {
+            return StatusSummary.StageMetrics
+                .Select(metric => new SwarmStageMetric(metric.Label, metric.Count, metric.Active, metric.Tone))
+                .ToList();
+        }
+
         var planning = ContextPackages.Count(package => string.Equals(package.Status, "Pending", StringComparison.OrdinalIgnoreCase));
         var executing = ContextPackages.Count(package => IsExecutingStatus(package.Status));
         var evaluating = ContextPackages.Count(package => IsEvaluatingStatus(package.Status));

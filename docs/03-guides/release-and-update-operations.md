@@ -97,16 +97,9 @@
 6. 若启用自动投放，是否成功生成 Rollout
 7. 客户端 manifest 是否能返回正确版本
 
-## 当前状态说明
+## 关键确认项
 
-目前仓库已经具备：
-
-- GitHub Actions 构建桌面客户端
-- 上传 GitHub Release 资产的 workflow 基础能力
-- 生成 `release-metadata.json` 的能力
-- 版本中心导入 metadata 的能力
-
-当前距离“完全上线版”还需要确认的关键项：
+发布流程中需逐项确认：
 
 1. Windows 安装器真实打包步骤
 2. macOS 安装包真实打包步骤

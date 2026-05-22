@@ -25,10 +25,10 @@ public partial class ChatState
         }
 
         var waitingForInput = cliExecSession?.WaitingForInput == true || primaryRecord?.WaitingForInput == true;
-        var statusLabel = ResolveTerminalStatusLabel(sessionId, runState, primaryRecord, waitingForInput);
-        var description = ResolveTerminalDescription(runState, waitingForInput, primaryRecord);
+        var statusLabel = ResolveTerminalStatusLabel(sessionId, runState, primaryRecord, waitingForInput, cliExecSession?.StatusSummary);
+        var description = ResolveTerminalDescription(runState, waitingForInput, primaryRecord, cliExecSession?.StatusSummary);
         var metaLine = ResolveTerminalMetaLine(primaryRecord, cliExecSession);
-        var toneClass = ResolveTerminalToneClass(primaryRecord, waitingForInput);
+        var toneClass = ResolveTerminalToneClass(primaryRecord, waitingForInput, cliExecSession?.StatusSummary);
         var workingDirectory = cliExecSession?.WorkingDirectory ?? primaryRecord?.WorkingDirectory;
         var command = string.IsNullOrWhiteSpace(cliExecSession?.Command)
             ? primaryRecord?.Command
@@ -59,8 +59,14 @@ public partial class ChatState
         Guid sessionId,
         ChatSessionRunState runState,
         TerminalRecordState? primaryRecord,
-        bool waitingForInput)
+        bool waitingForInput,
+        CliRuntimeStatusSummaryDto? summary)
     {
+        if (summary != null)
+        {
+            return summary.Label;
+        }
+
         if (runState is ChatSessionRunState.WaitingForInput
             or ChatSessionRunState.Running
             or ChatSessionRunState.Recovering
@@ -86,8 +92,14 @@ public partial class ChatState
     private static string ResolveTerminalDescription(
         ChatSessionRunState runState,
         bool waitingForInput,
-        TerminalRecordState? primaryRecord)
+        TerminalRecordState? primaryRecord,
+        CliRuntimeStatusSummaryDto? summary)
     {
+        if (summary != null)
+        {
+            return summary.Description;
+        }
+
         if (waitingForInput)
         {
             return "终端等待输入，底部输入框会直接发送。";
@@ -144,8 +156,16 @@ public partial class ChatState
         return parts.Count > 0 ? string.Join(" · ", parts) : "查看终端详情";
     }
 
-    private static string ResolveTerminalToneClass(TerminalRecordState? primaryRecord, bool waitingForInput)
+    private static string ResolveTerminalToneClass(
+        TerminalRecordState? primaryRecord,
+        bool waitingForInput,
+        CliRuntimeStatusSummaryDto? summary)
     {
+        if (summary != null)
+        {
+            return $"terminal-summary-card--{summary.Tone}";
+        }
+
         if (primaryRecord == null)
         {
             return "terminal-summary-card--neutral";

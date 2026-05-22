@@ -43,6 +43,7 @@ public partial class SwarmMonitor : ComponentBase, IAsyncDisposable
     private List<ConfirmReq> _pendingConfirmations = new();
     private List<TimelineEntry> _timelineEntries = new();
     private List<ContextWorkPackageDto> ContextPackages { get; set; } = new();
+    private SwarmSessionStatusSummaryDto? StatusSummary { get; set; }
     private List<AgentStatusDto> ActiveAgents { get; set; } = new();
     private HubConnection? _hubConnection;
     private bool IsPaused { get; set; } = false;

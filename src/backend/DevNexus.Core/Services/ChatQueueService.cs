@@ -294,6 +294,11 @@ public class ChatQueueService : IChatQueueService
             return "当前无法处理发送请求，请稍后重试";
         }
 
+        if (!string.IsNullOrWhiteSpace(runtime.PrimaryPendingInteractionSummary?.Description))
+        {
+            return runtime.PrimaryPendingInteractionSummary.Description;
+        }
+
         if (runtime.PrimaryPendingInteractionKind == PendingInteractionKind.Approval)
         {
             return string.IsNullOrWhiteSpace(runtime.PrimaryPendingInteractionDescription)

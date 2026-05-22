@@ -102,7 +102,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("SessionId");
 
-                    b.ToTable("Artifacts");
+                    b.ToTable("Artifacts", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.AuditSceneDefinition", b =>
@@ -174,7 +174,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("IsEnabled", "SortOrder");
 
-                    b.ToTable("AuditSceneDefinitions");
+                    b.ToTable("AuditSceneDefinitions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ChatMessage", b =>
@@ -235,7 +235,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("ParentMessageId");
 
-                    b.ToTable("ChatMessages");
+                    b.ToTable("ChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ChatSession", b =>
@@ -291,7 +291,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("LLMProviderId");
 
-                    b.ToTable("ChatSessions");
+                    b.ToTable("ChatSessions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.CliApprovalGrant", b =>
@@ -350,7 +350,7 @@ namespace DevNexus.Infrastructure.Migrations
                     b.HasIndex("SessionScopeKey", "Scope", "MatchValue", "ConsumedAt")
                         .HasDatabaseName("IX_CliApprovalGrants_Scope_Match_ConsumedAt");
 
-                    b.ToTable("CliApprovalGrants");
+                    b.ToTable("CliApprovalGrants", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.CliExecCheckpoint", b =>
@@ -415,7 +415,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("SessionKey", "Status");
 
-                    b.ToTable("CliExecCheckpoints");
+                    b.ToTable("CliExecCheckpoints", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.CliExecSession", b =>
@@ -509,7 +509,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "LastActivityAt");
 
-                    b.ToTable("CliExecSessions");
+                    b.ToTable("CliExecSessions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ContextSwarmSession", b =>
@@ -576,7 +576,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("ContextSwarmSessions");
+                    b.ToTable("ContextSwarmSessions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ContextWorkPackageRecord", b =>
@@ -693,7 +693,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("TaskId");
 
-                    b.ToTable("ContextWorkPackages");
+                    b.ToTable("ContextWorkPackages", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.EmbeddingProvider", b =>
@@ -777,7 +777,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("IsEnabled", "IsDefault", "Priority");
 
-                    b.ToTable("EmbeddingProviders");
+                    b.ToTable("EmbeddingProviders", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.FileAsset", b =>
@@ -862,7 +862,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("CreatedBy", "SourceType", "Status");
 
-                    b.ToTable("FileAssets");
+                    b.ToTable("FileAssets", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.FileTask", b =>
@@ -938,7 +938,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("CreatedBy", "Status", "UpdatedAt");
 
-                    b.ToTable("FileTasks");
+                    b.ToTable("FileTasks", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.FileVersion", b =>
@@ -1000,7 +1000,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("GeneratedByTaskId");
 
-                    b.ToTable("FileVersions");
+                    b.ToTable("FileVersions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.LLMProvider", b =>
@@ -1081,7 +1081,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("IsEnabled", "IsDefault", "Priority");
 
-                    b.ToTable("LLMProviders");
+                    b.ToTable("LLMProviders", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ModelInvocationAudit", b =>
@@ -1089,10 +1089,6 @@ namespace DevNexus.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
-
-                    b.Property<int?>("CachedPromptTokens")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1110,10 +1106,6 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.Property<long>("DurationMs")
                         .HasColumnType("bigint");
-
-                    b.Property<int?>("DynamicContextTokens")
-                        .HasColumnType("integer");
-
                     b.Property<string>("ErrorCode")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
@@ -1121,10 +1113,6 @@ namespace DevNexus.Infrastructure.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
-
-                    b.Property<int?>("HistoryTokens")
-                        .HasColumnType("integer");
-
                     b.Property<int?>("InputTokens")
                         .HasColumnType("integer");
 
@@ -1213,11 +1201,6 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.Property<Guid?>("SessionId")
                         .HasColumnType("uuid");
-
-                    b.Property<string>("StablePrefixHash")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1245,11 +1228,6 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.Property<bool?>("ToolRetryable")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("ToolSchemaHash")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<string>("ToolSuggestedAction")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -1289,7 +1267,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("OwnerType", "SceneCode", "CreatedAt");
 
-                    b.ToTable("ModelInvocationAudits");
+                    b.ToTable("ModelInvocationAudits", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.ModelPricing", b =>
@@ -1342,7 +1320,7 @@ namespace DevNexus.Infrastructure.Migrations
                     b.HasIndex("ProviderType", "ProviderId")
                         .IsUnique();
 
-                    b.ToTable("ModelPrices");
+                    b.ToTable("ModelPrices", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.PendingInteraction", b =>
@@ -1424,7 +1402,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("SessionId", "Kind", "SourceTool");
 
-                    b.ToTable("PendingInteractions");
+                    b.ToTable("PendingInteractions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.QueuedChatMessage", b =>
@@ -1517,7 +1495,7 @@ namespace DevNexus.Infrastructure.Migrations
                     b.HasIndex("ChatSessionId", "Status", "SequenceNumber")
                         .HasDatabaseName("IX_QueuedChatMessages_SessionId_Status_SequenceNumber");
 
-                    b.ToTable("QueuedChatMessages");
+                    b.ToTable("QueuedChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.RefreshToken", b =>
@@ -1576,7 +1554,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "IsRevoked");
 
-                    b.ToTable("RefreshTokens");
+                    b.ToTable("RefreshTokens", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.SearchProvider", b =>
@@ -1656,7 +1634,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("IsEnabled", "IsDefault", "Priority");
 
-                    b.ToTable("SearchProviders");
+                    b.ToTable("SearchProviders", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.StorageProvider", b =>
@@ -1757,7 +1735,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("IsEnabled", "IsDefault", "Priority");
 
-                    b.ToTable("StorageProviders");
+                    b.ToTable("StorageProviders", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.SystemExperience", b =>
@@ -1825,7 +1803,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("UtilityScore");
 
-                    b.ToTable("SystemExperiences");
+                    b.ToTable("SystemExperiences", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.TerminalStream", b =>
@@ -1964,7 +1942,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("ToolCallId");
 
-                    b.ToTable("TerminalStreams");
+                    b.ToTable("TerminalStreams", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UpdateClientEvent", b =>
@@ -2054,7 +2032,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("RolloutId", "ReleaseId", "ArtifactId");
 
-                    b.ToTable("UpdateClientEvents");
+                    b.ToTable("UpdateClientEvents", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UpdateRelease", b =>
@@ -2112,7 +2090,7 @@ namespace DevNexus.Infrastructure.Migrations
                     b.HasIndex("Channel", "Version")
                         .IsUnique();
 
-                    b.ToTable("UpdateReleases");
+                    b.ToTable("UpdateReleases", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UpdateReleaseArtifact", b =>
@@ -2181,7 +2159,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("ReleaseId", "Platform", "Architecture", "PackageType");
 
-                    b.ToTable("UpdateReleaseArtifacts");
+                    b.ToTable("UpdateReleaseArtifacts", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UpdateRollout", b =>
@@ -2261,7 +2239,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("Platform", "Architecture", "Channel", "Enabled");
 
-                    b.ToTable("UpdateRollouts");
+                    b.ToTable("UpdateRollouts", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UploadSession", b =>
@@ -2341,7 +2319,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("CreatedBy", "Status", "ExpiresAt");
 
-                    b.ToTable("UploadSessions");
+                    b.ToTable("UploadSessions", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UserFact", b =>
@@ -2405,7 +2383,7 @@ namespace DevNexus.Infrastructure.Migrations
                     b.HasIndex("UserId", "ContentHash")
                         .HasDatabaseName("IX_UserFacts_UserId_ContentHash");
 
-                    b.ToTable("UserFacts");
+                    b.ToTable("UserFacts", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Domain.Entities.UserIntegration", b =>
@@ -2510,7 +2488,7 @@ namespace DevNexus.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "IntegrationType", "IsDefault");
 
-                    b.ToTable("UserIntegrations");
+                    b.ToTable("UserIntegrations", (string)null);
                 });
 
             modelBuilder.Entity("DevNexus.Infrastructure.Models.InfrastructureUser", b =>

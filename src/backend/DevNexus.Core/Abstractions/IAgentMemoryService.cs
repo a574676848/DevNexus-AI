@@ -23,7 +23,7 @@ public interface IAgentMemoryService
     /// <summary>
     /// 归档保存新提取的高质量经验
     /// </summary>
-    Task<SystemExperience> SaveExperienceAsync(SystemExperience experience, CancellationToken cancellationToken = default);
+    Task<ExperienceSaveResultDto> SaveExperienceAsync(SystemExperience experience, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 执行后台定期修剪：效用评分衰减与低分清理

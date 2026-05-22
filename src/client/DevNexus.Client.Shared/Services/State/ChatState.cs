@@ -85,6 +85,10 @@ public partial class ChatState : IChatState
         _currentSessionId != Guid.Empty ? GetPendingInteractions(_currentSessionId) : Array.Empty<PendingInteractionDto>();
 
     /// <inheritdoc />
+    public AgentTurnEventsUpdatedDto? CurrentAgentTurnEvents =>
+        _currentSessionId != Guid.Empty ? GetAgentTurnEvents(_currentSessionId) : null;
+
+    /// <inheritdoc />
     public bool IsTerminalModalVisible => _isTerminalModalVisible;
 
     /// <inheritdoc />
@@ -164,6 +168,12 @@ public partial class ChatState : IChatState
         return _sessions.TryGetValue(sessionId, out var state)
             ? state.PendingInteractions.AsReadOnly()
             : Array.Empty<PendingInteractionDto>();
+    }
+
+    /// <inheritdoc />
+    public AgentTurnEventsUpdatedDto? GetAgentTurnEvents(Guid sessionId)
+    {
+        return _sessions.TryGetValue(sessionId, out var state) ? state.AgentTurnEvents : null;
     }
 
     /// <inheritdoc />
@@ -267,6 +277,33 @@ public partial class ChatState : IChatState
         var state = GetOrCreateSessionState(sessionId);
         state.QueuedMessages.RemoveAll(message => message.Id == queuedMessageId);
         InvalidateSessionRuntime(sessionId);
+        NotifyStateChanged();
+    }
+
+    /// <inheritdoc />
+    public void SetAgentTurnEvents(Guid sessionId, AgentTurnEventsUpdatedDto eventsUpdate)
+    {
+        ArgumentNullException.ThrowIfNull(eventsUpdate);
+
+        var state = GetOrCreateSessionState(sessionId);
+        eventsUpdate.Events = eventsUpdate.Events
+            .OrderBy(item => item.Sequence)
+            .ToList();
+        state.AgentTurnEvents = eventsUpdate;
+        state.LastActiveAt = DateTime.UtcNow;
+        NotifyStateChanged();
+    }
+
+    /// <inheritdoc />
+    public void ClearAgentTurnEvents(Guid sessionId)
+    {
+        if (!_sessions.TryGetValue(sessionId, out var state) || state.AgentTurnEvents == null)
+        {
+            return;
+        }
+
+        state.AgentTurnEvents = null;
+        state.LastActiveAt = DateTime.UtcNow;
         NotifyStateChanged();
     }
 
@@ -393,12 +430,12 @@ public partial class ChatState : IChatState
             // ★ 关键变更：不再清空 Blocks，保留多会话状态
             // 确保该会话的状态存在
             var state = GetOrCreateSessionState(sessionId);
-            
+
             // ★ 修复：切换会话时，如果目标会话已有 Artifact，自动打开分屏
             // 这确保进入已有代码块的会话时，代码块能正确折叠
             _currentSidekickPane = ResolvePreferredSidekickPane(state);
             _isSidekickVisible = _currentSidekickPane != SidekickPaneKind.None;
-            
+
             NotifyStateChanged();
         }
     }

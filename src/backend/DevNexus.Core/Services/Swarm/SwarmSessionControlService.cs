@@ -3,14 +3,12 @@ using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Domain.Enums;
 using DevNexus.Domain.Models.Swarm;
-using DevNexus.Shared.Enums;
+using DevNexus.Shared.DTOs;
 using DevNexus.Shared.DTOs.Swarm;
+using DevNexus.Shared.Enums;
 using Microsoft.Extensions.Logging;
 using DevNexus.Core.Services.Swarm.Execution;
 using DevNexus.Core.Services.Swarm.Planning;
-using DevNexus.Domain.Abstractions;
-using DevNexus.Shared.DTOs;
-using DevNexus.Shared.Enums;
 
 namespace DevNexus.Core.Services.Swarm;
 
@@ -48,8 +46,28 @@ public class SwarmSessionControlService : ISwarmSessionControlService
     /// <inheritdoc />
     public async Task PauseAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
+        var decision = SwarmControlCommandPolicy.CanPause(session?.Status);
+        if (!decision.Accepted)
+        {
+            await NotifyControlCommandAsync(
+                sessionId,
+                decision.Command,
+                isPaused: false,
+                cancellationToken,
+                accepted: false,
+                message: decision.Message);
+            return;
+        }
+
+        if (session == null)
+        {
+            return;
+        }
+
         _sessionRegistry.Pause(sessionId);
-        await _swarmEventService.NotifyControlCommandAsync(sessionId, "Paused", cancellationToken);
+        await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Paused, session.Result);
+        await NotifyControlCommandAsync(sessionId, "Paused", isPaused: true, cancellationToken);
         await NotifyRuntimeEventAsync(sessionId, ServerEventType.SessionSuspended, "Paused", cancellationToken);
 
         _logger.LogInformation("Swarm 会话已暂停 | SessionId={SessionId}", sessionId);
@@ -58,8 +76,28 @@ public class SwarmSessionControlService : ISwarmSessionControlService
     /// <inheritdoc />
     public async Task ResumeAsync(string sessionId, CancellationToken cancellationToken = default)
     {
+        var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
+        var decision = SwarmControlCommandPolicy.CanResume(session?.Status);
+        if (!decision.Accepted)
+        {
+            await NotifyControlCommandAsync(
+                sessionId,
+                decision.Command,
+                isPaused: false,
+                cancellationToken,
+                accepted: false,
+                message: decision.Message);
+            return;
+        }
+
+        if (session == null)
+        {
+            return;
+        }
+
         _sessionRegistry.Resume(sessionId);
-        await _swarmEventService.NotifyControlCommandAsync(sessionId, "Resumed", cancellationToken);
+        await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Running, session.Result);
+        await NotifyControlCommandAsync(sessionId, "Resumed", isPaused: false, cancellationToken);
         await NotifyRuntimeEventAsync(sessionId, ServerEventType.SessionResumed, "Resumed", cancellationToken);
 
         _logger.LogInformation("Swarm 会话已恢复 | SessionId={SessionId}", sessionId);
@@ -69,11 +107,46 @@ public class SwarmSessionControlService : ISwarmSessionControlService
     public async Task AbortAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         _sessionRegistry.Abort(sessionId);
-        await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Aborted);
-        await _swarmEventService.NotifyControlCommandAsync(sessionId, "Aborted", cancellationToken);
+        var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
+        if (session != null)
+        {
+            var finalization = SwarmSessionFinalizationPolicy.BuildUserAbort(session.Packages);
+            session.Status = finalization.Status;
+            session.Result = finalization.Reason;
+            session.CompletedAt = DateTime.UtcNow;
+            session.UpdatedAt = DateTime.UtcNow;
+            await _swarmSessionRepository.SaveAsync(session);
+        }
+        else
+        {
+            await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Aborted);
+        }
+
+        await NotifyControlCommandAsync(sessionId, "Aborted", isPaused: false, cancellationToken);
         await NotifyRuntimeEventAsync(sessionId, ServerEventType.SessionCancelled, "Aborted", cancellationToken);
 
         _logger.LogInformation("Swarm 会话已中止 | SessionId={SessionId}", sessionId);
+    }
+
+    private async Task<SwarmControlCommandDto> NotifyControlCommandAsync(
+        string sessionId,
+        string command,
+        bool isPaused,
+        CancellationToken cancellationToken,
+        bool accepted = true,
+        string? message = null)
+    {
+        var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
+        var payload = SwarmControlCommandBuilder.Build(
+            sessionId,
+            command,
+            session?.Packages ?? Array.Empty<ContextWorkPackageRecord>(),
+            isPaused,
+            accepted,
+            message);
+
+        await _swarmEventService.NotifyControlCommandAsync(sessionId, payload, cancellationToken);
+        return payload;
     }
 
     private async Task NotifyRuntimeEventAsync(
@@ -101,29 +174,52 @@ public class SwarmSessionControlService : ISwarmSessionControlService
     }
 
     /// <inheritdoc />
-    public async Task RetryPackageAsync(string sessionId, string packageId, CancellationToken cancellationToken = default)
+    public async Task<SwarmControlCommandDto> RetryPackageAsync(
+        string sessionId,
+        string packageId,
+        CancellationToken cancellationToken = default)
     {
         var session = await _swarmSessionRepository.GetBySessionIdAsync(sessionId);
-        if (session == null)
+        var packageRecord = session?.Packages.FirstOrDefault(task => string.Equals(task.TaskId, packageId, StringComparison.Ordinal));
+        var decision = SwarmControlCommandPolicy.CanRetryPackage(session?.Status, packageRecord?.Status);
+        if (!decision.Accepted)
         {
-            throw new InvalidOperationException($"Swarm 会话不存在: {sessionId}");
+            return await NotifyControlCommandAsync(
+                sessionId,
+                decision.Command,
+                isPaused: false,
+                cancellationToken,
+                accepted: false,
+                message: decision.Message);
         }
 
-        var packageRecord = session.Packages.FirstOrDefault(task => string.Equals(task.TaskId, packageId, StringComparison.Ordinal));
-        if (packageRecord == null)
+        if (session == null || packageRecord == null)
         {
-            throw new InvalidOperationException($"工作包不存在: {packageId}");
-        }
-
-        if (packageRecord.Status != SwarmTaskStatus.Failed)
-        {
-            throw new InvalidOperationException("仅允许重试失败工作包。");
+            return await NotifyControlCommandAsync(
+                sessionId,
+                "RetryRejected",
+                isPaused: false,
+                cancellationToken,
+                accepted: false,
+                message: "Swarm 重试上下文缺失，请刷新后重试。");
         }
 
         if (!_sessionRegistry.TryBeginPackageRetry(sessionId, packageId))
         {
-            throw new InvalidOperationException("该工作包已有重试任务在执行，请稍后刷新状态。");
+            return await NotifyControlCommandAsync(
+                sessionId,
+                "RetryRejected",
+                isPaused: false,
+                cancellationToken,
+                accepted: false,
+                message: "该工作包已有重试任务在执行，请稍后刷新状态。");
         }
+
+        await NotifyControlCommandAsync(
+            sessionId,
+            decision.Command,
+            isPaused: false,
+            cancellationToken);
 
         var package = MapToDomainPackage(session, packageRecord);
 
@@ -177,6 +273,11 @@ public class SwarmSessionControlService : ISwarmSessionControlService
         }
         await _swarmSessionRepository.SaveAsync(session);
         await NotifyPackagesAsync(sessionId, session.Packages.ToList(), cancellationToken);
+        return await NotifyControlCommandAsync(
+            sessionId,
+            "RetryCompleted",
+            isPaused: false,
+            cancellationToken);
     }
 
     /// <inheritdoc />
@@ -263,11 +364,9 @@ public class SwarmSessionControlService : ISwarmSessionControlService
         record.CommandLine = package.CommandLine;
         record.WorkingDirectory = package.WorkingDirectory;
         record.ExecutionReportArtifactId = package.ExecutionReportArtifactId;
-        record.StartedAt ??= DateTime.UtcNow;
-        record.CompletedAt = package.Status == SwarmPackageStatus.Completed ? DateTime.UtcNow : null;
         record.OwnedFiles = package.OwnedFiles.ToList();
         record.OwnedSymbols = package.OwnedSymbols.ToList();
-        record.UpdatedAt = DateTime.UtcNow;
+        SwarmPackageRecordLifecyclePolicy.Apply(record, DateTime.UtcNow);
     }
 
     private static SwarmStatus ResolveSessionStatus(IEnumerable<ContextWorkPackageRecord> packages)

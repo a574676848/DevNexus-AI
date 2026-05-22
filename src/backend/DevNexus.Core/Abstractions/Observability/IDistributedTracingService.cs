@@ -45,19 +45,20 @@ public interface IDistributedTracingService
 public enum TraceEvent
 {
     // Agent Loop 相关
+    AgentTurnEventsBuilt,               // 工具执行事件批次已构建
     AgentLoopEvaluationStarted,         // Agent Loop 评估开始
     AgentLoopEvaluationCompleted,       // Agent Loop 评估完成
     AgentLoopRepairDecided,             // 决定触发自动修复
     AgentLoopRepairAttemptStarted,      // 自动修复尝试开始
     AgentLoopRepairAttemptFailed,       // 自动修复尝试失败
     AgentLoopMaxAttemptsReached,        // 达到最大重试次数
-    
+
     // 工具执行相关
     ToolExecutionStarted,               // 工具执行开始
     ToolExecutionCompleted,             // 工具执行完成
     ToolExecutionFailed,                // 工具执行失败
     ToolExecutionTimeout,               // 工具执行超时
-    
+
     // 终端输出相关
     TerminalStreamStarted,              // 终端流开始
     TerminalStreamChunkReceived,        // 接收到终端数据块
@@ -66,22 +67,22 @@ public enum TraceEvent
     TerminalPersistenceCompleted,       // 终端持久化完成
     TerminalPersistenceFailed,          // 终端持久化失败
     TerminalReplayStarted,              // 终端回放开始
-    
+
     // 消息生成相关
     MessageGenerationStarted,           // 消息生成开始
     MessageGenerationCompleted,         // 消息生成完成
     MessageGenerationFailed,            // 消息生成失败
     MessageGenerationCancelled,         // 消息生成被取消
-    
+
     // 会话恢复相关
     SessionRecoveryStarted,             // 会话恢复开始
     SessionRecoveryCompleted,           // 会话恢复完成
     SessionRecoveryFailed,              // 会话恢复失败
-    
+
     // 思维链相关
     ThinkingChainStarted,               // 思维链开始
     ThinkingChainEmitted,               // 思维链发出
-    
+
     // 其他
     UnexpectedError,                    // 未预期的错误
     PerformanceThresholdExceeded,       // 性能阈值超出

@@ -107,50 +107,6 @@
     color: var(--dnx-brand-green);
 }
 
-.ai-optimization-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.metric-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 16px;
-    background: var(--audit-surface);
-    border: 1px solid var(--audit-border);
-    border-radius: var(--dnx-radius-md);
-}
-
-.metric-label {
-    color: var(--audit-text-secondary);
-    font-size: 13px;
-}
-
-.metric-card strong {
-    color: var(--audit-text-primary);
-    font-size: 24px;
-    line-height: 1.2;
-}
-
-.metric-card small {
-    color: var(--audit-text-tertiary);
-    font-size: 12px;
-}
-
-.ai-optimization-tables {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
 .analytics-section {
     background: var(--audit-surface);
     border: 1px solid var(--audit-border);
@@ -444,11 +400,6 @@
 
     .audit-view-tab {
         flex: 1;
-    }
-
-    .metric-grid,
-    .ai-optimization-tables {
-        grid-template-columns: 1fr;
     }
 
     .date-filter .filter-group:last-child select,

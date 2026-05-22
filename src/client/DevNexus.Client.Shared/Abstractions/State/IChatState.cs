@@ -59,6 +59,11 @@ public interface IChatState
     IReadOnlyList<PendingInteractionDto> CurrentPendingInteractions { get; }
 
     /// <summary>
+    /// 当前会话最近一轮工具执行事件批次。
+    /// </summary>
+    AgentTurnEventsUpdatedDto? CurrentAgentTurnEvents { get; }
+
+    /// <summary>
     /// 当前终端查看弹窗是否可见。
     /// </summary>
     bool IsTerminalModalVisible { get; }
@@ -123,6 +128,11 @@ public interface IChatState
     /// 获取指定会话的挂起交互列表。
     /// </summary>
     IReadOnlyList<PendingInteractionDto> GetPendingInteractions(Guid sessionId);
+
+    /// <summary>
+    /// 获取指定会话最近一轮工具执行事件批次。
+    /// </summary>
+    AgentTurnEventsUpdatedDto? GetAgentTurnEvents(Guid sessionId);
 
     /// <summary>
     /// 获取指定会话当前聚焦的终端记录。
@@ -193,6 +203,16 @@ public interface IChatState
     /// 清理指定会话的挂起交互。
     /// </summary>
     void ClearPendingInteractions(Guid sessionId);
+
+    /// <summary>
+    /// 设置指定会话最近一轮工具执行事件批次。
+    /// </summary>
+    void SetAgentTurnEvents(Guid sessionId, AgentTurnEventsUpdatedDto eventsUpdate);
+
+    /// <summary>
+    /// 清理指定会话最近一轮工具执行事件批次。
+    /// </summary>
+    void ClearAgentTurnEvents(Guid sessionId);
 
     /// <summary>
     /// 聚焦指定会话的终端记录。

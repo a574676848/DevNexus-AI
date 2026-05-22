@@ -14,7 +14,7 @@ public interface ICliProcessRegistry : IDisposable
 
     Task WriteAsync(string sessionId, string input, CancellationToken ct);
 
-    Task<(string Output, int ExitCode)> ExecuteAndWaitAsync(
+    Task<CliCommandExecutionResult> ExecuteAndWaitAsync(
         string sessionId,
         string command,
         TimeSpan timeout,

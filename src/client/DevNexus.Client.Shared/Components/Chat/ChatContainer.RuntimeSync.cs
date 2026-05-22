@@ -193,7 +193,10 @@ public partial class ChatContainer
             Metadata = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
                 [ChatMessageMetadataKeys.PendingInteractionId] = response.InteractionId,
-                [ChatMessageMetadataKeys.ResumePendingInteraction] = true
+                [ChatMessageMetadataKeys.ResumePendingInteraction] = true,
+                [ChatMessageMetadataKeys.PendingInteractionResolutionAction] = response.Action,
+                [ChatMessageMetadataKeys.PendingInteractionApprovalScope] =
+                    response.ApprovalScope?.ToString() ?? string.Empty
             }
         });
     }
@@ -290,6 +293,7 @@ public partial class ChatContainer
         switch (serverEvent.EventType)
         {
             case ServerEventType.GenerationStarted:
+                ChatState.ClearAgentTurnEvents(serverEvent.SessionId);
                 ChatState.SetSessionGeneratingOptimistic(serverEvent.SessionId, true);
                 ScheduleRuntimeRefresh(serverEvent.SessionId);
                 return;
@@ -434,7 +438,56 @@ public partial class ChatContainer
                     StateHasChanged();
                 });
                 return;
+            case ServerEventType.AgentTurnEventsUpdated:
+                _ = InvokeAsync(async () =>
+                {
+                    if (TryReadAgentTurnEventsUpdate(serverEvent.Data, out var eventsUpdate))
+                    {
+                        ChatState.SetAgentTurnEvents(serverEvent.SessionId, eventsUpdate);
+                    }
+
+                    await RefreshRuntimeSnapshotAsync(serverEvent.SessionId);
+                    StateHasChanged();
+                });
+                return;
         }
+    }
+
+    private static bool TryReadAgentTurnEventsUpdate(
+        object? data,
+        out AgentTurnEventsUpdatedDto eventsUpdate)
+    {
+        eventsUpdate = new AgentTurnEventsUpdatedDto();
+
+        if (data is not JsonElement element || element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var parsed = JsonSerializer.Deserialize<AgentTurnEventsUpdatedDto>(
+            element.GetRawText(),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        if (parsed == null)
+        {
+            return false;
+        }
+
+        eventsUpdate = parsed;
+        return true;
+    }
+
+    private static string ResolveAgentTurnPanelClass(AgentTurnEventsUpdatedDto update)
+    {
+        return update.BatchDiagnostics.HasFailures
+            ? "agent-turn-panel agent-turn-panel--warning"
+            : "agent-turn-panel";
+    }
+
+    private static string ResolveAgentTurnHeadline(AgentTurnEventsUpdatedDto update)
+    {
+        return update.BatchDiagnostics.HasFailures
+            ? "工具执行需要处理"
+            : "工具执行已完成";
     }
 
     private static bool TryGetStringProperty(object? data, string propertyName, out string? value)

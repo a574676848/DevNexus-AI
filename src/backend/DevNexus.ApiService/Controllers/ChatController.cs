@@ -4,7 +4,6 @@ using DevNexus.Domain.Abstractions;
 using DevNexus.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.ComponentModel.DataAnnotations;
 
 namespace DevNexus.ApiService.Controllers;
 
@@ -252,6 +251,7 @@ public class ChatController : AuthenticatedControllerBase
             return NotFound(new { error = "会话不存在或无权访问" });
         }
 
+        var resolutionDecision = PendingInteractionResolutionPolicy.Resolve(request.Action);
         var interaction = await _pendingInteractionService.ResolveAsync(
             userId,
             sessionId,
@@ -269,7 +269,8 @@ public class ChatController : AuthenticatedControllerBase
             {
                 InteractionId = interaction.Id,
                 Status = interaction.Status.ToWireValue(),
-                request.Action
+                resolutionDecision.Action,
+                resolutionDecision.ApprovalScope
             },
             cancellationToken);
 
@@ -277,13 +278,10 @@ public class ChatController : AuthenticatedControllerBase
         {
             InteractionId = interaction.Id,
             ShouldResume = interaction.Status == PendingInteractionStatus.Resolved,
+            Action = resolutionDecision.Action,
+            ApprovalScope = resolutionDecision.ApprovalScope,
             ResumeMessage = interaction.Status == PendingInteractionStatus.Resolved
-                ? request.Action switch
-                {
-                    "approve-pattern" => "我已允许当前会话中的同类命令继续执行，请继续。",
-                    "approve" or "approve-once" => "我已允许本次命令执行，请继续。",
-                    _ => "我已补充所需信息，请继续。"
-                }
+                ? resolutionDecision.ResumeMessage
                 : null
         });
     }
@@ -385,11 +383,11 @@ public class ChatController : AuthenticatedControllerBase
         try
         {
             var deletedCount = await _chatService.DeleteChatMessagesAsync(
-                sessionId, 
-                request.MessageIds, 
-                userId, 
+                sessionId,
+                request.MessageIds,
+                userId,
                 cancellationToken);
-            
+
             return Ok(new { deletedCount, message = $"成功删除 {deletedCount} 条消息" });
         }
         catch (InvalidOperationException ex)
@@ -683,32 +681,5 @@ public class ChatController : AuthenticatedControllerBase
 
         return Ok(new { count });
     }
-}
-
-/// <summary>
-/// 创建聊天会话请求
-/// </summary>
-public class CreateChatSessionRequest
-{
-    /// <summary>
-    /// 会话标题
-    /// </summary>
-    [Required]
-    [MaxLength(100)]
-    public string Title { get; set; } = string.Empty;
-}
-
-
-
-/// <summary>
-/// 批量删除消息请求
-/// </summary>
-public class BatchDeleteMessagesRequest
-{
-    /// <summary>
-    /// 要删除的消息ID列表
-    /// </summary>
-    [Required]
-    public List<Guid> MessageIds { get; set; } = new();
 }
 

@@ -4,6 +4,7 @@ using DevNexus.Domain.Entities;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
 using DevNexus.Core.DTOs;
+using DevNexus.Core.Services.Chat;
 using DevNexus.Infrastructure.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -20,7 +21,7 @@ public class AgentMemoryService : IAgentMemoryService
     private readonly ApplicationDbContext _dbContext;
     private readonly IKernelMemory _kernelMemory;
     private readonly ILogger<AgentMemoryService> _logger;
-    
+
     private const string ExperienceIndex = DevNexus.Shared.Constants.MemoryConstants.ExperienceIndex;
 
     public AgentMemoryService(
@@ -42,7 +43,7 @@ public class AgentMemoryService : IAgentMemoryService
             var searchResult = await _kernelMemory.SearchAsync(
                 intent,
                 index: ExperienceIndex,
-                minRelevance: 0.8,
+                minRelevance: SystemExperienceLifecyclePolicy.MinimumSearchRelevance,
                 limit: 1,
                 cancellationToken: cancellationToken);
 
@@ -50,7 +51,7 @@ public class AgentMemoryService : IAgentMemoryService
                 return null;
 
             var bestMatch = searchResult.Results.First();
-            if (bestMatch.Partitions.First().Relevance < 0.8)
+            if (!SystemExperienceLifecyclePolicy.IsSearchMatch(bestMatch.Partitions.First().Relevance))
                 return null;
 
             // Retrieve ID from tags
@@ -64,7 +65,7 @@ public class AgentMemoryService : IAgentMemoryService
             var experience = await _dbContext.SystemExperiences
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == experienceId && e.Type == type, cancellationToken);
-                
+
             if (experience == null) return null;
 
             return new ExperienceMatchDto
@@ -88,15 +89,36 @@ public class AgentMemoryService : IAgentMemoryService
         {
             exp.UsageCount += 1;
             // 每次成功使用，评分微调
-            exp.UtilityScore = Math.Min(10.0, exp.UtilityScore + 0.1);
+            exp.UtilityScore = SystemExperienceLifecyclePolicy.BoostUtilityScore(exp.UtilityScore);
             exp.LastMatchedAt = DateTime.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 
     /// <inheritdoc />
-    public async Task<SystemExperience> SaveExperienceAsync(SystemExperience experience, CancellationToken cancellationToken = default)
+    public async Task<ExperienceSaveResultDto> SaveExperienceAsync(SystemExperience experience, CancellationToken cancellationToken = default)
     {
+        var fingerprint = SystemExperienceFingerprint.Compute(experience);
+        var existingExperiences = await _dbContext.SystemExperiences
+            .Where(item => item.Type == experience.Type)
+            .ToListAsync(cancellationToken);
+        var duplicate = existingExperiences.FirstOrDefault(existing =>
+            SystemExperienceDuplicatePolicy.IsCandidate(experience, existing)
+            && SystemExperienceDuplicatePolicy.IsDuplicate(experience, [existing]));
+        if (duplicate != null)
+        {
+            SystemExperienceLifecyclePolicy.ApplyDuplicateRediscovery(duplicate, DateTime.UtcNow);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation(
+                "系统经验重复，已强化已有经验: ExistingId={ExistingId} Intent={Intent}",
+                duplicate.Id,
+                experience.Intent);
+            return SystemExperienceSaveResultFactory.Duplicate(duplicate, experience);
+        }
+
+        experience.ContextTags = SystemExperienceFingerprint.MergeIntoContextTags(
+            experience.ContextTags,
+            fingerprint);
         _dbContext.SystemExperiences.Add(experience);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
@@ -114,22 +136,22 @@ public class AgentMemoryService : IAgentMemoryService
                 },
                 index: ExperienceIndex,
                 cancellationToken: cancellationToken);
-                
+
             _logger.LogInformation("成功归档新经验并建立向量索引: {Intent}", experience.Intent);
+            return SystemExperienceSaveResultFactory.CreatedAndIndexed(experience);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "向 Kernel Memory 保存经验向量时失败");
+            return SystemExperienceSaveResultFactory.CreatedButIndexFailed(experience);
         }
-
-        return experience;
     }
 
     /// <inheritdoc />
     public async Task PruneExperiencesAsync(CancellationToken cancellationToken = default)
     {
         // 每天执行的衰减逻辑 (由 Hangfire Job 触发)
-        var limitDate = DateTime.UtcNow.AddDays(-30); // 30天未使用的才衰减
+        var limitDate = SystemExperienceLifecyclePolicy.GetStaleBoundary(DateTime.UtcNow);
 
         var staleExperiences = await _dbContext.SystemExperiences
             .Where(e => !e.IsPinned && e.LastMatchedAt < limitDate)
@@ -138,8 +160,7 @@ public class AgentMemoryService : IAgentMemoryService
         int deletedCount = 0;
         foreach (var exp in staleExperiences)
         {
-            exp.UtilityScore *= 0.8; // 折扣衰减
-            if (exp.UtilityScore < 0.2) // 效用过低则清理淘汰
+            if (SystemExperienceLifecyclePolicy.ApplyDecay(exp))
             {
                 try
                 {
@@ -149,7 +170,7 @@ public class AgentMemoryService : IAgentMemoryService
                 {
                     _logger.LogWarning(ex, "清理 Kernel Memory 无效向量文档失败: {Id}", exp.Id);
                 }
-                
+
                 _dbContext.SystemExperiences.Remove(exp);
                 deletedCount++;
             }

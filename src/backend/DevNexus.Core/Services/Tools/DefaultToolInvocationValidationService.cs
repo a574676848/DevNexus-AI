@@ -11,6 +11,16 @@ namespace DevNexus.Core.Services.Tools;
 /// </summary>
 public sealed class DefaultToolInvocationValidationService : IToolInvocationValidationService
 {
+    private readonly IToolCatalogService _toolCatalogService;
+
+    /// <summary>
+    /// 初始化工具调用参数预验证服务。
+    /// </summary>
+    public DefaultToolInvocationValidationService(IToolCatalogService toolCatalogService)
+    {
+        _toolCatalogService = toolCatalogService;
+    }
+
     /// <inheritdoc />
     public ToolInvocationValidationResultDto Validate(string toolName, string argumentsJson)
     {
@@ -27,6 +37,12 @@ public sealed class DefaultToolInvocationValidationService : IToolInvocationVali
         Dictionary<string, JsonElement>? arguments;
         try
         {
+            using var document = JsonDocument.Parse(argumentsJson);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return Invalid(AiOptimizationConstants.ToolValidationMessages.NonObjectArguments);
+            }
+
             arguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(argumentsJson);
         }
         catch (JsonException)
@@ -39,14 +55,20 @@ public sealed class DefaultToolInvocationValidationService : IToolInvocationVali
             return Invalid(AiOptimizationConstants.ToolValidationMessages.EmptyArguments);
         }
 
-        if (toolName.Contains(AiOptimizationConstants.ToolProtocol.HostServicePlugin, StringComparison.OrdinalIgnoreCase)
+        var pluginName = ResolvePluginName(toolName);
+        if (arguments.Count == 0 && RequiresNonEmptyArguments(pluginName))
+        {
+            return Invalid(AiOptimizationConstants.ToolValidationMessages.EmptyArguments);
+        }
+
+        if (IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.HostServicePlugin)
             && AiOptimizationConstants.ToolValidation.FileArgumentKeys.Any(key => HasBlankString(arguments, key)))
         {
             return Invalid(AiOptimizationConstants.ToolValidationMessages.BlankFileArgument);
         }
 
-        if ((toolName.Contains(AiOptimizationConstants.ToolProtocol.WebSearchPlugin, StringComparison.OrdinalIgnoreCase)
-                || toolName.Contains(AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin, StringComparison.OrdinalIgnoreCase))
+        if ((IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.WebSearchPlugin)
+                || IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin))
             && AiOptimizationConstants.ToolValidation.QueryArgumentKeys.Any(key => HasBlankString(arguments, key)))
         {
             return Invalid(AiOptimizationConstants.ToolValidationMessages.BlankQueryArgument);
@@ -60,6 +82,25 @@ public sealed class DefaultToolInvocationValidationService : IToolInvocationVali
         return arguments.TryGetValue(key, out var value)
             && value.ValueKind == JsonValueKind.String
             && string.IsNullOrWhiteSpace(value.GetString());
+    }
+
+    private string ResolvePluginName(string toolName)
+    {
+        var parsedName = ToolInvocationNameParser.Parse(toolName);
+        return _toolCatalogService.ResolvePluginName(parsedName.PluginName) ?? parsedName.PluginName;
+    }
+
+    private static bool IsPlugin(string pluginName, string expectedPluginName)
+    {
+        return string.Equals(pluginName, expectedPluginName, StringComparison.Ordinal);
+    }
+
+    private static bool RequiresNonEmptyArguments(string pluginName)
+    {
+        return IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.HostServicePlugin)
+            || IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.CodeExecutionPlugin)
+            || IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.WebSearchPlugin)
+            || IsPlugin(pluginName, AiOptimizationConstants.ToolProtocol.KnowledgeBasePlugin);
     }
 
     private static ToolInvocationValidationResultDto Invalid(string message)
