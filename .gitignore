@@ -242,6 +242,10 @@ opencode.json
 src/backend/DevNexus.ApiService/wwwroot/skills/custom/
 **/wwwroot/custom/
 
+# MSBuild targets shipped as part of DevNexus.Client.Shared (must be committed)
+!src/client/DevNexus.Client.Shared/build/
+!src/client/DevNexus.Client.Shared/build/**
+
 # Blazor WebAssembly - Auto-copied shared assets (from DevNexus.Client.Shared)
 # Host pages are generated during build; only keep host-specific files under wwwroot
 src/client/DevNexus.Client.Web/wwwroot/
