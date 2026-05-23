@@ -105,7 +105,7 @@ public static class CliRuntimeStatusSummaryBuilder
                 DangerTone,
                 "失败",
                 "终端命令执行失败，建议先查看失败输出和工作目录状态。",
-                RollbackAction,
+                GetFailedNextAction(terminationReason),
                 requiresInput: false,
                 isTerminal: true,
                 terminationReason),
@@ -139,5 +139,12 @@ public static class CliRuntimeStatusSummaryBuilder
             IsTerminal = isTerminal,
             TerminationReasonText = CliSessionTerminationReasons.GetDisplayText(terminationReason)
         };
+    }
+
+    private static string GetFailedNextAction(string? terminationReason)
+    {
+        return CliSessionTerminationReasons.Normalize(terminationReason, string.Empty) == CliSessionTerminationReasons.ProcessExited
+            ? ReviewResultAction
+            : RollbackAction;
     }
 }

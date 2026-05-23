@@ -64,10 +64,10 @@ public sealed class CliRuntimeStatusSummaryBuilderTests
     }
 
     /// <summary>
-    /// 失败应提示优先处理输出和回滚。
+    /// 进程异常退出应先提示复盘输出，不默认引导回滚。
     /// </summary>
     [Fact]
-    public void Build_ShouldReturnDanger_WhenFailed()
+    public void Build_ShouldReturnReviewResult_WhenProcessExited()
     {
         var summary = CliRuntimeStatusSummaryBuilder.Build(
             CliExecStatus.Failed,
@@ -76,8 +76,25 @@ public sealed class CliRuntimeStatusSummaryBuilderTests
 
         summary.Tone.Should().Be("danger");
         summary.Label.Should().Be("失败");
-        summary.NextAction.Should().Be("Rollback");
+        summary.NextAction.Should().Be("ReviewResult");
         summary.TerminationReasonText.Should().Be("进程已退出");
+    }
+
+    /// <summary>
+    /// 运行时错误仍应保留回滚入口，便于高风险文件命令恢复 checkpoint。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldReturnRollback_WhenRuntimeErrorFailed()
+    {
+        var summary = CliRuntimeStatusSummaryBuilder.Build(
+            CliExecStatus.Failed,
+            waitingForInput: false,
+            CliSessionTerminationReasons.Error);
+
+        summary.Tone.Should().Be("danger");
+        summary.Label.Should().Be("失败");
+        summary.NextAction.Should().Be("Rollback");
+        summary.TerminationReasonText.Should().Be("执行失败");
     }
 
     /// <summary>

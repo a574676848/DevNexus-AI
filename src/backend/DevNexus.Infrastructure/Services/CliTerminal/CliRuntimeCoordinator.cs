@@ -1,6 +1,7 @@
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Cli;
 using DevNexus.Core.Services.Cli;
+using DevNexus.Core.Services.Terminal;
 using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Shared.Constants;
@@ -106,19 +107,20 @@ public sealed class CliRuntimeCoordinator : ICliRuntimeCoordinator
             && archivedOutput.OutputLength >= livePlainOutput.Length;
         var effectiveOutput = useArchivedOutput ? archivedOutput!.Content : _cliProcessRegistry.GetRawOutput(session.State.SessionKey, startIndex);
         var effectivePlainOutput = useArchivedOutput ? archivedOutput!.Content : _cliProcessRegistry.GetStrippedOutput(session.State.SessionKey, startIndex);
-        var slicedOutput = startIndex <= 0 || startIndex >= effectiveOutput.Length
-            ? (startIndex <= 0 ? effectiveOutput : string.Empty)
-            : effectiveOutput[startIndex..];
-        var slicedPlainOutput = startIndex <= 0 || startIndex >= effectivePlainOutput.Length
-            ? (startIndex <= 0 ? effectivePlainOutput : string.Empty)
-            : effectivePlainOutput[startIndex..];
+        var outputSlice = TerminalLogChunkOutputSlice.FromSources(
+            archivedOutput: archivedOutput?.Content ?? string.Empty,
+            archivedPlainOutput: archivedOutput?.Content ?? string.Empty,
+            liveOutput: effectiveOutput,
+            livePlainOutput: effectivePlainOutput,
+            startIndex: startIndex,
+            useArchivedOutput: useArchivedOutput);
 
         return new CliExecLogChunkDto
         {
             SessionId = sessionId,
             SessionKey = session.State.SessionKey,
-            Output = slicedOutput,
-            PlainOutput = slicedPlainOutput,
+            Output = outputSlice.Output,
+            PlainOutput = outputSlice.PlainOutput,
             StartIndex = startIndex,
             OutputLength = useArchivedOutput
                 ? archivedOutput!.OutputLength

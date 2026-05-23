@@ -8,6 +8,9 @@ namespace DevNexus.Core.Services.Terminal;
 /// </summary>
 public static class TerminalOutputTextSanitizer
 {
+    private const string ChineseContinuePromptPattern = @"是否继续\s*[?？]?\s*\[y/n\]";
+    private const string ChineseInputPromptPattern = @"(?:请输入|输入|请确认).*[：:]$";
+
     private static readonly Regex AnsiRegex = new(
         @"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])",
         RegexOptions.Compiled);
@@ -18,7 +21,9 @@ public static class TerminalOutputTextSanitizer
         new Regex(@"(?i)continue\?\s*\[y/n\]", RegexOptions.Compiled),
         new Regex(@"(?i)press\s+enter\s+to\s+continue", RegexOptions.Compiled),
         new Regex(@"(?i)confirm\s*\[y/n\]", RegexOptions.Compiled),
-        new Regex(@"(?i)enter\s+.*[:：]$", RegexOptions.Compiled)
+        new Regex(@"(?i)enter\s+.*[:：]$", RegexOptions.Compiled),
+        new Regex(ChineseContinuePromptPattern, RegexOptions.Compiled),
+        new Regex(ChineseInputPromptPattern, RegexOptions.Compiled)
     ];
 
     /// <summary>

@@ -4,6 +4,7 @@ using System.Text;
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Models.Cli;
 using DevNexus.Core.Services.Cli;
+using DevNexus.Core.Services.Terminal;
 using DevNexus.Domain.Abstractions;
 using DevNexus.Domain.Entities;
 using DevNexus.Shared.Enums;
@@ -251,7 +252,7 @@ public sealed partial class ProcessCliRuntimeHost : ICliProcessRegistry
         {
             lock (sb)
             {
-                return startIndex < sb.Length ? sb.ToString(startIndex, sb.Length - startIndex) : string.Empty;
+                return TerminalRetainedOutputSlice.FromRetainedBuffer(sb.ToString(), startIndex);
             }
         }
 
@@ -265,7 +266,7 @@ public sealed partial class ProcessCliRuntimeHost : ICliProcessRegistry
         {
             lock (sb)
             {
-                return startIndex < sb.Length ? sb.ToString(startIndex, sb.Length - startIndex) : string.Empty;
+                return TerminalRetainedOutputSlice.FromRetainedBuffer(sb.ToString(), startIndex);
             }
         }
 
@@ -575,7 +576,7 @@ public sealed partial class ProcessCliRuntimeHost : ICliProcessRegistry
         if (sb.Length > MaxBufferSize)
         {
             sb.Remove(0, sb.Length - MaxBufferSize / 2);
-            sb.Insert(0, "... (由于内存安全策略已截断历史输出)\n");
+            sb.Insert(0, TerminalRetainedOutputSlice.TrimmedHistoryMarker);
         }
     }
 
