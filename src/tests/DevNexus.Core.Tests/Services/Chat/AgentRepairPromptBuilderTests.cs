@@ -149,6 +149,65 @@ public sealed class AgentRepairPromptBuilderTests
     }
 
     /// <summary>
+    /// 缺少 ErrorSummary 时应保留底层错误正文，并按同一正文区分失败。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldUseErrorMessageAndDistinguishFailures_WhenSummaryIsMissing()
+    {
+        var builder = new AgentRepairPromptBuilder();
+        var context = new EvaluationContext
+        {
+            Result = "工具失败",
+            ToolRecords =
+            [
+                CreateRepeatedFailure() with
+                {
+                    ErrorSummary = null,
+                    ErrorMessage = "first low level failure"
+                },
+                CreateRepeatedFailure() with
+                {
+                    ErrorSummary = null,
+                    ErrorMessage = "second low level failure"
+                }
+            ]
+        };
+
+        var prompt = builder.Build(context, CreateEvaluation());
+
+        prompt.Should().Contain("error: first low level failure");
+        prompt.Should().Contain("error: second low level failure");
+        prompt.Should().NotContain("occurrences: 2");
+    }
+
+    /// <summary>
+    /// 工具错误正文过长时应压缩，避免通用修复提示被底层错误撑大。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldCompressLongToolError()
+    {
+        var longError = new string('错', 900);
+        var builder = new AgentRepairPromptBuilder();
+        var context = new EvaluationContext
+        {
+            Result = "工具失败",
+            ToolRecords =
+            [
+                CreateRepeatedFailure() with
+                {
+                    ErrorSummary = longError
+                }
+            ]
+        };
+
+        var prompt = builder.Build(context, CreateEvaluation());
+
+        prompt.Should().Contain("Total output chars: 900");
+        prompt.Should().Contain("已按模型可见预算省略中间内容");
+        prompt.Should().NotContain(longError);
+    }
+
+    /// <summary>
     /// 仍在运行的终端命令应明确引导模型调用续接工具，而不是重启命令。
     /// </summary>
     [Fact]

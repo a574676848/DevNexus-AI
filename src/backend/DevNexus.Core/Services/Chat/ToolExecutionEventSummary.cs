@@ -62,12 +62,7 @@ internal static class ToolExecutionEventSummaryBuilder
     {
         var messages = records
             .Where(record => !record.Success)
-            .Select(record => new
-            {
-                record.ToolName,
-                Summary = Build(record)
-            })
-            .Select(item => FormatFailureDigestItem(item.ToolName, item.Summary.Message))
+            .Select(record => FormatFailureDigestItem(record, Build(record)))
             .Where(message => !string.IsNullOrWhiteSpace(message))
             .Distinct(StringComparer.Ordinal)
             .Take(maxItems)
@@ -76,11 +71,14 @@ internal static class ToolExecutionEventSummaryBuilder
         return messages.Count == 0 ? string.Empty : string.Join("；", messages);
     }
 
-    private static string FormatFailureDigestItem(string toolName, string message)
+    private static string FormatFailureDigestItem(ToolExecutionRecord record, ToolExecutionEventSummary summary)
     {
-        return string.IsNullOrWhiteSpace(toolName)
-            ? message
-            : $"{toolName}: {message}";
+        var toolName = string.IsNullOrWhiteSpace(record.ToolName)
+            ? "UnknownTool"
+            : record.ToolName;
+
+        return $"{toolName}: failureReason={record.FailureReason.ToWireValue()}, " +
+               $"suggestedAction={summary.SuggestedAction.ToWireValue()}, message={summary.Message}";
     }
 
     private static string ResolveFailureTitle(ToolExecutionRecord record)

@@ -58,22 +58,40 @@ public sealed class ToolExecutionEventSummaryBuilderTests
     }
 
     /// <summary>
-    /// 多工具失败摘要应带工具名、去重并限制数量。
+    /// 多工具失败摘要应带结构化来源、去重并限制数量。
     /// </summary>
     [Fact]
     public void BuildFailureDigest_ShouldDeduplicateAndLimitMessages()
     {
         var records = new[]
         {
-            CreateRecord(toolName: "HostService.ExecuteCommand", userMessage: "失败一"),
-            CreateRecord(toolName: "HostService.ExecuteCommand", userMessage: "失败一"),
-            CreateRecord(toolName: "Knowledge.Search", userMessage: "失败二"),
-            CreateRecord(toolName: "Web.Search", userMessage: "失败三")
+            CreateRecord(
+                toolName: "HostService.ExecuteCommand",
+                userMessage: "失败一",
+                failureReason: ToolFailureReason.ContextOverflow,
+                suggestedAction: ToolSuggestedAction.Fallback),
+            CreateRecord(
+                toolName: "HostService.ExecuteCommand",
+                userMessage: "失败一",
+                failureReason: ToolFailureReason.ContextOverflow,
+                suggestedAction: ToolSuggestedAction.Fallback),
+            CreateRecord(
+                toolName: "Knowledge.Search",
+                userMessage: "失败二",
+                failureReason: ToolFailureReason.RateLimited,
+                suggestedAction: ToolSuggestedAction.Retry),
+            CreateRecord(
+                toolName: "Web.Search",
+                userMessage: "失败三",
+                failureReason: ToolFailureReason.Unknown,
+                suggestedAction: ToolSuggestedAction.Abort)
         };
 
         var digest = ToolExecutionEventSummaryBuilder.BuildFailureDigest(records);
 
-        digest.Should().Be("HostService.ExecuteCommand: 失败一；Knowledge.Search: 失败二");
+        digest.Should().Be(
+            "HostService.ExecuteCommand: failureReason=ContextOverflow, suggestedAction=Fallback, message=失败一；" +
+            "Knowledge.Search: failureReason=RateLimited, suggestedAction=Retry, message=失败二");
     }
 
     /// <summary>

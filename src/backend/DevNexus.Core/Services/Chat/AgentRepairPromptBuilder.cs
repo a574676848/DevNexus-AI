@@ -12,6 +12,7 @@ public sealed class AgentRepairPromptBuilder : IRepairContextBuilder
 {
     private const int MaxUserGoalLength = 1000;
     private const int MaxPreviousOutputLength = 2000;
+    private const int MaxToolErrorLength = 500;
     private const string TruncatedMarker = "\n... (已截断)";
     private const string HostWaitCommandToolName = "HostService.WaitCommandAsync";
     private const string HostSendCommandInputToolName = "HostService.SendCommandInputAsync";
@@ -127,7 +128,7 @@ public sealed class AgentRepairPromptBuilder : IRepairContextBuilder
             AppendOptionalToolField(builder, "requestedUserInputKind", tool.RequestedUserInputKind);
             AppendOptionalToolField(builder, "requestedUserInputLabel", tool.RequestedUserInputLabel);
             AppendOptionalToolField(builder, "userMessage", tool.UserMessage);
-            builder.Append($"  error: {tool.ErrorSummary ?? "执行失败"}");
+            builder.Append($"  error: {ResolveToolError(tool)}");
         }
 
         return builder.ToString();
@@ -140,8 +141,37 @@ public sealed class AgentRepairPromptBuilder : IRepairContextBuilder
             record.ToolName,
             record.FailureReason.ToWireValue(),
             record.SuggestedAction.ToWireValue(),
-            record.ErrorSummary ?? string.Empty,
-            record.UserMessage ?? string.Empty);
+            ResolveToolErrorSource(record));
+    }
+
+    private static string ResolveToolError(ToolExecutionRecord record)
+    {
+        return ToolOutputBudgetCompressor.Compress(ResolveToolErrorSource(record), MaxToolErrorLength);
+    }
+
+    private static string ResolveToolErrorSource(ToolExecutionRecord record)
+    {
+        if (!string.IsNullOrWhiteSpace(record.ErrorSummary))
+        {
+            return record.ErrorSummary!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.UserMessage))
+        {
+            return record.UserMessage!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.ErrorMessage))
+        {
+            return record.ErrorMessage!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.Output))
+        {
+            return record.Output!;
+        }
+
+        return "执行失败";
     }
 
     private static string BuildToolRecoveryStrategy(EvaluationContext context)

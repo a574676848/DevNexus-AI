@@ -68,6 +68,8 @@ public sealed class AgentRuntimeRecoveryPromptBuilderTests
             ToolRecoveryStrategySummaryBuilder.Build(records));
 
         prompt.Should().Contain("occurrences: 3");
+        prompt.Should().Contain("failureReason=TransientNetworkFailure");
+        prompt.Should().Contain("suggestedAction=WaitForCompletion");
         prompt.Split("- HostService.ExecuteCommandAsync:").Length.Should().Be(2);
     }
 
@@ -112,6 +114,34 @@ public sealed class AgentRuntimeRecoveryPromptBuilderTests
         prompt.Should().Contain("Total output chars: 500");
         prompt.Should().Contain("已按模型可见预算省略中间内容");
         prompt.Should().NotContain(longSummary);
+    }
+
+    /// <summary>
+    /// 没有 ErrorSummary 和 UserMessage 时，应保留底层错误正文并按正文区分失败。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldUseErrorMessageWhenSummaryIsMissing()
+    {
+        var first = CreateRecord(ToolSuggestedAction.WaitForCompletion) with
+        {
+            ErrorSummary = null,
+            ErrorMessage = "first low level failure"
+        };
+        var second = CreateRecord(ToolSuggestedAction.WaitForCompletion) with
+        {
+            ErrorSummary = null,
+            ErrorMessage = "second low level failure"
+        };
+
+        var prompt = AgentRuntimeRecoveryPromptBuilder.Build(
+            "运行测试",
+            "命令仍在运行",
+            [first, second],
+            ToolRecoveryStrategySummaryBuilder.Build([first, second]));
+
+        prompt.Should().Contain("first low level failure");
+        prompt.Should().Contain("second low level failure");
+        prompt.Should().NotContain("occurrences: 2");
     }
 
     /// <summary>
@@ -196,6 +226,34 @@ public sealed class AgentRuntimeRecoveryPromptBuilderTests
     }
 
     /// <summary>
+    /// 停止命令和 CLI stdin 同轮出现时，停止续接不应被 stdin 特化覆盖。
+    /// </summary>
+    [Fact]
+    public void Build_ShouldPreferStopCommand_WhenCliInputContinuationAlsoExists()
+    {
+        var stopRecord = CreateRecord(ToolSuggestedAction.StopCommand);
+        var inputRecord = CreateCliInputRecord();
+        var records = new[] { stopRecord, inputRecord };
+        var summary = ToolRecoveryStrategySummaryBuilder.Build(records) with
+        {
+            PrimaryAction = ToolSuggestedAction.StopCommand
+        };
+
+        var prompt = AgentRuntimeRecoveryPromptBuilder.Build(
+            "停止卡住的命令",
+            "停止请求未完成，命令也在等待 stdin",
+            records,
+            summary,
+            ToolSuggestedAction.StopCommand);
+
+        prompt.Should().Contain("首要动作: StopCommand");
+        prompt.Should().Contain("title: 工具恢复需要停止终端命令");
+        prompt.Should().Contain("HostService.StopCommandAsync");
+        prompt.Should().NotContain("必须调用 HostService.SendCommandInputAsync");
+        prompt.Should().NotContain("不要升级为人工挂起交互");
+    }
+
+    /// <summary>
     /// CLI stdin 续接应明确禁止重新调用执行命令工具。
     /// </summary>
     [Fact]
@@ -222,6 +280,7 @@ public sealed class AgentRuntimeRecoveryPromptBuilderTests
             Arguments = """{"command":"dotnet test"}""",
             Success = false,
             Retryable = true,
+            FailureReason = ToolFailureReason.TransientNetworkFailure,
             SuggestedAction = action,
             ErrorSummary = "命令仍在运行"
         };
@@ -235,6 +294,7 @@ public sealed class AgentRuntimeRecoveryPromptBuilderTests
             ToolName = "HostService.WaitCommandAsync",
             Arguments = """{"sessionId":"current"}""",
             Success = false,
+            FailureReason = ToolFailureReason.MissingUserInput,
             SuggestedAction = ToolSuggestedAction.PromptUserInput,
             RequestedUserInputLabel = "终端输入",
             ErrorSummary = "recommendedTool: HostService.SendCommandInputAsync"

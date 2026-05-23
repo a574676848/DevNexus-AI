@@ -151,7 +151,8 @@ public class AgentLoopExecutor
         IReadOnlyList<ToolExecutionRecord> toolRecords)
     {
         var summary = ToolRecoveryStrategySummaryBuilder.Build(toolRecords);
-        if (!RequiresDeterministicRecovery(summary.PrimaryAction, toolRecords))
+        var deterministicAction = ResolveDeterministicRecoveryAction(toolRecords);
+        if (deterministicAction == ToolSuggestedAction.None)
         {
             return null;
         }
@@ -160,15 +161,32 @@ public class AgentLoopExecutor
             userGoal,
             result,
             toolRecords,
-            summary);
+            summary,
+            deterministicAction);
     }
 
-    private static bool RequiresDeterministicRecovery(
-        ToolSuggestedAction primaryAction,
-        IReadOnlyList<ToolExecutionRecord> toolRecords)
+    private static ToolSuggestedAction ResolveDeterministicRecoveryAction(IReadOnlyList<ToolExecutionRecord> toolRecords)
     {
-        return primaryAction is ToolSuggestedAction.WaitForCompletion or ToolSuggestedAction.StopCommand
-            || toolRecords.Any(IsCliInputContinuation);
+        if (HasSuggestedAction(toolRecords, ToolSuggestedAction.StopCommand))
+        {
+            return ToolSuggestedAction.StopCommand;
+        }
+
+        if (toolRecords.Any(IsCliInputContinuation))
+        {
+            return ToolSuggestedAction.PromptUserInput;
+        }
+
+        return HasSuggestedAction(toolRecords, ToolSuggestedAction.WaitForCompletion)
+            ? ToolSuggestedAction.WaitForCompletion
+            : ToolSuggestedAction.None;
+    }
+
+    private static bool HasSuggestedAction(
+        IReadOnlyList<ToolExecutionRecord> toolRecords,
+        ToolSuggestedAction action)
+    {
+        return toolRecords.Any(record => !record.Success && record.SuggestedAction == action);
     }
 
     private static bool IsCliInputContinuation(ToolExecutionRecord record)
