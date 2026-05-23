@@ -137,6 +137,10 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
                 cancellationToken);
 
             await _swarmSessionRepository.UpdateSessionStatusAsync(sessionId, SwarmStatus.Completed, summary);
+            persistedSession.Status = SwarmStatus.Completed;
+            persistedSession.Result = summary;
+            persistedSession.CompletedAt = DateTime.UtcNow;
+            LogSwarmSessionReview(persistedSession);
 
             return summary;
         }
@@ -206,6 +210,7 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
         if (finalization.NotifyCancellation)
         {
             await _swarmEventService.NotifySwarmCancelledAsync(session.SessionId, finalization.Reason, cancellationToken);
+            LogSwarmSessionReview(session);
             return;
         }
 
@@ -213,6 +218,38 @@ public class ContextDrivenSwarmOrchestrator : ISwarmOrchestrator
         {
             await _swarmEventService.NotifySwarmFailedAsync(session.SessionId, finalization.Reason, cancellationToken);
         }
+
+        LogSwarmSessionReview(session);
+    }
+
+    /// <summary>
+    /// 记录 Swarm 会话复盘事实，供恢复与复盘入口使用。
+    /// </summary>
+    /// <param name="session">Swarm 会话。</param>
+    private void LogSwarmSessionReview(ContextSwarmSession session)
+    {
+        var review = SwarmSessionReviewPolicy.Build(session);
+        _logger.LogDebug(
+            "[AI.Swarm.Review] Session review evaluated | SessionId={SessionId} Status={Status} " +
+            "Recoverable={Recoverable} Reviewable={Reviewable} HasBlockingPackages={HasBlockingPackages} " +
+            "NextAction={NextAction} Reason={Reason} FailedPackages={FailedPackages} " +
+            "NonTerminalPackages={NonTerminalPackages} RetryablePackages={RetryablePackages} " +
+            "HasResultSummary={HasResultSummary} HasExecutionReportArtifact={HasExecutionReportArtifact} " +
+            "HasFailureEvidence={HasFailureEvidence} FirstFailedPackageId={FirstFailedPackageId}",
+            session.SessionId,
+            review.SessionStatus,
+            review.Recoverable,
+            review.Reviewable,
+            review.HasBlockingPackages,
+            review.NextAction,
+            review.Reason,
+            review.FailedPackageCount,
+            review.NonTerminalPackageCount,
+            review.RetryablePackageCount,
+            review.HasResultSummary,
+            review.HasExecutionReportArtifact,
+            review.HasFailureEvidence,
+            review.FirstFailedPackageId);
     }
 
     /// <summary>

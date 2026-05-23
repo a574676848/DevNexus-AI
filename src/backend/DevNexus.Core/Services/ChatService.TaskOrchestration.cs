@@ -157,7 +157,36 @@ public partial class ChatService
             snapshot.PrimarySuggestedAction,
             snapshot.NextStep);
 
+        LogSystemExperienceReplayEvaluation(snapshot);
+
         return snapshot;
+    }
+
+    /// <summary>
+    /// 记录系统经验回放效果事实，供治理复盘使用。
+    /// </summary>
+    /// <param name="snapshot">任务编排快照。</param>
+    private void LogSystemExperienceReplayEvaluation(AgentTaskOrchestrationSnapshot snapshot)
+    {
+        var evaluation = SystemExperienceReplayEvaluation.Build(snapshot.SystemExperienceReplay);
+        _logger.LogDebug(
+            "[AI.Memory.ReplayEvaluation] Replay evaluated | TurnId={TurnId} ReplayReason={ReplayReason} " +
+            "UsefulRecall={UsefulRecall} ContextPollutionRisk={ContextPollutionRisk} " +
+            "UntraceableReuseRisk={UntraceableReuseRisk} EvaluationReason={EvaluationReason} " +
+            "Similarity={Similarity} HasCitationFingerprint={HasCitationFingerprint} " +
+            "HasValueSignal={HasValueSignal} HasSourceSession={HasSourceSession} " +
+            "HasDistillationPromptFingerprint={HasDistillationPromptFingerprint}",
+            snapshot.TurnId,
+            evaluation.ReplayReason,
+            evaluation.UsefulRecall,
+            evaluation.ContextPollutionRisk,
+            evaluation.UntraceableReuseRisk,
+            evaluation.EvaluationReason,
+            evaluation.Similarity,
+            evaluation.HasCitationFingerprint,
+            evaluation.HasValueSignal,
+            evaluation.HasSourceSession,
+            evaluation.HasDistillationPromptFingerprint);
     }
 
     private SelfIterationCandidateDecision EvaluateExperienceDistillationCandidate(

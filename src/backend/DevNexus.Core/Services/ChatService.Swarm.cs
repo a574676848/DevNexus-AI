@@ -1,5 +1,6 @@
 using DevNexus.Core.Services.Swarm.Analysis;
 using DevNexus.Core.Services.Chat;
+using DevNexus.Core.Services.Swarm;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
@@ -43,13 +44,11 @@ public partial class ChatService
 
         try
         {
-            // 1. 即时反馈：立即向聊天流写入提示，消除用户等待焦虑
+            // 1. 即时反馈：立即向聊天流写入低噪 Swarm 状态提示
             await wrappedWriter.WriteAsync(new BlockDto
             {
                 BlockType = BlockType.TextDelta,
-                Content = "🚀 **Swarm 多智能体集群已启动**\n\n"
-                    + $"> 复杂度评分: **{complexity.CompositeScore:F1}** | 领域: **{complexity.PrimaryDomain}**\n\n"
-                    + "您可以点击上方按钮查看实时执行拓扑图。\n\n---\n\n",
+                Content = SwarmChatPresentation.BuildStartedMessage(),
                 MessageId = aiMessage.Id,
                 SessionId = chatSession.Id,
                 IsLast = false,

@@ -1,5 +1,6 @@
 using DevNexus.Core.Services.Chat;
 using DevNexus.Core.Abstractions.Observability;
+using DevNexus.Core.Services.Swarm;
 using DevNexus.Core.Services.Swarm.Analysis;
 using DevNexus.Core.Services.Swarm.Planning;
 using DevNexus.Core.Abstractions;
@@ -148,7 +149,7 @@ public partial class ChatService : IChatService
         _swarmOrchestrator = swarmOrchestrator;
         _swarmEventService = swarmEventService;
         _swarmSessionControlService = swarmSessionControlService;
-        
+
         // Evaluation Services
         _agentLoopExecutor = agentLoopExecutor;
 
@@ -283,14 +284,14 @@ public partial class ChatService : IChatService
                     _logger.LogInformation(
                         "[AI.Swarm] Escalating to Swarm | SessionId={SessionId} Score={Score} Domain={Domain}",
                         chatSession.Id, complexity.CompositeScore, complexity.PrimaryDomain);
-                        
+
                     // 预先更新消息状态和内容以便客户端断线重连/刷新时能够无缝恢复 Swarm 看板
                     aiMessage.Metadata ??= new Dictionary<string, object>();
                     aiMessage.Metadata[ChatMessageMetadataKeys.SwarmMode] = true;
-                    var swarmIntro = "🚀 **Swarm 多智能体集群已启动**\n\n"
-                        + $"> 复杂度评分: **{complexity.CompositeScore:F1}** | 领域: **{complexity.PrimaryDomain}**\n\n"
-                        + "您可以点击上方按钮查看实时执行拓扑图。\n\n---\n\n";
-                    aiMessage.Content = new Dictionary<string, object> { { "text", swarmIntro } };
+                    aiMessage.Content = new Dictionary<string, object>
+                    {
+                        { "text", SwarmChatPresentation.BuildStartedMessage() }
+                    };
                     await _chatMessageRepository.UpdateAsync(aiMessage, cts.Token);
 
                     await ExecuteSwarmExecutionAsync(
@@ -350,5 +351,4 @@ public partial class ChatService : IChatService
             cts.Dispose();
         }
     }
-
 }
