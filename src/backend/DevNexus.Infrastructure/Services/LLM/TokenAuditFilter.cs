@@ -259,7 +259,7 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
                 DurationMs = durationMs
             };
 
-            LogPromptDiagnostics(ctx, ctx?.CachedPromptTokens, "function");
+            LogPromptDiagnostics(ctx, inputTokens, ctx?.CachedPromptTokens, "function");
             await _auditQueue.QueueBackgroundWorkItemAsync(record);
         }
         catch (Exception ex)
@@ -329,6 +329,7 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
 
     private void LogPromptDiagnostics(
         TokenAuditContext? context,
+        int? inputTokens,
         int? cachedPromptTokens,
         string invocationKind)
     {
@@ -337,9 +338,18 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
             return;
         }
 
+        var costDiagnostics = PromptCostDiagnostics.Build(new PromptCostObservation
+        {
+            InputTokens = inputTokens,
+            CachedPromptTokens = cachedPromptTokens,
+            DynamicContextTokens = context.DynamicContextTokens,
+            HistoryTokens = context.HistoryTokens
+        });
+
         _logger.LogDebug(
             "[AI.Prompt.Diagnostics] Prompt diagnostics | InvocationKind={InvocationKind} SessionId={SessionId} MessageId={MessageId} " +
-            "CachedPromptTokens={CachedPromptTokens} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
+            "CachedPromptTokens={CachedPromptTokens} NonCachedInputTokens={NonCachedInputTokens} CacheHitRatio={CacheHitRatio} " +
+            "DynamicContextRatio={DynamicContextRatio} HistoryRatio={HistoryRatio} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
             "ToolSchemaHash={ToolSchemaHash} DynamicContextTokens={DynamicContextTokens} HistoryTokens={HistoryTokens} " +
             "CacheMarkerCandidateCount={CacheMarkerCandidateCount} CacheDoubleMarkerReady={CacheDoubleMarkerReady} " +
             "CacheMarkerReadinessReason={CacheMarkerReadinessReason} StablePrefixManifest={StablePrefixManifest} " +
@@ -348,6 +358,10 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
             context.SessionId,
             context.MessageId,
             cachedPromptTokens,
+            costDiagnostics.NonCachedInputTokens,
+            costDiagnostics.CacheHitRatio,
+            costDiagnostics.DynamicContextRatio,
+            costDiagnostics.HistoryRatio,
             context.PromptCacheKey,
             context.StablePrefixHash,
             context.ToolSchemaHash,
@@ -361,7 +375,6 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
     }
 
 }
-
 
 
 /// <summary>
@@ -498,7 +511,7 @@ public class TokenAuditService : ITokenAuditService
             DurationMs = durationMs
         };
 
-        LogPromptDiagnostics(auditContext, cachedPromptTokens ?? auditContext?.CachedPromptTokens, invocationKind);
+        LogPromptDiagnostics(auditContext, inputTokens, cachedPromptTokens ?? auditContext?.CachedPromptTokens, invocationKind);
 
         // 1. 记录产品化审计日志 (Seq)
         RecordUsage(record);
@@ -520,6 +533,7 @@ public class TokenAuditService : ITokenAuditService
 
     private void LogPromptDiagnostics(
         TokenAuditContext? context,
+        int? inputTokens,
         int? cachedPromptTokens,
         string invocationKind)
     {
@@ -528,9 +542,18 @@ public class TokenAuditService : ITokenAuditService
             return;
         }
 
+        var costDiagnostics = PromptCostDiagnostics.Build(new PromptCostObservation
+        {
+            InputTokens = inputTokens,
+            CachedPromptTokens = cachedPromptTokens,
+            DynamicContextTokens = context.DynamicContextTokens,
+            HistoryTokens = context.HistoryTokens
+        });
+
         _logger.LogDebug(
             "[AI.Prompt.Diagnostics] Prompt diagnostics | InvocationKind={InvocationKind} SessionId={SessionId} MessageId={MessageId} " +
-            "CachedPromptTokens={CachedPromptTokens} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
+            "CachedPromptTokens={CachedPromptTokens} NonCachedInputTokens={NonCachedInputTokens} CacheHitRatio={CacheHitRatio} " +
+            "DynamicContextRatio={DynamicContextRatio} HistoryRatio={HistoryRatio} PromptCacheKey={PromptCacheKey} StablePrefixHash={StablePrefixHash} " +
             "ToolSchemaHash={ToolSchemaHash} DynamicContextTokens={DynamicContextTokens} HistoryTokens={HistoryTokens} " +
             "CacheMarkerCandidateCount={CacheMarkerCandidateCount} CacheDoubleMarkerReady={CacheDoubleMarkerReady} " +
             "CacheMarkerReadinessReason={CacheMarkerReadinessReason} StablePrefixManifest={StablePrefixManifest} " +
@@ -539,6 +562,10 @@ public class TokenAuditService : ITokenAuditService
             context.SessionId,
             context.MessageId,
             cachedPromptTokens,
+            costDiagnostics.NonCachedInputTokens,
+            costDiagnostics.CacheHitRatio,
+            costDiagnostics.DynamicContextRatio,
+            costDiagnostics.HistoryRatio,
             context.PromptCacheKey,
             context.StablePrefixHash,
             context.ToolSchemaHash,
