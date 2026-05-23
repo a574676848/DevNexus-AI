@@ -4,6 +4,6 @@
 
 ## 文档索引
 
-- [01-client-ui-design.md](./01-client-ui-design.md) — 客户端 UI 方向、设计令牌、布局规范和评审清单
+- [01-client-ui-design.md](./01-client-ui-design.md) — 客户端 UI 方向、设计令牌、布局规范、运行态低噪工作流和评审清单
 - [02-provider-management.md](./02-provider-management.md) — Provider 管理模型、接口和联调建议
 - [03-system-experience.md](./03-system-experience.md) — 聊天、文件、Swarm 的体验设计原则

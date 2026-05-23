@@ -10,7 +10,13 @@
 | 了解项目能力 | [项目概览](./01-overview/project-overview.md)、[功能特性](./01-overview/features.md) |
 | 理解架构边界 | [架构索引](./02-architecture/README.md) |
 | 配置本地或部署环境 | [配置指南](./03-guides/configuration-guide.md) |
+| 排查 Agent / CLI 运行问题 | [Agent Loop 与 CLI 运行故障处理指南](./03-guides/agent-cli-operations.md) |
+| 观察 Prompt 缓存成本 | [Prompt 缓存成本诊断指南](./03-guides/prompt-cache-diagnostics.md) |
+| 验收记忆回放效果 | [记忆治理与回放效果验收指南](./03-guides/memory-governance-operations.md) |
+| 从现象查排障入口 | [使用与排障 FAQ](./07-faq/usage.md) |
+| 评审客户端体验 | [客户端 UI 设计规范](./05-design/01-client-ui-design.md) |
 | 对接接口或 SignalR | [API 规格](./04-api/api-specification.md) |
+| 验证产品化场景 | [测试与校验](./06-development/testing.md) |
 | 参与开发 | [开发指南](./06-development/README.md)、[贡献说明](../CONTRIBUTING.md) |
 | 处理安全事项 | [安全策略](../SECURITY.md) |
 
@@ -43,6 +49,9 @@
 ### `03-guides`
 
 - `configuration-guide.md` — 配置项、密钥、连接串和部署约定
+- `agent-cli-operations.md` — Agent Loop、CLI 终端会话和 Swarm 工作包的运行排障
+- `prompt-cache-diagnostics.md` — Prompt 缓存命中、非缓存输入成本和上下文占比诊断
+- `memory-governance-operations.md` — 系统经验、记忆回放与效果评估运维验收
 - `file-runner-contract.md` — FileTask 外部 Runner 输入输出合同
 - `release-and-update-operations.md` — 客户端版本发布与更新管理
 - `user-guide.md` — 聊天、上传、文件任务和结果处理
@@ -53,7 +62,7 @@
 
 ### `05-design`
 
-- `01-client-ui-design.md` — 共享客户端 UI 设计规范
+- `01-client-ui-design.md` — 共享客户端 UI 设计规范与运行态低噪工作流
 - `02-provider-management.md` — Provider 管理模型和接口
 - `03-system-experience.md` — 聊天、文件、Swarm 的体验设计
 
@@ -61,7 +70,7 @@
 
 - `setup.md` — 开发环境入口
 - `coding-standards.md` — 编码规范
-- `testing.md` — 构建与校验
+- `testing.md` — 构建、校验与产品化真实场景验证矩阵
 - `contributing.md` — 贡献流程
 
 ### `07-faq`

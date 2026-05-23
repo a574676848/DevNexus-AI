@@ -39,6 +39,7 @@
 - `SwarmControlCommandBuilder`：收口暂停、继续、中止和工作包重试控制事件载荷，确保控制命令也携带当前 `StatusSummary`。
 - `SwarmSessionFinalizationPolicy`：收口取消、异常和未完成工作包的会话收尾语义。
 - `SwarmPackageCancellationPolicy`：收口工作包调度取消语义，取消信号出现后不再启动新工作包，并将未完成工作包标记为 `Aborted`。
+- `SwarmSessionReviewPolicy`：收口 Swarm 复盘事实，基于会话和工作包状态派生失败是否可恢复、终态结果是否可复盘、是否仍有阻塞工作包，以及稳定下一步动作。
 - `SwarmHostPlugin`：保留工作包 VFS 优先读写能力，并通过 `ICliRuntimeCoordinator` 暴露 `WaitCommandAsync` / `SendCommandInputAsync` / `StopCommandAsync`，确保 Swarm 工作包能续接或停止长时间运行的 CLI 会话。
 
 ### 2.4 持久化与状态
@@ -140,6 +141,8 @@ Hub 路径：`/swarm-hub`
 - 暂停/恢复必须先通过 `SwarmControlCommandPolicy` 判断会话是否仍可控制；已完成、失败或中止的终态会话必须返回 `Accepted=false` 的拒绝事件，不能伪装成已继续或已暂停。
 - 工作包重试必须先通过 `SwarmControlCommandPolicy` 判断会话和工作包状态；会话缺失、已中止、已完成、工作包缺失或非失败工作包必须返回 `Accepted=false` 的 `RetryRejected`，不得通过异常打断 Hub/UI 状态闭环。
 - 工作包重试单飞占位必须随会话中止或注销清理，避免长生命周期服务中陈旧占位导致后续同包重试被误拒。
+- Swarm 复盘入口必须通过 `SwarmSessionReviewPolicy` 读取会话和工作包状态，不得由前端、Hub 或仓储层自行拼接失败可恢复、等待执行或查看结果的判断；失败工作包可重试时输出 `RetryFailedPackage`，仍有非终态工作包时输出 `WaitForPackages`，终态且具备结果、执行报告或失败原因证据时输出 `ReviewResult`。
+- Swarm 编排完成、取消或失败收尾后必须写入 `[AI.Swarm.Review]` 结构化日志，记录 `Recoverable`、`Reviewable`、`HasBlockingPackages`、`NextAction`、`Reason` 与证据标志；该日志只用于恢复、复盘和维护者排查，不改变调度状态机或工作包持久化语义。
 - 暂停会话时必须同步持久化 `SwarmStatus.Paused`，恢复会话时必须同步持久化 `SwarmStatus.Running`，避免刷新或重连后只看到内存控制态。
 - 工作包调度循环会实时检查会话控制状态。
 - 中止操作会触发取消令牌，并通过 `SwarmSessionFinalizationPolicy.BuildUserAbort` 同步持久化会话状态与未完成工作包终态。

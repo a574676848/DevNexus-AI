@@ -8,7 +8,7 @@
 |------|------|
 | `setup.md` | 本地开发环境与启动方式 |
 | `coding-standards.md` | 编码规范 |
-| `testing.md` | 当前仓库的测试与校验方式 |
+| `testing.md` | 当前仓库的测试、校验与产品化真实场景验证矩阵 |
 | `contributing.md` | 贡献流程 |
 
 ## 当前开发入口

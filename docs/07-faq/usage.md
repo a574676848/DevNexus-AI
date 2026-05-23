@@ -67,6 +67,45 @@
 
 如果 REST 正常但界面一直不动，优先检查 /chat-hub、/artifact-hub、/swarm-hub 是否可连接。
 
+## 终端命令一直显示运行中怎么办？
+
+不要重新执行相同命令。先进入终端面板查看命令、工作目录、`ExecStatus`、`StatusSummary` 和输出归档状态。
+
+如果状态仍是运行中，正确动作是继续等待同一会话；如果等待输入，应该向同一会话发送 stdin；如果停止未完成，继续停止同一会话。详细排查路径见 [Agent Loop 与 CLI 运行故障处理指南](../03-guides/agent-cli-operations.md)。
+
+## 终端等待输入时为什么不能直接发新聊天？
+
+等待 stdin 表示当前 CLI 会话还没有结束。此时发新聊天容易让模型重新启动命令，造成重复副作用和日志混乱。
+
+正确做法是把输入发送到同一个终端会话。只有底层工具明确要求人工介入时，才进入产品化挂起交互。
+
+## Swarm 工作包卡住时先看哪里？
+
+先看 Swarm 面板中的当前阶段、阻塞原因、失败工作包和可重试动作。若工作包关联 CLI 会话，再进入终端面板查看 `StatusSummary` 和日志分块。
+
+Swarm 工作包不应绕过 CLI 协调器直接操作进程。等待、stdin 和停止都应使用 Swarm Host 续接工具，排查方式见 [Agent Loop 与 CLI 运行故障处理指南](../03-guides/agent-cli-operations.md)。
+
+需要复盘会话是否可恢复、是否存在阻塞工作包或缺少结果证据时，维护者查看 `[AI.Swarm.Review]` 结构化日志；这类复盘事实不展示在普通用户主界面。
+
+## Prompt 缓存命中率或输入成本异常怎么看？
+
+普通用户主界面不展示 Prompt 成本指标。维护者应查看结构化日志中的 `[AI.Prompt.Diagnostics]`，重点关注：
+
+1. `NonCachedInputTokens`
+2. `CacheHitRatio`
+3. `DynamicContextRatio`
+4. `HistoryRatio`
+5. `StablePrefixHash`
+6. `ToolSchemaHash`
+
+如果缓存命中率突然下降，优先判断稳定前缀或工具 Schema 是否变化。详细字段解释见 [Prompt 缓存成本诊断指南](../03-guides/prompt-cache-diagnostics.md)。
+
+## 记忆命中了但回答质量没有提升怎么办？
+
+不要只看“是否命中经验”。维护者应检查回放是否有引用事实、长期价值信号、来源会话和提纯 Prompt 指纹。
+
+如果动态上下文缺少长期价值信号，可能污染当前请求；如果直接命中缺少来源事实，不能算可追踪收益。维护者通过 `[AI.Memory.ReplayEvaluation]` 结构化日志核对上述事实，验收方式见 [记忆治理与回放效果验收指南](../03-guides/memory-governance-operations.md)。
+
 ## 文件处理一定要走 Excel 专用功能吗？
 
 不是。

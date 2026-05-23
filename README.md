@@ -110,6 +110,10 @@ dotnet run --project src/client/DevNexus.Client
 | [项目概览](./docs/01-overview/project-overview.md) | 模块边界与技术定位 |
 | [架构文档](./docs/02-architecture/README.md) | Swarm、语义模型、聊天编排、Agent Runtime 等 |
 | [配置指南](./docs/03-guides/configuration-guide.md) | 密钥、连接串与部署约定 |
+| [Agent / CLI 排障](./docs/03-guides/agent-cli-operations.md) | 长命令、stdin、停止、日志轮询与 Swarm 工作包排障 |
+| [记忆治理验收](./docs/03-guides/memory-governance-operations.md) | 系统经验回放、召回收益、上下文污染与可追踪复用检查 |
+| [客户端设计规范](./docs/05-design/01-client-ui-design.md) | 聊天、终端、Swarm、审计的低噪产品体验验收口径 |
+| [变更批次与发布前收敛](./docs/06-development/change-batching-and-release-checklist.md) | 提交拆批、验证范围和回滚检查 |
 | [API 规格](./docs/04-api/api-specification.md) | REST 控制器、SignalR Hub、Provider 枚举 |
 
 ## API 入口

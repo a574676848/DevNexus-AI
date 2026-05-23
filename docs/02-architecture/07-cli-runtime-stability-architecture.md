@@ -212,6 +212,8 @@ CLI 主链已经显式拆成 `exec / process` 两层契约：
 13. `CliCommandExecutionResult` 负责表达一次命令等待的结构化结果；等待预算耗尽但 shell 仍存活时返回 `StillRunning`，不把长命令误标记为失败或超时终态。
 14. `TerminalOutputWatchSummaryBuilder` 负责识别错误、警告、审批拦截和交互输入提示，并合并去重观察摘要；`TerminalOutputBuffer` 只负责缓冲、刷新和持久化。
 15. `TerminalArchivedOutputPreview` 负责裁剪数据库中的终端输出预览字段，只保留最近输出并标记较早内容已归档；完整终端日志仍以归档文件和日志读取接口为事实源。
+16. `TerminalRetainedOutputSlice` 负责从进程内保留缓冲中读取增量输出；当旧偏移已经落在内存水位裁剪掉的历史之前时，必须返回当前保留窗口和裁剪标记，避免长命令续接或 `StillRunning` 结果丢失最新尾部事实。
+17. `TerminalLogChunkOutputSlice` 负责区分日志分块的 live 与 archived 来源：live 输出已经由进程注册表按 `startIndex` 切片，协调器不得二次切片；archived 输出是完整事实源，仍由 Core 规则按 `startIndex` 返回增量。
 
 ### 4.5.1 命令等待状态
 
@@ -238,6 +240,8 @@ CLI 等待输入是当前终端会话的交互态，不等同于审批、凭证�
 3. 单行输出有独立字符预算，避免 minified 日志、长路径列表或二进制噪音占满预览。
 4. 多行输出有独立行窗口，避免中间流水日志挤掉尾部失败信息。
 5. 完整输出继续通过 `TerminalOutputBuffer` / `TerminalStream` 归档和读取，模型预览不得作为日志事实源。
+6. 进程内缓冲触发内存水位裁剪后，模型可见的等待续接仍应保留当前窗口和裁剪标记；不得因为旧偏移越界返回空输出。
+7. CLI 日志轮询读取 live 会话时，`GetRawOutput(sessionKey, startIndex)` / `GetStrippedOutput(sessionKey, startIndex)` 的返回值已是增量；`CliRuntimeCoordinator` 只能对 archived 完整日志做二次切片，避免前端非零偏移轮询拿到空 chunk。
 
 终端归档预览与模型预览是两个不同职责：
 
