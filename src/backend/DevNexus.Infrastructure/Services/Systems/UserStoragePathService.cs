@@ -41,24 +41,6 @@ public class UserStoragePathService : IUserStoragePathService
         var userTempPath = GetUserTempPath(userId);
         var userProjectPath = GetUserProjectPath(userId);
 
-        if (Directory.Exists(userTempPath))
-        {
-            try
-            {
-                Directory.Delete(userTempPath, recursive: true);
-                _logger.LogInformation(
-                    "[UserStorage] 已清空用户临时目录 | UserId={UserId} Path={Path}",
-                    userId, userTempPath);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(
-                    ex,
-                    "[UserStorage] 清空用户临时目录失败 | UserId={UserId} Path={Path}",
-                    userId, userTempPath);
-            }
-        }
-
         EnsureDirectoryExists(userTempPath);
         EnsureDirectoryExists(userProjectPath);
 

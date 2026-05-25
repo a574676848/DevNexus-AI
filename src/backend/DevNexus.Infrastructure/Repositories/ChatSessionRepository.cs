@@ -70,8 +70,11 @@ public class ChatSessionRepository : IChatSessionRepository
     /// <inheritdoc />
     public async Task DeleteAsync(ChatSession session, CancellationToken cancellationToken = default)
     {
-        _dbContext.ChatSessions.Remove(session);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _dbContext.ChatSessions
+            .Where(entity => entity.Id == session.Id)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        _dbContext.Entry(session).State = EntityState.Detached;
     }
 
     /// <inheritdoc />

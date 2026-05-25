@@ -8,7 +8,7 @@ public interface IUserStoragePathService
 {
     /// <summary>
     /// 初始化用户存储目录（登录时调用）
-    /// 创建 tmp/{userId} 和 project/{userId} 目录，并清空 tmp 目录
+    /// 创建 tmp/{userId} 和 project/{userId} 目录。
     /// </summary>
     /// <param name="userId">用户ID</param>
     void InitializeUserStorage(Guid userId);

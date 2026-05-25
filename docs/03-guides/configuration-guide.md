@@ -46,6 +46,8 @@ dotnet user-secrets set "ConnectionStrings:paddle-ocr" "http://localhost:5433"
 
 `paddle-ocr` 是可选项，仅在启用 OCR 服务时需要。
 
+Elasticsearch 搜索地址优先读取 `ConnectionStrings:elasticsearch`，适用于 AppHost、User Secrets 和部署环境变量注入；未提供该连接串时，API 回退到 `Elasticsearch:Url`。如需完全禁用 Elasticsearch 运行时访问，将 `Elasticsearch:Enabled` 设为 `false`，搜索与索引同步会回退为空实现，不再尝试连接 Elasticsearch。
+
 ## 基础设施依赖
 
 | 组件 | 当前用途 |

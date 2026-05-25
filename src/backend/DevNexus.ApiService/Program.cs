@@ -67,9 +67,23 @@ builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("R
 builder.Services.Configure<MonitoringOptions>(builder.Configuration.GetSection("Monitoring"));
 builder.Services.Configure<CodeRAGOptions>(builder.Configuration.GetSection("CodeRAG"));
 builder.Services.Configure<ElasticsearchOptions>(builder.Configuration.GetSection("Elasticsearch"));
+builder.Services.PostConfigure<ElasticsearchOptions>(options =>
+{
+    var elasticsearchConnectionString = builder.Configuration.GetConnectionString(ConnectionStringNames.Elasticsearch);
+    if (!string.IsNullOrWhiteSpace(elasticsearchConnectionString))
+    {
+        options.Url = elasticsearchConnectionString;
+    }
+});
 
 // 注册 Elasticsearch 搜索服务
-builder.Services.AddSingleton<IElasticsearchSearchService, ElasticsearchSearchService>();
+builder.Services.AddSingleton<IElasticsearchSearchService>(serviceProvider =>
+{
+    var options = serviceProvider.GetRequiredService<IOptions<ElasticsearchOptions>>().Value;
+    return options.Enabled
+        ? ActivatorUtilities.CreateInstance<ElasticsearchSearchService>(serviceProvider)
+        : new DisabledElasticsearchSearchService();
+});
 
 // 验证 JWT 配置
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>() ?? new JwtOptions();
@@ -218,13 +232,13 @@ builder.Services.AddCors(options =>
         else
         {
             // 生产环境：允许同主域名的所有子域，加上配置的 AllowedOrigins
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
                 ?? Array.Empty<string>();
-            
+
             // 从配置或环境变量获取 API 主机名（如：example.com）
-            var apiHost = builder.Configuration["Cors:ApiHost"] 
+            var apiHost = builder.Configuration["Cors:ApiHost"]
                 ?? Environment.GetEnvironmentVariable("CORS_API_HOST");
-            
+
             policy.SetIsOriginAllowed(origin =>
             {
                 try
