@@ -13,16 +13,49 @@ public static class SmartDocumentExtensions
     /// </summary>
     public static string ExtractTextContent(this SmartDocument? smartDoc, string fallback = "")
     {
-        if (smartDoc?.Content == null) return fallback;
-
-        return smartDoc.Content switch
+        if (smartDoc == null)
         {
-            TextDocumentContent text => text.Text ?? fallback,
-            CodeDocumentContent code => code.Text ?? fallback,
-            ImageDocumentContent img => img.Description ?? $"[图片: {smartDoc.FileName}]",
+            return fallback;
+        }
+
+        var extracted = smartDoc.Content switch
+        {
+            TextDocumentContent text => text.Text,
+            CodeDocumentContent code => code.Text,
+            ImageDocumentContent img => img.Description,
             TableDocumentContent table => table.CsvRepresentation ?? $"[表格: {table.RowCount}行 x {table.ColumnCount}列]",
-            _ => fallback
+            null => null,
+            _ => null
         };
+
+        if (!string.IsNullOrWhiteSpace(extracted))
+        {
+            return extracted;
+        }
+
+        var chunkText = ExtractChunkText(smartDoc);
+        if (!string.IsNullOrWhiteSpace(chunkText))
+        {
+            return chunkText;
+        }
+
+        if (smartDoc.Content is ImageDocumentContent)
+        {
+            return $"[图片: {smartDoc.FileName}]";
+        }
+
+        return fallback;
+    }
+
+    private static string? ExtractChunkText(SmartDocument smartDoc)
+    {
+        var chunks = smartDoc.Chunks
+            .Where(chunk => !string.IsNullOrWhiteSpace(chunk.Content))
+            .Select(chunk => chunk.Content.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        return chunks.Count == 0 ? null : string.Join("\n\n", chunks);
     }
 
     /// <summary>

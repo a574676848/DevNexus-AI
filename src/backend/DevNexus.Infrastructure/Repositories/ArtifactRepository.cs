@@ -97,11 +97,13 @@ public class ArtifactRepository : IArtifactRepository
     public Task<int> LinkToMessageAsync(
         IReadOnlyCollection<Guid> artifactIds,
         Guid messageId,
+        Guid sessionId,
         DateTime updatedAtUtc,
         CancellationToken cancellationToken = default)
     {
         return _dbContext.Artifacts
-            .Where(artifact => artifactIds.Contains(artifact.Id))
+            .Where(artifact => artifactIds.Contains(artifact.Id)
+                && (artifact.SessionId == sessionId || artifact.MessageId == messageId))
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(artifact => artifact.MessageId, messageId)

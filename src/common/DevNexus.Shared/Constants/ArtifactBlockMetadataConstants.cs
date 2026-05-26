@@ -18,6 +18,12 @@ public static class ArtifactBlockMetadataConstants
     public const string TypeCode = "code";
     public const string TypeHtml = "html";
     public const string TypeChart = "chart";
+    public const string TypeDocument = "document";
+    public const string TypeImage = "image";
+    public const string TypeJson = "json";
+    public const string TypeMarkdown = "markdown";
+    public const string TypeText = "text";
+    public const string TypeUnknown = "unknown";
 
     public const string LanguagePlaintext = "plaintext";
 

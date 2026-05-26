@@ -15,7 +15,7 @@ public partial class ArtifactContextStrategy
     {
         string content = artifact.Content ?? string.Empty;
         
-        if (SmartDocumentExtensions.IsSmartDocumentArtifact(artifact.Type))
+        if (SmartDocumentExtensions.IsSmartDocumentArtifact(artifact.Type, artifact.Content))
         {
             var smartDoc = SmartDocumentExtensions.TryParseFromJson(artifact.Content);
             if (smartDoc != null)

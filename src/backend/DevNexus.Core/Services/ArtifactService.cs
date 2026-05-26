@@ -310,10 +310,21 @@ public class ArtifactService : IArtifactService
         
         try
         {
+            var message = await _chatMessageRepository.GetByIdAsync(messageId, cancellationToken);
+            if (message == null)
+            {
+                _logger.LogWarning(
+                    "[Artifact.Link] Message not found, skip artifact link | MessageId={MessageId} RequestedIds={RequestedCount}",
+                    messageId,
+                    idList.Count);
+                return 0;
+            }
+
             // 批量更新 MessageId
             var updatedCount = await _artifactRepository.LinkToMessageAsync(
                 idList,
                 messageId,
+                message.ChatSessionId,
                 DateTime.UtcNow,
                 cancellationToken);
             

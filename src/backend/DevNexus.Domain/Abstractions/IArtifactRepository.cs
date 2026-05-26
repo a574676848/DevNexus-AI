@@ -51,6 +51,7 @@ public interface IArtifactRepository
     Task<int> LinkToMessageAsync(
         IReadOnlyCollection<Guid> artifactIds,
         Guid messageId,
+        Guid sessionId,
         DateTime updatedAtUtc,
         CancellationToken cancellationToken = default);
 }
