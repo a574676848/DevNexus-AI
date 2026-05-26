@@ -21,6 +21,7 @@
             @foreach (var doc in _pastedDocuments)
             {
                 <PastedDocumentChip Document="doc"
+                                    Compact="true"
                                     OnRemove="RemovePastedDocument"
                                     OnRetryParse="RetryPastedDocumentParseAsync"
                                     OnContextModeChanged="HandleDocumentContextModeChangedAsync" />

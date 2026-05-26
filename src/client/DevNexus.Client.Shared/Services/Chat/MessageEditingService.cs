@@ -122,8 +122,8 @@ public class MessageEditingService : IMessageEditingService
         if (!ChatConstants.IsUserSender(previousUserMsg.SenderType))
             return (deletedIds, null);
 
-        var contentToResend = previousUserMsg.Content;
-        if (string.IsNullOrEmpty(contentToResend))
+        var contentToResend = previousUserMsg.Content ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(contentToResend) && (previousUserMsg.Artifacts == null || previousUserMsg.Artifacts.Count == 0))
             return (deletedIds, null);
 
         // 4. 需要删除的消息：AI 消息和前一条 User 消息

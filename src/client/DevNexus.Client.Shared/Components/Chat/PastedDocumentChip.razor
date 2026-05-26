@@ -1,4 +1,4 @@
-<div class="pasted-document-chip @GetTypeClass()" title="@GetAccessibleTitle()">
+<div class="pasted-document-chip @GetTypeClass() @(Compact ? "compact" : string.Empty)" title="@GetAccessibleTitle()">
     @if (IsImage && !string.IsNullOrEmpty(ImageUrl))
     {
         <img src="@ImageUrl" class="chip-thumbnail" alt="@Document.FileName" />
@@ -19,7 +19,7 @@
                 <span class="chip-capability-chip @GetCapabilityClass()">@Document.ExecutionStatusLabel</span>
                 <span class="chip-source-chip">@Document.SourceLabel</span>
             </div>
-            @if (!ReadOnly && Document.HasFileAsset)
+            @if (!Compact && !ReadOnly && Document.HasFileAsset)
             {
                 <div class="chip-context-actions" role="group" aria-label="文件上下文模式">
                     <button type="button"
@@ -43,11 +43,11 @@
                     </button>
                 </div>
             }
-            @if (Document.HasFileAsset)
+            @if (!Compact && Document.HasFileAsset)
             {
                 <span class="chip-submeta">@GetStorageLabel()</span>
             }
-            @if (!string.IsNullOrWhiteSpace(GetInlineHint()))
+            @if (!Compact && !string.IsNullOrWhiteSpace(GetInlineHint()))
             {
                 <span class="chip-hint @GetInlineHintClass()">@GetInlineHint()</span>
             }
@@ -99,6 +99,9 @@
 
     [Parameter]
     public bool ReadOnly { get; set; } = false;
+
+    [Parameter]
+    public bool Compact { get; set; }
 
     private bool IsImage => Document.SmartDocument.Content is DevNexus.Shared.DTOs.ImageDocumentContent;
     

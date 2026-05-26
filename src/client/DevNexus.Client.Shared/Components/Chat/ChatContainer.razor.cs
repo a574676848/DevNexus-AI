@@ -371,9 +371,10 @@ public partial class ChatContainer : IAsyncDisposable
         if (index <= 0) return;
 
         var previousUserMsg = _messages[index - 1];
-        if (!ChatConstants.IsUserSender(previousUserMsg.SenderType) || string.IsNullOrEmpty(previousUserMsg.Content)) return;
+        if (!ChatConstants.IsUserSender(previousUserMsg.SenderType)) return;
 
-        var contentToResend = previousUserMsg.Content;
+        var contentToResend = previousUserMsg.Content ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(contentToResend) && previousUserMsg.Artifacts?.Any() != true) return;
 
         // ★ 必须先调服务，此时 _messages 完整，服务内部 FindIndex 才能找到 assistant 消息
         // 若先删除再传入，服务找不到消息会提前 return，导致消息清空且不重新生成

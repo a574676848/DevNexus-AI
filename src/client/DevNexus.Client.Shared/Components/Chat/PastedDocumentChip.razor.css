@@ -30,6 +30,42 @@
     transform: translateY(-1px);
 }
 
+.pasted-document-chip.compact {
+    min-height: 40px;
+    max-width: 260px;
+    padding: 5px 28px 5px 10px;
+    gap: 8px;
+}
+
+.pasted-document-chip.compact .chip-icon-wrapper,
+.pasted-document-chip.compact .chip-thumbnail {
+    width: 28px;
+    height: 28px;
+}
+
+.pasted-document-chip.compact .chip-info {
+    gap: 1px;
+}
+
+.pasted-document-chip.compact .chip-filename {
+    font-size: 12px;
+}
+
+.pasted-document-chip.compact .chip-meta-row {
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.pasted-document-chip.compact .chip-status-chip,
+.pasted-document-chip.compact .chip-capability-chip,
+.pasted-document-chip.compact .chip-source-chip {
+    min-height: 16px;
+    padding: 0 5px;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
 /* Image Thumbnail */
 .chip-thumbnail {
     width: 32px;
