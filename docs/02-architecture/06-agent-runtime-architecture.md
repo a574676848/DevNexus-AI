@@ -18,6 +18,7 @@
 4. `Credential Runtime` 已具备显式状态、失败计数、冷却窗口和前端展示基础。
 5. `HostService` 仅保留内部结构化接口，模型工具边界由专门插件适配层承担。
 6. 运行时关键链路已补入统一结构化事件流，前端可按事件刷新会话运行态。
+7. Skill 仅依赖通用 `SKILL.md` 协议字段加载；匹配到技能后，运行时统一注入受控宿主能力，不要求技能声明插件清单。
 
 ## 3. 分层边界
 
@@ -147,7 +148,7 @@ Client 只消费结构化状态，不承担业务裁决：
 14. `WaitForCompletion` 运行态续接提示必须显式引导调用 `HostService.WaitCommandAsync`，等待输入时再调用 `HostService.SendCommandInputAsync`，不得生成重新执行相同命令的通用重试提示。
 15. `StopCommand` 运行态续接提示必须显式引导调用 `HostService.StopCommandAsync` 停止同一终端会话，不得把停止未完成误判为普通降级或重新启动命令。
 16. `WaitForCompletion`、`StopCommand` 和 CLI stdin 运行态续接提示必须显式禁止调用 `HostService.ExecuteCommandAsync` 重新启动相同命令。
-17. `LoopGuardMiddleware` 必须对连续 `StopCommand` 未闭环设置小型 watchdog；达到停止续接预算后停止自动修复，避免在同一终端停止动作上空转到最大重试次数。
+17. `LoopGuardMiddleware` 必须对连续 `StopCommand` 未闭环设置小型 watchdog；达到停止续接预算后停止自动修复，避免在同一终端停止动作上空转。
 18. `ToolExecutionResultClassifier` 位于 Core 层，是工具失败原因和建议动作的事实源；`[INFO]` 类型的 CLI 等待输入输出必须归类为 `PromptUserInput`，不能按普通成功处理。
 19. CLI 等待 stdin 是同一终端会话的续接动作，不是产品化挂起交互；运行态续接提示必须使用“终端 stdin 续接”语义，引导模型调用 `HostService.SendCommandInputAsync`，必要时先调用 `HostService.WaitCommandAsync` 查看最新输出，不得使用产品化补参语义。
 20. 受控执行工具缺少统一结果标签时，必须归类为 `ToolFormatError`，不能按自然文本成功处理。
@@ -156,13 +157,14 @@ Client 只消费结构化状态，不承担业务裁决：
 23. CLI stdin 续接必须先确认当前会话存在且仍活跃；未知会话直接返回 `[FAILURE]`，终态会话返回终态结果供模型总结，不得创建兜底运行态会话。
 24. CLI 停止命令找不到会话时必须返回 `[FAILURE]` 且推荐 `ReviewResult`，不能把未知会话误判为已成功停止活跃命令。
 25. LLM 读取超时或响应超时应进入确定性小步恢复提示：压缩上下文、拆分目标、分批读取和缩小输出；普通连接失败不触发该提示，仍走原有重试或备用路径。`ContextOverflowRepairPromptBuilder` 生成的原始目标和失败摘要也必须按模型可见预算压缩；失败摘要必须保留工具名、`failureReason` 和 `suggestedAction`，按完整结构去重并限制条数，避免恢复提示自身继续放大上下文压力或丢失失败来源。
-26. 历史压缩后的最近消息片段必须通过 `ChatHistoryRecentSlicePolicy` 保证具备用户锚点；摘要之后不得直接拼接孤立助手消息，避免 Provider 将无用户锚点的 assistant 片段误判为非法或已完成上下文。
-27. `ChatHistoryMessageBuilder` 只回放已完成的助手消息；生成中、取消、错误和截断的助手消息属于不完整 turn，不得进入后续模型历史、历史压缩输入或 Prompt 缓存标记候选。
-28. `ChatHistoryMessageBuilder` 必须通过 `ChatHistoryReplayTextSanitizer` 清理进入模型历史回放的文本，移除 ANSI 控制序列和非文本控制字符；清洗后的文本同时用于直接回放、历史压缩输入和最近片段，避免终端或工具输出污染后续 Prompt、缓存标记与摘要。
-29. `ChatHistoryMessageBuilder` 必须输出 `ChatHistoryGovernanceSnapshot`，记录历史预算、实际写入 Token、压缩策略、摘要覆盖消息数、最近片段消息数、压缩索引以及被跳过的内部修复和未完成助手消息数；压缩索引只保留覆盖消息数、摘要长度、摘要稳定指纹和少量主题提示，不保存完整摘要正文；后续任务编排、记忆沉淀和自我迭代只能消费该结构化快照或日志，不应从 Prompt 文本反推上下文边界。
-30. 记忆沉淀触发必须通过 `MemoryConsolidationTriggerPolicy` 归纳决策，并通过 `ChatHistoryPressurePolicy` 解释上下文压力：消息增量达到阈值、历史新进入摘要压缩窗口、历史被预算截断或存在未完成助手 turn 时可立即入队；普通会话增量只调度空闲延迟任务；消息不足或无新增消息时不创建后台任务；摘要压缩压力必须以 `CompressedMessageCount` 和 `LastConsolidatedMessageCount` 形成窗口基线，已沉淀覆盖的压缩历史不得每轮重复立即入队；触发决策必须保留 `ContextPressureReason`，供任务编排和自我迭代复用。
-31. 单轮任务编排必须通过 `AgentTaskOrchestrationSnapshotBuilder` 汇总上下文治理、工具事件、Agent Loop 决策和记忆沉淀决策，输出 `[AI.Task.Orchestration]` 结构化日志；该快照必须记录上下文压力布尔值、`ContextPressureReason`、历史压缩索引和压缩摘要指纹，用于后续自我迭代和后台分析，不进入产品化审计看板。
-32. 经验提纯触发必须先经过 `SelfIterationCandidatePolicy` 判断。Agent Loop 重试中、已停止或仍有工具恢复动作时只观察不提纯；上下文压力已处理、立即记忆沉淀、工具工作流完成或长回复完成时才调度经验提纯，避免每轮都写长期经验；上下文压力触发时必须消费 `ContextPressureReason`，区分摘要压缩、预算截断和未完成助手消息跳过；候选决策必须带出 `ContextPressureReason` 和压缩摘要指纹，通过 `SelfIterationCandidateMetadata` 以低噪字段写入完成态 AI 消息 metadata，并通过 Domain 层 `ExperienceDistillationScheduleContext` 随经验提纯调度进入后台任务；复用经验只在消息 metadata 中保留 `CitationFingerprint`，详细来源继续由系统经验 `ContextTags` 和 `SystemExperienceMemoryCitation` 解析，避免重复持久化；新生成的系统经验必须把候选原因、上下文压力原因和压缩摘要指纹写入 `ContextTags`，不新增数据库字段，不回填摘要正文；`[AI.SelfIteration]` 与 `[AI.SelfIteration.Review]` 日志只记录结构化事实，不进入产品化审计看板，且不得作为唯一闭环承载。
+26. Agent Loop 不再依赖固定 10 轮硬上限；是否继续只由结构化恢复守卫、工具失败语义和停止信号共同决定。
+27. 历史压缩后的最近消息片段必须通过 `ChatHistoryRecentSlicePolicy` 保证具备用户锚点；摘要之后不得直接拼接孤立助手消息，避免 Provider 将无用户锚点的 assistant 片段误判为非法或已完成上下文。
+28. `ChatHistoryMessageBuilder` 只回放已完成的助手消息；生成中、取消、错误和截断的助手消息属于不完整 turn，不得进入后续模型历史、历史压缩输入或 Prompt 缓存标记候选。
+29. `ChatHistoryMessageBuilder` 必须通过 `ChatHistoryReplayTextSanitizer` 清理进入模型历史回放的文本，移除 ANSI 控制序列和非文本控制字符；清洗后的文本同时用于直接回放、历史压缩输入和最近片段，避免终端或工具输出污染后续 Prompt、缓存标记与摘要。
+30. `ChatHistoryMessageBuilder` 必须输出 `ChatHistoryGovernanceSnapshot`，记录历史预算、实际写入 Token、压缩策略、摘要覆盖消息数、最近片段消息数、压缩索引以及被跳过的内部修复和未完成助手消息数；压缩索引只保留覆盖消息数、摘要长度、摘要稳定指纹和少量主题提示，不保存完整摘要正文；后续任务编排、记忆沉淀和自我迭代只能消费该结构化快照或日志，不应从 Prompt 文本反推上下文边界。
+31. 记忆沉淀触发必须通过 `MemoryConsolidationTriggerPolicy` 归纳决策，并通过 `ChatHistoryPressurePolicy` 解释上下文压力：消息增量达到阈值、历史新进入摘要压缩窗口、历史被预算截断或存在未完成助手 turn 时可立即入队；普通会话增量只调度空闲延迟任务；消息不足或无新增消息时不创建后台任务；摘要压缩压力必须以 `CompressedMessageCount` 和 `LastConsolidatedMessageCount` 形成窗口基线，已沉淀覆盖的压缩历史不得每轮重复立即入队；触发决策必须保留 `ContextPressureReason`，供任务编排和自我迭代复用。
+32. 单轮任务编排必须通过 `AgentTaskOrchestrationSnapshotBuilder` 汇总上下文治理、工具事件、Agent Loop 决策和记忆沉淀决策，输出 `[AI.Task.Orchestration]` 结构化日志；该快照必须记录上下文压力布尔值、`ContextPressureReason`、历史压缩索引和压缩摘要指纹，用于后续自我迭代和后台分析，不进入产品化审计看板。
+33. 经验提纯触发必须先经过 `SelfIterationCandidatePolicy` 判断。Agent Loop 重试中、已停止或仍有工具恢复动作时只观察不提纯；上下文压力已处理、立即记忆沉淀、工具工作流完成或长回复完成时才调度经验提纯，避免每轮都写长期经验；上下文压力触发时必须消费 `ContextPressureReason`，区分摘要压缩、预算截断和未完成助手消息跳过；候选决策必须带出 `ContextPressureReason` 和压缩摘要指纹，通过 `SelfIterationCandidateMetadata` 以低噪字段写入完成态 AI 消息 metadata，并通过 Domain 层 `ExperienceDistillationScheduleContext` 随经验提纯调度进入后台任务；复用经验只在消息 metadata 中保留 `CitationFingerprint`，详细来源继续由系统经验 `ContextTags` 和 `SystemExperienceMemoryCitation` 解析，避免重复持久化；新生成的系统经验必须把候选原因、上下文压力原因和压缩摘要指纹写入 `ContextTags`，不新增数据库字段，不回填摘要正文；`[AI.SelfIteration]` 与 `[AI.SelfIteration.Review]` 日志只记录结构化事实，不进入产品化审计看板，且不得作为唯一闭环承载。
 33. 系统经验提纯 Prompt 和输出解析归属 Core 层：`ExperienceDistillationOutputProtocol` 定义版本、`NONE`、`[INTENT]` 标记、提纯协议标签、高价值经验信号、高价值信号关键词、拒绝条件、跳过条件关键词、原始记录禁入标记、SOP 持久化长度上限和 `distillation-prompt-fingerprint` 标签前缀，`ExperienceDistillationPromptBuilder` 使用该协议构建稳定 `ExperienceDistillationPrompt` 值对象并提供 `Fingerprint`，默认拒绝一次性解释、普通问答、重复经验、原始 QA、日志和工具输出，只有命中长期价值信号才输出 SOP；`ExperienceDistillationParser` 负责解析协议输出和 SOP 正文，必须拒绝缺少显式 `[INTENT]` 标记、`NONE` 后混入正文、包含 Markdown 代码块、SOP 超长或混入原始记录标记的输出；`ExperienceDistillationJob` 只负责读取消息、调用模型和保存经验，复盘日志只记录 `DistillationPromptFingerprint`，不记录完整 Prompt，也不再持有硬编码 Prompt 或解析规则。
 34. 系统经验提纯准入、问答对选择和实体默认值归属 Core 层：`ExperienceDistillationQaPairSelector` 选择最近相邻的完成态用户-助手文本对，`ExperienceDistillationAdmissionPolicy` 判断 QA 是否足够，并复用 `ExperienceDistillationOutputProtocol.SkipConditionKeywords` 在 LLM 前拦截一次性测试、格式化、提交、部署或临时排查，再复用 `HighValueSignalKeywords` 判断是否包含决策、偏好、约束、流程、踩坑或修复等长期价值信号后才进入 LLM 提纯；`ExperienceDistillationAdmissionDecision` 必须保留命中的跳过关键词或价值关键词，后台日志只能记录关键词事实，不展开原始 QA；`ExperienceDistillationExperienceFactory` 统一设置初始效用评分、使用次数、匹配时间，并把提纯协议版本、Prompt 指纹、命中的价值关键词和来源会话 ID 写入 `ContextTags`；Infrastructure 不直接散落配对规则、长度阈值、经验价值信号、生命周期默认值或协议来源标签。
 35. 系统经验保存必须先通过 `SystemExperienceFingerprint` 和 `SystemExperienceDuplicatePolicy` 做重复写入判定。指纹写入现有 `ContextTags`，不新增迁移；保存服务先按同类型读取候选，再由 Core 策略跳过相同语义指纹或已有指纹标签的重复经验，不能只按原始 `Intent` 精确匹配候选。

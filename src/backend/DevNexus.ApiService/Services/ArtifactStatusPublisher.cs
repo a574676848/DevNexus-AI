@@ -58,5 +58,5 @@ public class ArtifactStatusPublisher : IArtifactStatusPublisher
     }
 
     public static string BuildCacheKey(string userId, string traceId) =>
-        $"{StatusCacheKeyPrefix}:{userId}:{traceId}";
+        $"{StatusCacheKeyPrefix}:{traceId}";
 }

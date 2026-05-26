@@ -141,22 +141,6 @@ public sealed class ToolBlockExecutionCoordinator
         return int.TryParse(value.ToString(), out var parsed) ? parsed : defaultValue;
     }
 
-    private static bool IsGitRepositoryQuery(string query)
-    {
-        var trimmed = query.Trim();
-        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
-        {
-            return false;
-        }
-
-        var host = uri.Host.ToLowerInvariant();
-        return host.Contains("github.com")
-            || host.Contains("gitlab")
-            || host.Contains("gitea")
-            || host.Contains("gitingest.com")
-            || host.Contains("bitbucket.org");
-    }
-
     private static int ParseResultCount(string json)
     {
         if (string.IsNullOrEmpty(json))
@@ -248,7 +232,7 @@ public sealed class ToolBlockExecutionCoordinator
             return;
         }
 
-        if (IsGitRepositoryQuery(query))
+        if (WebResourceRoutingPolicy.IsGitRepositoryUrl(query))
         {
             _logger.LogWarning(
                 "[AI.Chat] Blocked <search_web> for Git repo URL, use repo-parser Skill instead | Query={Query} MessageId={MessageId}",
@@ -298,7 +282,7 @@ public sealed class ToolBlockExecutionCoordinator
             return;
         }
 
-        if (IsGitRepositoryQuery(query))
+        if (WebResourceRoutingPolicy.IsGitRepositoryUrl(query))
         {
             _logger.LogWarning(
                 "[AI.Chat] Blocked <advanced_search> for Git repo URL, use repo-parser Skill instead | Query={Query} MessageId={MessageId}",
@@ -366,9 +350,28 @@ public sealed class ToolBlockExecutionCoordinator
         var readerLabel = method == "auto" ? "自动选择最优阅读器" : method;
 
         await ThinkingContext.EmitAsync($"📄 正在读取网页: {domain}");
-        await ThinkingContext.EmitAsync($"🌐 使用 [{readerLabel}] 读取 {domain}，正在将网页转为 Markdown...");
+        string resultJson;
+        if (WebResourceRoutingPolicy.IsGitRepositoryUrl(url))
+        {
+            _logger.LogInformation(
+                "[AI.Chat] 已阻止 Git 仓库 URL 进入网页阅读器 | Url={Url} MessageId={MessageId}",
+                url,
+                messageId);
+            await ThinkingContext.EmitAsync("📦 检测到代码仓库地址，已转为仓库解析路径");
+            resultJson = JsonSerializer.Serialize(new
+            {
+                success = false,
+                url,
+                error = WebResourceRoutingPolicy.GitRepositoryReaderError,
+                recommendedSkill = "repo-parser"
+            });
+        }
+        else
+        {
+            await ThinkingContext.EmitAsync($"🌐 使用 [{readerLabel}] 读取 {domain}，正在将网页转为 Markdown...");
+            resultJson = await ExecuteWebpageReadAsync(providerId, url, method, cancellationToken);
+        }
 
-        var resultJson = await ExecuteWebpageReadAsync(providerId, url, method, cancellationToken);
         var contentLength = ParseContentLength(resultJson);
         var readDoneMsg = contentLength > 0
             ? $"✅ 读取完成，获取到约 {contentLength / 1000.0:F1}K 字符的网页内容"

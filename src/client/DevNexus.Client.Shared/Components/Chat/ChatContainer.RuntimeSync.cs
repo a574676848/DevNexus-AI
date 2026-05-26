@@ -228,6 +228,29 @@ public partial class ChatContainer
         target.AddRange(source);
     }
 
+    private static void PreserveStreamingPresentation(ChatMessageDto finalMessage, ChatMessageDto existingMessage)
+    {
+        if ((finalMessage.OrderedBlocks == null || finalMessage.OrderedBlocks.Count == 0) && existingMessage.OrderedBlocks?.Any() == true)
+        {
+            finalMessage.OrderedBlocks = existingMessage.OrderedBlocks.ToList();
+        }
+
+        if ((finalMessage.ChartBlocks == null || finalMessage.ChartBlocks.Count == 0) && existingMessage.ChartBlocks?.Any() == true)
+        {
+            finalMessage.ChartBlocks = existingMessage.ChartBlocks.ToList();
+        }
+
+        if ((finalMessage.InteractiveBlocks == null || finalMessage.InteractiveBlocks.Count == 0) && existingMessage.InteractiveBlocks?.Any() == true)
+        {
+            finalMessage.InteractiveBlocks = existingMessage.InteractiveBlocks.ToList();
+        }
+
+        if ((finalMessage.Artifacts == null || finalMessage.Artifacts.Count == 0) && existingMessage.Artifacts?.Any() == true)
+        {
+            finalMessage.Artifacts = existingMessage.Artifacts.ToList();
+        }
+    }
+
     private void HandleBlockReceived(BlockDto block)
     {
         if (block.SessionId != ChatState.CurrentSessionId)
@@ -259,6 +282,7 @@ public partial class ChatContainer
         var index = _messages.FindIndex(item => item.Id == message.Id);
         if (index >= 0)
         {
+            PreserveStreamingPresentation(message, _messages[index]);
             _messages[index] = message;
         }
         else
@@ -474,20 +498,6 @@ public partial class ChatContainer
 
         eventsUpdate = parsed;
         return true;
-    }
-
-    private static string ResolveAgentTurnPanelClass(AgentTurnEventsUpdatedDto update)
-    {
-        return update.BatchDiagnostics.HasFailures
-            ? "agent-turn-panel agent-turn-panel--warning"
-            : "agent-turn-panel";
-    }
-
-    private static string ResolveAgentTurnHeadline(AgentTurnEventsUpdatedDto update)
-    {
-        return update.BatchDiagnostics.HasFailures
-            ? "工具执行需要处理"
-            : "工具执行已完成";
     }
 
     private static bool TryGetStringProperty(object? data, string propertyName, out string? value)

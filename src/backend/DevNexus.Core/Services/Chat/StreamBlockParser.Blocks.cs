@@ -63,7 +63,6 @@ public partial class StreamBlockParser
             "card" => BuildCardBlock(context, content),
             "html" => BuildHtmlBlock(context, content),
             "thinking" => BuildThinkingBlock(context, content),
-            "tool-result" => BuildToolResultBlock(context, content),
             "ref" => BuildReferenceBlock(context, content),
             _ => new BlockDto
             {
@@ -243,29 +242,6 @@ public partial class StreamBlockParser
             Metadata = new Dictionary<string, object>
             {
                 { FeedbackBlockMetadataConstants.Collapsed, collapsed?.ToLowerInvariant() == "true" }
-            }
-        };
-    }
-    
-    /// <summary>
-    /// 构建工具调用结果 Block
-    /// </summary>
-    private BlockDto BuildToolResultBlock(BlockContext context, string content)
-    {
-        context.Attributes.TryGetValue("name", out var toolName);
-        context.Attributes.TryGetValue("status", out var status);
-        context.Attributes.TryGetValue("duration", out var duration);
-
-        return new BlockDto
-        {
-            BlockType = BlockType.ToolResult,
-            Content = content,
-            IsLast = false,
-            Metadata = new Dictionary<string, object>
-            {
-                { ToolBlockMetadataConstants.ToolName, toolName ?? ToolBlockMetadataConstants.ToolNameUnknown },
-                { ToolBlockMetadataConstants.Status, ToolBlockMetadataConstants.NormalizeStatus(status) },
-                { ToolBlockMetadataConstants.Duration, duration ?? string.Empty }
             }
         };
     }

@@ -120,6 +120,11 @@ public sealed class CliExecutionPolicyServiceTests
 
         public string GetUserProjectPath(Guid userId) => "C:\\workspace\\project";
 
+        public bool IsUserPathAccessible(Guid userId, string path)
+        {
+            return path.StartsWith("C:\\workspace", StringComparison.OrdinalIgnoreCase);
+        }
+
         public bool ValidateUserPathAccess(Guid userId, string path)
         {
             return path.StartsWith("C:\\workspace", StringComparison.OrdinalIgnoreCase);

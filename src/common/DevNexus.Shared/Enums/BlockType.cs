@@ -41,19 +41,9 @@ public enum BlockType
     Chart,
     
     /// <summary>
-    /// RAG 检索结果上下文（可折叠引用卡片）
-    /// </summary>
-    RagContext,
-    
-    /// <summary>
     /// 警告/提示信息（:::warning Block）
     /// </summary>
     Warning,
-    
-    /// <summary>
-    /// 工具调用结果（:::tool-result Block）
-    /// </summary>
-    ToolResult,
     
     /// <summary>
     /// 引用已有 Artifact（:::ref Block）

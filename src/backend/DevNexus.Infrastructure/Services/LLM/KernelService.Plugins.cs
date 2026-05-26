@@ -89,7 +89,7 @@ public partial class KernelService
     }
 
     /// <summary>
-    /// 注册 Skill 绑定的 Plugin（仅注册匹配到的 Skill 所需的 Plugin）
+    /// 注册 Skill 会话的基础执行能力，并兼容旧式显式绑定 Plugin。
     /// </summary>
     /// <param name="kernel">Kernel 实例</param>
     /// <param name="matchedSkills">匹配到的 Skill 列表</param>
@@ -101,7 +101,16 @@ public partial class KernelService
         Guid? sessionId = null,
         Guid? userId = null)
     {
-        if (matchedSkills == null) return;
+        var skills = matchedSkills?.ToList();
+        if (skills is not { Count: > 0 }) return;
+
+        // Skill 通用协议不要求声明 plugins；脚本和引用读取由受控宿主工具统一承载。
+        RegisterHostServicePlugin(kernel);
+
+        if (!skills.Any(match => match.Skill.Plugins.Count > 0))
+        {
+            return;
+        }
 
         var pluginResolver = _serviceProvider.GetService<Core.Abstractions.IPluginResolver>();
         if (pluginResolver == null)
@@ -110,7 +119,7 @@ public partial class KernelService
             return;
         }
 
-        foreach (var match in matchedSkills)
+        foreach (var match in skills)
         {
             foreach (var pluginName in match.Skill.Plugins)
             {

@@ -51,7 +51,6 @@ public sealed class AgentLoopDecision
 /// </summary>
 public sealed class ChatAgentLoopCoordinator
 {
-    private const int MaxRepairAttempts = 10;
     private const string InternalRepairPromptMetadataKey = "internalRepairPrompt";
 
     private readonly AgentLoopExecutor _agentLoopExecutor;
@@ -123,33 +122,6 @@ public sealed class ChatAgentLoopCoordinator
             ServerEventType.AgentTurnEventsUpdated,
             turnEventsUpdate,
             cancellationToken);
-
-        if (agentLoopAttempt >= MaxRepairAttempts)
-        {
-            await _tracingService.LogStructuredEventAsync(
-                TraceEvent.AgentLoopMaxAttemptsReached,
-                "Warning",
-                $"达到最大自动修复尝试次数（{MaxRepairAttempts} 次）");
-
-            await _metricsCollector.RecordMaxAttemptsReached(agentLoopAttempt);
-
-            await blockWriter.WriteAsync(new BlockDto
-            {
-                BlockId = Guid.NewGuid(),
-                SessionId = sessionId,
-                MessageId = aiMessage.Id,
-                BlockType = BlockType.Warning,
-                Content = "已达到最大自动修复尝试次数（10 次），自动修复已停止。建议补充更多上下文后重新生成。",
-                IsLast = false,
-                Metadata = new Dictionary<string, object>
-                {
-                    { FeedbackBlockMetadataConstants.Level, FeedbackBlockMetadataConstants.LevelInfo },
-                    { FeedbackBlockMetadataConstants.Title, "自动修复已停止" }
-                }
-            }, cancellationToken);
-
-            return new AgentLoopDecision { Action = AgentLoopAction.Stop };
-        }
 
         if (AgentLoopStopSignalPolicy.ShouldStop(fullResponse))
         {

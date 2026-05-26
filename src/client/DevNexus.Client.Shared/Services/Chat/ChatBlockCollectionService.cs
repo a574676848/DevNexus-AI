@@ -9,14 +9,11 @@ namespace DevNexus.Client.Shared.Services.Chat;
 public sealed class ChatBlockCollectionService
 {
     private readonly ChatArtifactTracker _artifactTracker;
-    private readonly IRemoteLogService _remoteLog;
 
     public ChatBlockCollectionService(
-        ChatArtifactTracker artifactTracker,
-        IRemoteLogService remoteLog)
+        ChatArtifactTracker artifactTracker)
     {
         _artifactTracker = artifactTracker;
-        _remoteLog = remoteLog;
     }
 
     public void AddBlockIfMissing(BlockDto block, List<BlockDto> currentBlocks)
@@ -122,32 +119,6 @@ public sealed class ChatBlockCollectionService
         }
     }
 
-    public void ProcessToolResultBlock(BlockDto block, List<BlockDto> currentBlocks)
-    {
-        try
-        {
-            var toolCallId = ChatMessageMetadataReader.GetGuid(block.Metadata, ToolBlockMetadataConstants.ToolCallId);
-            var existingIndex = FindToolCallIndex(currentBlocks, toolCallId);
-
-            if (block.Metadata == null || !block.Metadata.TryGetValue(ToolBlockMetadataConstants.ToolName, out var toolName))
-            {
-                UpsertToolResultBlock(currentBlocks, block, existingIndex);
-                return;
-            }
-
-            UpsertToolResultBlock(currentBlocks, block, existingIndex);
-        }
-        catch (Exception ex)
-        {
-            _remoteLog.LogErrorAsync(ex, "ChatMessageProcessor.ProcessToolResultBlock", new Dictionary<string, object?>
-            {
-                ["content"] = block.Content
-            }).GetAwaiter().GetResult();
-
-            currentBlocks.Add(block);
-        }
-    }
-
     private static void MergeMetadata(BlockDto target, Dictionary<string, object>? source)
     {
         if (source == null || source.Count == 0)
@@ -163,30 +134,5 @@ public sealed class ChatBlockCollectionService
                 target.Metadata[item.Key] = item.Value;
             }
         }
-    }
-
-    private static void UpsertToolResultBlock(List<BlockDto> currentBlocks, BlockDto block, int existingIndex)
-    {
-        if (existingIndex >= 0)
-        {
-            currentBlocks[existingIndex] = block;
-            return;
-        }
-
-        currentBlocks.Add(block);
-    }
-
-    private static int FindToolCallIndex(List<BlockDto> currentBlocks, Guid? toolCallId)
-    {
-        if (!toolCallId.HasValue)
-        {
-            return -1;
-        }
-
-        return currentBlocks.FindIndex(block =>
-        {
-            var existingId = ChatMessageMetadataReader.GetGuid(block.Metadata, ToolBlockMetadataConstants.ToolCallId);
-            return existingId.HasValue && existingId.Value == toolCallId.Value;
-        });
     }
 }

@@ -62,6 +62,26 @@ public class UserStoragePathService : IUserStoragePathService
     }
 
     /// <inheritdoc />
+    public bool IsUserPathAccessible(Guid userId, string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            return IsWithinPath(fullPath, GetUserTempPath(userId))
+                || IsWithinPath(fullPath, GetUserProjectPath(userId));
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public bool ValidateUserPathAccess(Guid userId, string path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -73,8 +93,8 @@ public class UserStoragePathService : IUserStoragePathService
             var userTempPath = GetUserTempPath(userId);
             var userProjectPath = GetUserProjectPath(userId);
 
-            var isInTmp = fullPath.StartsWith(userTempPath, StringComparison.OrdinalIgnoreCase);
-            var isInProject = fullPath.StartsWith(userProjectPath, StringComparison.OrdinalIgnoreCase);
+            var isInTmp = IsWithinPath(fullPath, userTempPath);
+            var isInProject = IsWithinPath(fullPath, userProjectPath);
 
             if (!isInTmp && !isInProject)
             {
@@ -90,6 +110,22 @@ public class UserStoragePathService : IUserStoragePathService
             _logger.LogError(ex, "[UserStorage] 路径验证异常 | UserId={UserId} Path={Path}", userId, path);
             return false;
         }
+    }
+
+    private static bool IsWithinPath(string candidatePath, string rootPath)
+    {
+        var normalizedCandidate = Path.GetFullPath(candidatePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var normalizedRoot = Path.GetFullPath(rootPath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return normalizedCandidate.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase)
+            || normalizedCandidate.StartsWith(
+                normalizedRoot + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase)
+            || normalizedCandidate.StartsWith(
+                normalizedRoot + Path.AltDirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

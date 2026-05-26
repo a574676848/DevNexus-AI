@@ -35,13 +35,10 @@ public class ChatMessageProcessor : IChatMessageProcessor
                 _blockCollectionService.ProcessInteractiveCard(block, currentBlocks, completedArtifacts);
                 break;
 
-            case BlockType.ToolResult:
-                _blockCollectionService.ProcessToolResultBlock(block, currentBlocks);
-                break;
-
             case BlockType.Chart:
             case BlockType.Warning:
             case BlockType.Reference:
+            case BlockType.Truncated:
                 _blockCollectionService.AddBlockIfMissing(block, currentBlocks);
                 break;
             case BlockType.Terminal:
@@ -87,21 +84,21 @@ public class ChatMessageProcessor : IChatMessageProcessor
         // 提取警告 Blocks
         var warningBlocks = blocks.Where(b => b.BlockType == BlockType.Warning).ToList();
 
+        // 提取所有非文本 Block 的原始顺序
+        var orderedBlocks = blocks
+            .Where(b => b.BlockType != BlockType.TextDelta
+                     && b.BlockType != BlockType.Thinking)
+            .ToList();
+
         // 构建完整内容
         var aiContent = string.IsNullOrEmpty(thoughtContent) 
                 ? textContent 
                 : $"<think>{thoughtContent}</think>\n{textContent}";
         
-        if (string.IsNullOrEmpty(aiContent) && !chartBlocks.Any() && !interactiveBlocks.Any() && !warningBlocks.Any())
+        if (string.IsNullOrEmpty(aiContent) && !chartBlocks.Any() && !interactiveBlocks.Any() && !warningBlocks.Any() && !orderedBlocks.Any())
         {
             return null;
         }
-
-        // 提取所有非文本 Block 的原始顺序
-        var orderedBlocks = blocks
-            .Where(b => b.BlockType != BlockType.TextDelta 
-                     && b.BlockType != BlockType.Thinking)
-            .ToList();
 
         var aiMessage = new ChatMessageDto
         {

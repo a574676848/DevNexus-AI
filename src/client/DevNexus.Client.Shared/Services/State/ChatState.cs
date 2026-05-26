@@ -222,11 +222,6 @@ public partial class ChatState : IChatState
     public void AddBlock(Guid sessionId, BlockDto block)
     {
         var state = GetOrCreateSessionState(sessionId);
-        if (block.BlockType == BlockType.ToolResult && TryReplaceToolResultBlock(state, block))
-        {
-            return;
-        }
-
         state.AddBlock(block);
         if (block.BlockType == BlockType.Terminal)
         {
@@ -499,24 +494,6 @@ public partial class ChatState : IChatState
     /// 触发状态变更通知
     /// </summary>
     private void NotifyStateChanged() => OnStateChanged?.Invoke();
-
-    private bool TryReplaceToolResultBlock(SessionChatState state, BlockDto block)
-    {
-        var toolCallId = GetGuidFromMetadata(block.Metadata, TerminalBlockMetadataKeys.ToolCallId);
-        if (!toolCallId.HasValue) return false;
-
-        var existingIndex = state.Blocks.FindIndex(existing =>
-        {
-            var existingId = GetGuidFromMetadata(existing.Metadata, TerminalBlockMetadataKeys.ToolCallId);
-            return existingId.HasValue && existingId.Value == toolCallId.Value;
-        });
-
-        if (existingIndex < 0) return false;
-
-        state.Blocks[existingIndex] = block;
-        state.LastActiveAt = DateTime.UtcNow;
-        return true;
-    }
 
     private static Guid? GetGuidFromMetadata(Dictionary<string, object>? metadata, string key)
     {

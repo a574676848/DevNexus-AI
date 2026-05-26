@@ -2,7 +2,6 @@
 @using DevNexus.Shared.Constants
 @using DevNexus.Shared.DTOs
 @using DevNexus.Client.Shared.Helpers
-@using DevNexus.Client.Shared.Components.Cards
 
 @foreach (var block in RenderedBlocks)
 {
@@ -27,16 +26,8 @@
             <ChartBlockRenderer Block="@block" />
             break;
 
-        case BlockType.RagContext:
-            <RagReferencesCard References="@RagReferencesCard.ParseFromContent(block.Content)" />
-            break;
-
         case BlockType.Warning:
             <WarningBlock Block="@block" />
-            break;
-
-        case BlockType.ToolResult:
-            <ToolResultBlock Block="@block" />
             break;
 
         case BlockType.Reference:

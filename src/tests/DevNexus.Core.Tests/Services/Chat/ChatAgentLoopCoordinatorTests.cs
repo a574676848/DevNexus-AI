@@ -73,6 +73,32 @@ public sealed class ChatAgentLoopCoordinatorTests
         warning!.Content.Should().Contain("已多次尝试停止同一终端会话");
     }
 
+    /// <summary>
+    /// 高轮次不应因为固定上限提前停止，只要恢复链仍判定可修复，就应继续生成修复消息。
+    /// </summary>
+    [Fact]
+    public async Task HandleAsync_ShouldKeepRetrying_WhenAttemptIsHighButRecoveryStillAllowsRepair()
+    {
+        var harness = new ScenarioHarness(
+            new FailingEvaluator(),
+            new FailingEvaluator(),
+            new FixedRepairContextBuilder());
+
+        var decision = await harness.HandleAsync(
+            [
+                CreateFailedRecord(
+                    "WebSearchPlugin.ReadWebpage",
+                    ToolSuggestedAction.None,
+                    "网页读取被策略拒绝")
+            ],
+            agentLoopAttempt: 99);
+
+        decision.Action.Should().Be(AgentLoopAction.Retry);
+        decision.RepairMessage.Should().NotBeNull();
+        harness.Metrics.RepairAttempts.Should().ContainSingle().Which.Should().BeTrue();
+        harness.TryReadBlock(out _).Should().BeFalse();
+    }
+
     private static ToolExecutionRecord CreateFailedRecord(
         string toolName,
         ToolSuggestedAction suggestedAction,
@@ -97,13 +123,19 @@ public sealed class ChatAgentLoopCoordinatorTests
         private readonly Channel<BlockDto> _blocks = Channel.CreateUnbounded<BlockDto>();
         private readonly ChatAgentLoopCoordinator _coordinator;
 
-        public ScenarioHarness()
+        public ScenarioHarness(
+            IRuleResponseEvaluator? ruleEvaluator = null,
+            ILlmResponseEvaluator? llmEvaluator = null,
+            IRepairContextBuilder? repairContextBuilder = null)
         {
             Metrics = new FakeMetricsCollector();
             var repository = new FakeChatMessageRepository();
             Messages = repository.Messages;
             var notifier = new FakeRuntimeEventNotifier();
             EventTypes = notifier.EventTypes;
+            ruleEvaluator ??= new PassedEvaluator();
+            llmEvaluator ??= new PassedEvaluator();
+            repairContextBuilder ??= new UnusedRepairContextBuilder();
 
             var guard = new AgentLoopRecoveryGuard(
                 new EmptyRuntimeInspector(),
@@ -113,9 +145,9 @@ public sealed class ChatAgentLoopCoordinatorTests
                     new LoopGuardMiddleware()
                 ]));
             var executor = new AgentLoopExecutor(
-                new PassedEvaluator(),
-                new PassedEvaluator(),
-                new UnusedRepairContextBuilder(),
+                ruleEvaluator,
+                llmEvaluator,
+                repairContextBuilder,
                 NullLogger<AgentLoopExecutor>.Instance);
             _coordinator = new ChatAgentLoopCoordinator(
                 executor,
@@ -179,11 +211,35 @@ public sealed class ChatAgentLoopCoordinatorTests
         }
     }
 
+    private sealed class FailingEvaluator : IRuleResponseEvaluator, ILlmResponseEvaluator
+    {
+        public Task<EvaluationResult> EvaluateAsync(
+            EvaluationContext context,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new EvaluationResult
+            {
+                Passed = false,
+                CanRepair = true,
+                Feedback = "需要补充上下文",
+                Score = 10
+            });
+        }
+    }
+
     private sealed class UnusedRepairContextBuilder : IRepairContextBuilder
     {
         public string Build(EvaluationContext context, EvaluationResult evaluation)
         {
             throw new InvalidOperationException("确定性恢复路径不应调用通用修复上下文构建器。");
+        }
+    }
+
+    private sealed class FixedRepairContextBuilder : IRepairContextBuilder
+    {
+        public string Build(EvaluationContext context, EvaluationResult evaluation)
+        {
+            return "请改用 repo-parser Skill 处理仓库 URL。";
         }
     }
 

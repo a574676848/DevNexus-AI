@@ -11,7 +11,7 @@
 ### 2.1 核心流程（已实现）
 
 1. **URL 直接读取** → 使用 `<webpage>` 工具
-2. **Git 仓库拦截** → 在代码层拦截 GitHub/GitLab 链接，重定向至 repo-parser 技能
+2. **Git 仓库拦截** → 在代码层拦截 GitHub/GitLab 等仓库链接，重定向至 repo-parser 技能
 3. **搜索查询** → 使用 `<search_web>` 工具
 4. **深度内容分析** → 使用 `<advanced_search>` 工具
 
@@ -26,6 +26,7 @@
 - 公开仓库解析路径已实现
 - 执行目录位于用户受控工作区（`project/{userId}/workspaces/{workspaceId}`）
 - 具体路径由 `UserWorkspaceService` 决定
+- 技能目录运行时镜像由 `SkillRuntimePathResolver` 负责，匹配到技能后统一给出受控宿主执行路径，不要求 `SKILL.md` 自带插件声明
 
 ### 3.2 语言识别
 
@@ -50,6 +51,7 @@
 ### 4.2 反爬检测
 
 - 当前实现包含基本的状态码与内容识别逻辑
+- `ToolBlockExecutionCoordinator` 和 `WebSearchPlugin.ReadWebpageAsync` 都会先拦截 Git 仓库 URL，并返回 `recommendedSkill=repo-parser`
 
 ### 4.3 Git URL 拦截
 

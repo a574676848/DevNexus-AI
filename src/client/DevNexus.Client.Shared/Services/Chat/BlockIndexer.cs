@@ -20,7 +20,7 @@ public sealed class BlockIndexer : IDisposable
     private readonly List<BlockDto> _allBlocks = new();
     
     /// <summary>
-    /// 展示块列表（Terminal/Chart/InteractiveCard/ToolResult）
+    /// 展示块列表（Terminal/Chart/InteractiveCard/Warning/Reference/Truncated）。
     /// </summary>
     private readonly List<BlockDto> _orderedBlocks = new();
     
@@ -140,7 +140,9 @@ public sealed class BlockIndexer : IDisposable
                 case BlockType.Terminal:
                 case BlockType.Chart:
                 case BlockType.InteractiveCard:
-                case BlockType.ToolResult:
+                case BlockType.Warning:
+                case BlockType.Reference:
+                case BlockType.Truncated:
                     // 展示块添加到 OrderedBlocks
                     AddToOrderedBlocks(block);
                     break;
@@ -368,7 +370,9 @@ public sealed class BlockIndexer : IDisposable
                blockType == BlockType.Terminal ||
                blockType == BlockType.Chart ||
                blockType == BlockType.InteractiveCard ||
-               blockType == BlockType.ToolResult;
+               blockType == BlockType.Warning ||
+               blockType == BlockType.Reference ||
+               blockType == BlockType.Truncated;
     }
 
     /// <summary>

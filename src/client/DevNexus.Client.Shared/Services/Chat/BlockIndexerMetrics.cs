@@ -22,7 +22,7 @@ public record BlockIndexerMetrics
     public int ThinkingCount { get; init; }
     
     /// <summary>
-    /// 展示块数（Terminal/Chart/Card/ToolResult）
+    /// 展示块数（终端、图表、卡片、提示、引用、截断通知）。
     /// </summary>
     public int OrderedBlockCount { get; init; }
     

@@ -79,12 +79,4 @@ public interface IMessageHandlingService
         BlockDto block, List<BlockDto> currentBlocks,
         ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts,
         Guid currentSessionId);
-
-    /// <summary>
-    /// 处理工具调用接收事件
-    /// </summary>
-    void HandleToolInvocationReceived(
-        ToolInvocationDto invocation, List<BlockDto> currentBlocks,
-        ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts,
-        Guid currentSessionId, Guid currentMessageId);
 }

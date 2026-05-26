@@ -64,21 +64,12 @@
                 }
                 break;
 
-            case BlockType.ToolResult:
-                <ToolResultBlock Block="@item.block" />
-                break;
-
             case BlockType.Warning:
                 <WarningBlock Block="@item.block" />
                 break;
 
             case BlockType.Reference:
                 <ReferenceBlock Block="@item.block" />
-                break;
-
-            case BlockType.RagContext:
-                <DevNexus.Client.Shared.Components.Cards.RagReferencesCard
-                    References="@DevNexus.Client.Shared.Components.Cards.RagReferencesCard.ParseFromContent(item.block.Content)" />
                 break;
                 
             case BlockType.ArtifactStart:
@@ -281,9 +272,7 @@ else
             BlockType.TextDelta => "text",
             BlockType.Chart => "artifact",
             BlockType.InteractiveCard => "artifact",
-            BlockType.ToolResult => "tool",
             BlockType.Terminal => "terminal",
-            BlockType.RagContext => "artifact",
             BlockType.ArtifactStart => "artifact",
             BlockType.ArtifactDelta => "artifact",
             BlockType.ArtifactEnd => "artifact",

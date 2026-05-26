@@ -596,44 +596,4 @@ public class MessageHandlingService : IMessageHandlingService
 
         return true;
     }
-
-    /// <inheritdoc />
-    public void HandleToolInvocationReceived(
-        ToolInvocationDto invocation, List<BlockDto> currentBlocks,
-        ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts,
-        Guid currentSessionId, Guid currentMessageId)
-    {
-        var sessionId = invocation.SessionId != Guid.Empty
-            ? invocation.SessionId
-            : currentSessionId;
-
-        var messageId = invocation.MessageId != Guid.Empty
-            ? invocation.MessageId
-            : currentMessageId;
-
-        var toolName = string.IsNullOrWhiteSpace(invocation.PluginName)
-            ? invocation.FunctionName
-            : string.IsNullOrWhiteSpace(invocation.FunctionName)
-                ? invocation.PluginName
-                : $"{invocation.PluginName}.{invocation.FunctionName}";
-
-        var block = new BlockDto
-        {
-            BlockId = invocation.ToolCallId != Guid.Empty ? invocation.ToolCallId : Guid.NewGuid(),
-            SessionId = sessionId,
-            MessageId = messageId,
-            BlockType = BlockType.ToolResult,
-            Content = ToolBlockMetadataConstants.IsErrorStatus(invocation.Status) ? invocation.ErrorMessage ?? string.Empty : string.Empty,
-            Metadata = new Dictionary<string, object>
-            {
-                [ToolBlockMetadataConstants.ToolName] = string.IsNullOrWhiteSpace(toolName) ? ToolBlockMetadataConstants.ToolNameFallbackDisplay : toolName,
-                [ToolBlockMetadataConstants.Status] = ToolBlockMetadataConstants.NormalizeStatus(invocation.Status),
-                [ToolBlockMetadataConstants.Duration] = invocation.DurationMs.HasValue ? $"{invocation.DurationMs.Value}ms" : string.Empty,
-                [ToolBlockMetadataConstants.ToolCallId] = invocation.ToolCallId
-            }
-        };
-
-        // 委托给 HandleBlockReceived 统一处理（含 Swarm 检测和 ChatState 分发）
-        HandleBlockReceived(block, currentBlocks, ref currentArtifact, completedArtifacts, currentSessionId);
-    }
 }

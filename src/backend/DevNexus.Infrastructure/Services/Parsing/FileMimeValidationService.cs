@@ -164,6 +164,17 @@ public sealed class FileMimeValidationService
             return true;
         }
 
+        // text/markdown 文件魔数无法与 text/plain 区分，视为兼容
+        var isTextMarkdownFamily =
+            (expected.Equals("text/markdown", StringComparison.OrdinalIgnoreCase) ||
+             actual.Equals("text/markdown", StringComparison.OrdinalIgnoreCase)) &&
+            (expected.Equals("text/plain", StringComparison.OrdinalIgnoreCase) ||
+             actual.Equals("text/plain", StringComparison.OrdinalIgnoreCase));
+        if (isTextMarkdownFamily)
+        {
+            return true;
+        }
+
         return false;
     }
 

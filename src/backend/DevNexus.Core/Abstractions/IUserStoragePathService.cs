@@ -28,6 +28,14 @@ public interface IUserStoragePathService
     string GetUserProjectPath(Guid userId);
 
     /// <summary>
+    /// 静默判断路径是否在用户允许范围内，用于内部路由探测。
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="path">需要判断的路径</param>
+    /// <returns>是否允许访问</returns>
+    bool IsUserPathAccessible(Guid userId, string path);
+
+    /// <summary>
     /// 验证指定路径是否在用户允许的存储范围内（tmp 或 project）
     /// </summary>
     /// <param name="userId">用户ID</param>

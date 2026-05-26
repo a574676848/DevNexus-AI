@@ -388,6 +388,18 @@ public class WebSearchPlugin
             return JsonSerializer.Serialize(new { success = false, error = $"无效的 URL 格式：{url}" });
         }
 
+        if (WebResourceRoutingPolicy.IsGitRepositoryUrl(url))
+        {
+            _logger.LogInformation("Blocked Git repository URL from webpage readers: {Url}", url);
+            return JsonSerializer.Serialize(new
+            {
+                success = false,
+                url,
+                error = WebResourceRoutingPolicy.GitRepositoryReaderError,
+                recommendedSkill = "repo-parser"
+            });
+        }
+
         try
         {
             // 获取已配置的网页读取器

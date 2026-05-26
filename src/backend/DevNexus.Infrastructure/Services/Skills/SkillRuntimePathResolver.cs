@@ -35,7 +35,7 @@ public sealed class SkillRuntimePathResolver : ISkillRuntimePathResolver
         try
         {
             var normalizedRequestedPath = Path.GetFullPath(requestedPath);
-            if (_userStoragePathService.ValidateUserPathAccess(userId, normalizedRequestedPath))
+            if (_userStoragePathService.IsUserPathAccessible(userId, normalizedRequestedPath))
             {
                 return normalizedRequestedPath;
             }
@@ -72,7 +72,7 @@ public sealed class SkillRuntimePathResolver : ISkillRuntimePathResolver
                 Directory.CreateDirectory(mirroredPath);
             }
 
-            return _userStoragePathService.ValidateUserPathAccess(userId, mirroredPath)
+            return _userStoragePathService.IsUserPathAccessible(userId, mirroredPath)
                 ? mirroredPath
                 : null;
         }

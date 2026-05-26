@@ -317,8 +317,6 @@ public partial class MessageList : IAsyncDisposable
             or BlockType.Thinking
             or BlockType.Chart
             or BlockType.InteractiveCard
-            or BlockType.ToolResult
-            or BlockType.RagContext
             or BlockType.ArtifactStart
             or BlockType.ArtifactDelta
             or BlockType.ArtifactEnd
