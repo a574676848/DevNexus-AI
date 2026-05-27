@@ -131,7 +131,7 @@ public static class ToolExecutionResultClassifier
                 shouldFallback: true,
                 shouldRotateCredential: false,
                 suggestedAction: ToolSuggestedAction.Fallback,
-                userMessage: "当前路径或资源访问被拒绝，应切换到允许的工作区或改用受控路径。");
+                userMessage: "当前路径或资源访问被拒绝，应检查本机路径、文件占用和服务运行账户权限。");
         }
 
         if (ContainsAny(lowered, "could not find file", "could not find a part of the path", "文件不存在", "路径不存在", "目录不存在"))

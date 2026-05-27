@@ -2,9 +2,11 @@ using DevNexus.Core.Models.Evaluation;
 using DevNexus.Core.Abstractions;
 using DevNexus.Core.Services.Chat;
 using DevNexus.Core.Services.Tools;
+using DevNexus.Domain.Abstractions;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.Enums;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using System;
@@ -27,17 +29,20 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
     private readonly ITokenAuditQueue _auditQueue;
     private readonly IToolInvocationValidationService _validationService;
     private readonly IToolCatalogService _toolCatalogService;
+    private readonly IServiceProvider _serviceProvider;
 
     public ToolExecutionCollectorFilter(
         ILogger<ToolExecutionCollectorFilter> logger,
         ITokenAuditQueue auditQueue,
         IToolInvocationValidationService validationService,
-        IToolCatalogService toolCatalogService)
+        IToolCatalogService toolCatalogService,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _auditQueue = auditQueue;
         _validationService = validationService;
         _toolCatalogService = toolCatalogService;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task OnAutoFunctionInvocationAsync(
@@ -47,9 +52,6 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
         var functionName = context.Function.Name;
         var pluginName = context.Function.PluginName;
         var sw = Stopwatch.StartNew();
-
-        // ✅ 工具调用开始提醒
-        await ThinkingContext.EmitAsync($"🔧 正在执行: {pluginName}.{functionName}...");
 
         // 某些参数可能很长，这里记录简要日志
         _logger.LogDebug("[AgentLoop.Collector] Invoking {Plugin}.{Function}", pluginName, functionName);
@@ -81,6 +83,13 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
             {
                 ChatExecutionContext.AddToolRecord(validationRecord);
                 await QueueToolAuditRecordAsync(validationRecord, pluginName, functionName, sw.ElapsedMilliseconds, argumentsValid: false);
+                await NotifyToolInvocationAsync(
+                    ChatExecutionContext.CurrentToolCallId,
+                    pluginName,
+                    functionName,
+                    ToolInvocationStatus.Failed,
+                    sw.ElapsedMilliseconds,
+                    validationRecord.ErrorSummary);
             }
 
             _logger.LogWarning(
@@ -143,20 +152,61 @@ public class ToolExecutionCollectorFilter : IAutoFunctionInvocationFilter
 
         ChatExecutionContext.AddToolRecord(record);
         await QueueToolAuditRecordAsync(record, pluginName, functionName, sw.ElapsedMilliseconds);
-
-        // ✅ 工具调用完成/失败提醒
-        if (classification.Success)
-        {
-            await ThinkingContext.EmitAsync($"✅ {pluginName}.{functionName} 执行完成 (耗时 {sw.ElapsedMilliseconds}ms)");
-        }
-        else
-        {
-            await ThinkingContext.EmitAsync($"❌ {pluginName}.{functionName} 执行失败: {errorSummary}");
-        }
+        await NotifyToolInvocationAsync(
+            ChatExecutionContext.CurrentToolCallId,
+            pluginName,
+            functionName,
+            classification.Success ? ToolInvocationStatus.Completed : ToolInvocationStatus.Failed,
+            sw.ElapsedMilliseconds,
+            errorSummary);
 
         _logger.LogInformation(
             "[AgentLoop.Collector] 收集工具执行记录: {Tool} | 成功={Success} | 耗时={Duration}ms",
             record.ToolName, classification.Success, sw.ElapsedMilliseconds);
+    }
+
+    private async Task NotifyToolInvocationAsync(
+        Guid toolCallId,
+        string? pluginName,
+        string? functionName,
+        ToolInvocationStatus status,
+        long durationMs,
+        string? errorMessage)
+    {
+        try
+        {
+            var ctx = TokenAuditContext.Current;
+            if (toolCallId == Guid.Empty || ctx?.OwnerUserId is not Guid userId || userId == Guid.Empty)
+            {
+                return;
+            }
+
+            using var scope = _serviceProvider.CreateScope();
+            var notifier = scope.ServiceProvider.GetService<IToolInvocationNotifier>();
+            if (notifier == null)
+            {
+                return;
+            }
+
+            await notifier.NotifyToolInvocationAsync(userId, new ToolInvocationDto
+            {
+                SessionId = ctx.SessionId ?? Guid.Empty,
+                MessageId = ctx.MessageId ?? Guid.Empty,
+                ToolCallId = toolCallId,
+                PluginName = pluginName ?? "unknown",
+                FunctionName = functionName ?? "unknown",
+                Status = status.ToWireValue(),
+                DurationMs = durationMs,
+                ErrorMessage = errorMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "[AgentLoop.Collector] 工具状态通知失败 | ToolCallId={ToolCallId}",
+                toolCallId);
+        }
     }
 
     private async Task QueueToolAuditRecordAsync(

@@ -32,7 +32,7 @@ public sealed class CliExecutionPolicyServiceTests
             "session-1",
             "git",
             "push origin main",
-            "C:\\workspace\\project");
+            Directory.GetCurrentDirectory());
 
         result.Allowed.Should().BeFalse();
         result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.UnsafeCommandRequiresApproval);
@@ -40,6 +40,29 @@ public sealed class CliExecutionPolicyServiceTests
         result.SuggestedAction.Should().Be(ToolSuggestedAction.RequestApproval);
         result.RequiresHumanIntervention.Should().BeTrue();
         result.CommandPattern.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// Agent 自主决策模式可放行中风险命令。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldAllowMediumRisk_WhenAgentDecides()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = true,
+            SafeBins = ["dotnet"]
+        });
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-agent",
+            "git",
+            "status",
+            Directory.GetCurrentDirectory(),
+            AgentApprovalMode.AgentDecides);
+
+        result.Allowed.Should().BeTrue();
     }
 
     /// <summary>
@@ -59,11 +82,85 @@ public sealed class CliExecutionPolicyServiceTests
             "session-2",
             "rm",
             "-rf /",
-            "C:\\workspace\\project");
+            Directory.GetCurrentDirectory());
 
         result.Allowed.Should().BeFalse();
         result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.DangerousCommandRequiresApproval);
         result.RequiresHumanIntervention.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Agent 自主决策模式仍会把高风险命令交给用户审批。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldRequireApprovalForHighRisk_WhenAgentDecides()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = true,
+            SafeBins = ["rm"]
+        });
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-agent-high",
+            "rm",
+            "-rf /",
+            Directory.GetCurrentDirectory(),
+            AgentApprovalMode.AgentDecides);
+
+        result.Allowed.Should().BeFalse();
+        result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.DangerousCommandRequiresApproval);
+        result.RequiresHumanIntervention.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 完全放权模式不触发人工审批。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldAllowHighRisk_WhenFullAccess()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = true,
+            SafeBins = ["rm"],
+            AlwaysProtectHighRisk = false
+        });
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-full",
+            "rm",
+            "-rf /",
+            Directory.GetCurrentDirectory(),
+            AgentApprovalMode.FullAccess);
+
+        result.Allowed.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// 系统级高风险保护开启时，完全放权仍会保留审批边界。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldProtectHighRisk_WhenFullAccessProtectionEnabled()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = true,
+            SafeBins = ["rm"],
+            AlwaysProtectHighRisk = true
+        });
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-full-protected",
+            "rm",
+            "-rf /",
+            Directory.GetCurrentDirectory(),
+            AgentApprovalMode.FullAccess);
+
+        result.Allowed.Should().BeFalse();
+        result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.DangerousCommandRequiresApproval);
     }
 
     /// <summary>
@@ -84,7 +181,7 @@ public sealed class CliExecutionPolicyServiceTests
                 "session-3",
                 "dotnet",
                 "test",
-                "C:\\workspace\\project");
+                Directory.GetCurrentDirectory());
             allowed.Allowed.Should().BeTrue();
         }
 
@@ -93,7 +190,7 @@ public sealed class CliExecutionPolicyServiceTests
             "session-3",
             "dotnet",
             "test",
-            "C:\\workspace\\project");
+            Directory.GetCurrentDirectory());
 
         result.Allowed.Should().BeFalse();
         result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.RepeatedCommandLoop);
@@ -101,39 +198,82 @@ public sealed class CliExecutionPolicyServiceTests
         result.SuggestedAction.Should().Be(ToolSuggestedAction.Abort);
     }
 
+    /// <summary>
+    /// 本机工作目录不再受用户 tmp/project 边界限制。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldAllowLocalDirectoryOutsideUserWorkspace()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = false
+        });
+        var localDirectory = Directory.GetCurrentDirectory();
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-local",
+            "dotnet",
+            "--info",
+            localDirectory);
+
+        result.Allowed.Should().BeTrue();
+        result.EffectiveWorkingDirectory.Should().Be(Path.GetFullPath(localDirectory));
+    }
+
+    /// <summary>
+    /// 不存在的本机工作目录应返回明确的不可用裁决。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldRejectMissingLocalWorkingDirectory()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = false
+        });
+        var missingDirectory = Path.Combine(Path.GetTempPath(), "DevNexus-AI-missing-" + Guid.NewGuid().ToString("N"));
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-missing",
+            "dotnet",
+            "--info",
+            missingDirectory);
+
+        result.Allowed.Should().BeFalse();
+        result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.WorkingDirectoryUnavailable);
+        result.FailureReason.Should().Be(ToolFailureReason.PermissionDenied);
+    }
+
+    /// <summary>
+    /// 无效的本机工作目录不能静默回落到服务默认目录。
+    /// </summary>
+    [Fact]
+    public async Task EvaluateCommandAsync_ShouldRejectInvalidLocalWorkingDirectory()
+    {
+        var service = CreateService(new CliPolicyOptions
+        {
+            EnforceSafeBins = false
+        });
+        var invalidDirectory = "invalid" + '\0' + "path";
+
+        var result = await service.EvaluateCommandAsync(
+            UserId,
+            "session-invalid",
+            "dotnet",
+            "--info",
+            invalidDirectory);
+
+        result.Allowed.Should().BeFalse();
+        result.DecisionCode.Should().Be(CliExecutionPolicyDecisionCode.WorkingDirectoryUnavailable);
+        result.FailureReason.Should().Be(ToolFailureReason.PermissionDenied);
+    }
+
     private static CliExecutionPolicyService CreateService(CliPolicyOptions options)
     {
         return new CliExecutionPolicyService(
-            new FakeUserStoragePathService(),
-            new FakeSkillRuntimePathResolver(),
             new FakeCliApprovalGrantService(),
             Options.Create(options));
-    }
-
-    private sealed class FakeUserStoragePathService : IUserStoragePathService
-    {
-        public void InitializeUserStorage(Guid userId)
-        {
-        }
-
-        public string GetUserTempPath(Guid userId) => "C:\\workspace\\tmp";
-
-        public string GetUserProjectPath(Guid userId) => "C:\\workspace\\project";
-
-        public bool IsUserPathAccessible(Guid userId, string path)
-        {
-            return path.StartsWith("C:\\workspace", StringComparison.OrdinalIgnoreCase);
-        }
-
-        public bool ValidateUserPathAccess(Guid userId, string path)
-        {
-            return path.StartsWith("C:\\workspace", StringComparison.OrdinalIgnoreCase);
-        }
-    }
-
-    private sealed class FakeSkillRuntimePathResolver : ISkillRuntimePathResolver
-    {
-        public string? TryResolveAccessiblePath(Guid userId, string requestedPath) => null;
     }
 
     private sealed class FakeCliApprovalGrantService : ICliApprovalGrantService

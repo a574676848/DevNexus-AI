@@ -64,7 +64,8 @@
 }
 
 .toolbar-more-btn:hover,
-.toolbar-rag-btn:hover {
+.toolbar-rag-btn:hover,
+.toolbar-approval-btn:hover {
     color: var(--dnx-brand-green-hover, #06ad56);
     background: rgba(7, 193, 96, 0.14);
 }
@@ -72,6 +73,21 @@
 .toolbar-rag-btn.active {
     color: var(--dnx-brand-green, var(--brand-green));
     background: var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08));
+}
+
+.toolbar-approval-btn.approval-askuser {
+    color: var(--text-secondary);
+    background: transparent;
+}
+
+.toolbar-approval-btn.approval-agentdecides {
+    color: var(--dnx-brand-green, var(--brand-green));
+    background: var(--dnx-bg-accent-soft, rgba(7, 193, 96, 0.08));
+}
+
+.toolbar-approval-btn.approval-fullaccess {
+    color: var(--warning-color, #c47f00);
+    background: rgba(196, 127, 0, 0.12);
 }
 
 .toolbar-sidekick-btn.active {

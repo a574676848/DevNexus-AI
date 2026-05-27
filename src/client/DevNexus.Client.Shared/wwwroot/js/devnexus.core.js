@@ -1,7 +1,12 @@
 (function () {
     window.devnexus = window.devnexus || {};
     window.devnexus._scrollListeners = window.devnexus._scrollListeners || new WeakMap();
+    window.devnexus._stableScrollControllers = window.devnexus._stableScrollControllers || new WeakMap();
     window.devnexus._marks = window.devnexus._marks || {};
+
+    const scrollNearBottomThreshold = 150;
+    const scrollListenerBottomThreshold = 100;
+    const defaultStableScrollDurationMs = 320;
 
     window.scrollToBottom = function (element, force) {
         if (!element) {
@@ -13,9 +18,8 @@
             return true;
         }
 
-        const threshold = 150;
         const flexBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
-        const isNearBottom = flexBottom < threshold;
+        const isNearBottom = flexBottom < scrollNearBottomThreshold;
 
         if (isNearBottom || flexBottom <= 0) {
             element.scrollTop = element.scrollHeight;
@@ -34,6 +38,66 @@
         return false;
     };
 
+    window.scrollToBottomWhileStable = function (element, durationMs) {
+        if (!element) {
+            return Promise.resolve(false);
+        }
+
+        const duration = Number.isFinite(durationMs) && durationMs > 0
+            ? durationMs
+            : defaultStableScrollDurationMs;
+        const existingController = window.devnexus._stableScrollControllers.get(element);
+        if (existingController) {
+            existingController.cancelled = true;
+            existingController.resolve(false);
+        }
+
+        const startedAt = performance.now();
+        let lastScrollHeight = -1;
+
+        return new Promise(function (resolve) {
+            const controller = {
+                cancelled: false,
+                resolve: function (value) {
+                    if (controller.settled) {
+                        return;
+                    }
+
+                    controller.settled = true;
+                    resolve(value);
+                },
+                settled: false
+            };
+
+            window.devnexus._stableScrollControllers.set(element, controller);
+
+            const step = function (now) {
+                if (controller.cancelled) {
+                    return;
+                }
+
+                const scrollHeight = element.scrollHeight;
+                element.scrollTop = scrollHeight;
+
+                const heightStable = scrollHeight === lastScrollHeight;
+                lastScrollHeight = scrollHeight;
+
+                if ((now - startedAt) < duration || !heightStable) {
+                    requestAnimationFrame(step);
+                    return;
+                }
+
+                if (window.devnexus._stableScrollControllers.get(element) === controller) {
+                    window.devnexus._stableScrollControllers.delete(element);
+                }
+
+                controller.resolve(true);
+            };
+
+            requestAnimationFrame(step);
+        });
+    };
+
     window.setupScrollListener = function (element, dotNetRef) {
         if (!element || !dotNetRef) {
             return;
@@ -45,8 +109,7 @@
         }
 
         const scrollHandler = function () {
-            const threshold = 100;
-            const isAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+            const isAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < scrollListenerBottomThreshold;
 
             try {
                 dotNetRef.invokeMethodAsync('OnScrollPositionChanged', isAtBottom);

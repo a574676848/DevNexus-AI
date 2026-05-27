@@ -185,7 +185,7 @@ internal static class ChatSessionRuntimeResolver
         {
             return Create(
                 ChatSessionRunState.Generating,
-                ChatExecutionDecision.Immediate,
+                ChatExecutionDecision.Queued,
                 pendingInteractions.Count,
                 primaryPendingInteractionKind,
                 primaryPendingInteraction?.Id,

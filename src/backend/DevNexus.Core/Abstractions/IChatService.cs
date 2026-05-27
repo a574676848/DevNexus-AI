@@ -134,12 +134,14 @@ public interface IChatService
     /// <param name="chatRequest">聊天请求</param>
     /// <param name="userId">用户ID</param>
     /// <param name="blockWriter">Block 输出通道（由调用方创建 Channel 并传入 Writer）</param>
+    /// <param name="onUserMessageAccepted">用户消息持久化后的回调，用于上层立即回推正式消息</param>
     /// <param name="cancellationToken">取消令牌</param>
     /// <returns>最终 AI 消息 DTO</returns>
     Task<ChatMessageDto> StreamMessageAsync(
         ChatRequest chatRequest,
         Guid userId,
         ChannelWriter<BlockDto> blockWriter,
+        Func<ChatMessageDto, CancellationToken, Task>? onUserMessageAccepted = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

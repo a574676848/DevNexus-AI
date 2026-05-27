@@ -51,8 +51,6 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         new(@"(?i)^\s*(pwsh|powershell)(?:\.exe)?\s+(-c|-command)\b", RegexOptions.Compiled)
     ];
 
-    private readonly IUserStoragePathService _userStoragePathService;
-    private readonly ISkillRuntimePathResolver _skillRuntimePathResolver;
     private readonly ICliApprovalGrantService _cliApprovalGrantService;
     private readonly CliPolicyOptions _options;
     private readonly ConcurrentDictionary<string, CommandLoopWindow> _commandFingerprints = new();
@@ -61,13 +59,9 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
     /// 构造函数。
     /// </summary>
     public CliExecutionPolicyService(
-        IUserStoragePathService userStoragePathService,
-        ISkillRuntimePathResolver skillRuntimePathResolver,
         ICliApprovalGrantService cliApprovalGrantService,
         IOptions<CliPolicyOptions> options)
     {
-        _userStoragePathService = userStoragePathService;
-        _skillRuntimePathResolver = skillRuntimePathResolver;
         _cliApprovalGrantService = cliApprovalGrantService;
         _options = options.Value;
     }
@@ -75,32 +69,19 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
     /// <inheritdoc />
     public string ResolveWorkingDirectory(Guid userId, string? requestedWorkingDirectory)
     {
-        var userTempPath = _userStoragePathService.GetUserTempPath(userId);
-
         if (string.IsNullOrWhiteSpace(requestedWorkingDirectory))
         {
-            return userTempPath;
+            return Directory.GetCurrentDirectory();
         }
 
-        string normalizedPath;
         try
         {
-            normalizedPath = Path.GetFullPath(requestedWorkingDirectory);
+            return Path.GetFullPath(requestedWorkingDirectory);
         }
         catch
         {
-            return userTempPath;
+            return requestedWorkingDirectory.Trim();
         }
-
-        if (_userStoragePathService.ValidateUserPathAccess(userId, normalizedPath))
-        {
-            return normalizedPath;
-        }
-
-        var mirroredPath = _skillRuntimePathResolver.TryResolveAccessiblePath(userId, normalizedPath);
-        return !string.IsNullOrWhiteSpace(mirroredPath)
-            ? mirroredPath
-            : userTempPath;
     }
 
     /// <inheritdoc />
@@ -110,15 +91,15 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         string command,
         string arguments,
         string workingDirectory,
+        AgentApprovalMode approvalMode = AgentApprovalMode.AskUser,
         CancellationToken cancellationToken = default)
     {
         var effectiveWorkingDirectory = ResolveWorkingDirectory(userId, workingDirectory);
-        if (!_userStoragePathService.ValidateUserPathAccess(userId, effectiveWorkingDirectory)
-            && string.IsNullOrWhiteSpace(_skillRuntimePathResolver.TryResolveAccessiblePath(userId, effectiveWorkingDirectory)))
+        if (!Directory.Exists(effectiveWorkingDirectory))
         {
             return CliExecutionPolicyResult.Block(
-                CliExecutionPolicyDecisionCode.WorkingDirectoryOutOfScope,
-                $"指定工作目录 '{workingDirectory}' 不在允许范围内。",
+                CliExecutionPolicyDecisionCode.WorkingDirectoryUnavailable,
+                $"指定工作目录不存在或无法访问：{effectiveWorkingDirectory}",
                 ToolFailureReason.PermissionDenied,
                 ToolSuggestedAction.Fallback);
         }
@@ -145,7 +126,10 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
             return CliExecutionPolicyResult.Allow(effectiveWorkingDirectory);
         }
 
-        if (_options.EnforceSafeBins && !string.IsNullOrWhiteSpace(commandRoot) && !IsSafeBin(commandRoot))
+        if (_options.EnforceSafeBins
+            && !string.IsNullOrWhiteSpace(commandRoot)
+            && !IsSafeBin(commandRoot)
+            && RequiresHumanApproval(approvalMode, isHighRisk: false))
         {
             return CliExecutionPolicyResult.Block(
                 CliExecutionPolicyDecisionCode.UnsafeCommandRequiresApproval,
@@ -157,7 +141,8 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
                 commandPattern: commandPattern);
         }
 
-        if (DangerousCommandPatterns.Any(pattern => lowered.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
+        if (DangerousCommandPatterns.Any(pattern => lowered.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            && RequiresHumanApproval(approvalMode, isHighRisk: true))
         {
             return CliExecutionPolicyResult.Block(
                 CliExecutionPolicyDecisionCode.DangerousCommandRequiresApproval,
@@ -169,19 +154,8 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
                 commandPattern: commandPattern);
         }
 
-        var externalPathViolation = DetectExternalPathViolation(userId, fullCommand);
-        if (!string.IsNullOrWhiteSpace(externalPathViolation))
-        {
-            return CliExecutionPolicyResult.Block(
-                CliExecutionPolicyDecisionCode.ExternalPathViolation,
-                externalPathViolation,
-                ToolFailureReason.PermissionDenied,
-                ToolSuggestedAction.Fallback,
-                commandFingerprint: commandFingerprint,
-                commandPattern: commandPattern);
-        }
-
-        if (StrictInlineEvalPatterns.Any(pattern => pattern.IsMatch(fullCommand)))
+        if (StrictInlineEvalPatterns.Any(pattern => pattern.IsMatch(fullCommand))
+            && RequiresHumanApproval(approvalMode, isHighRisk: false))
         {
             return CliExecutionPolicyResult.Block(
                 CliExecutionPolicyDecisionCode.StrictInlineEvalRequiresApproval,
@@ -208,7 +182,10 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
     }
 
     /// <inheritdoc />
-    public CliExecutionPolicyResult EvaluateCodeContent(string language, string code)
+    public CliExecutionPolicyResult EvaluateCodeContent(
+        string language,
+        string code,
+        AgentApprovalMode approvalMode = AgentApprovalMode.AskUser)
     {
         if (string.IsNullOrWhiteSpace(code))
         {
@@ -219,7 +196,8 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
                 ToolSuggestedAction.Abort);
         }
 
-        if (DangerousCodePatterns.Any(pattern => code.Contains(pattern, StringComparison.OrdinalIgnoreCase)))
+        if (DangerousCodePatterns.Any(pattern => code.Contains(pattern, StringComparison.OrdinalIgnoreCase))
+            && RequiresHumanApproval(approvalMode, isHighRisk: true))
         {
             return CliExecutionPolicyResult.Block(
                 CliExecutionPolicyDecisionCode.DangerousCodeRequiresApproval,
@@ -232,65 +210,15 @@ public sealed class CliExecutionPolicyService : ICliExecutionPolicyService
         return CliExecutionPolicyResult.Allow(string.Empty);
     }
 
-    private string? DetectExternalPathViolation(Guid userId, string command)
+    private bool RequiresHumanApproval(AgentApprovalMode approvalMode, bool isHighRisk)
     {
-        foreach (var token in command.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        return approvalMode switch
         {
-            var candidate = token.Trim('"', '\'', ')', ']', '}');
-            if (!LooksLikeAbsolutePath(candidate))
-            {
-                continue;
-            }
-
-            string normalized;
-            try
-            {
-                normalized = Path.GetFullPath(candidate);
-            }
-            catch
-            {
-                continue;
-            }
-
-            if (_userStoragePathService.ValidateUserPathAccess(userId, normalized))
-            {
-                continue;
-            }
-
-            if (!string.IsNullOrWhiteSpace(_skillRuntimePathResolver.TryResolveAccessiblePath(userId, normalized)))
-            {
-                continue;
-            }
-
-            return $"命令包含越界绝对路径，已被策略层拦截：{candidate}";
-        }
-
-        return null;
-    }
-
-    private static bool LooksLikeAbsolutePath(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            return false;
-        }
-
-        if (Regex.IsMatch(token, @"^[A-Za-z]:\\"))
-        {
-            return true;
-        }
-
-        if (!token.StartsWith('/'))
-        {
-            return false;
-        }
-
-        if (token.Length <= 2 && Regex.IsMatch(token, @"^/[A-Za-z]$"))
-        {
-            return false;
-        }
-
-        return token.Length > 1;
+            AgentApprovalMode.AskUser => true,
+            AgentApprovalMode.AgentDecides => isHighRisk,
+            AgentApprovalMode.FullAccess => isHighRisk && _options.AlwaysProtectHighRisk,
+            _ => true
+        };
     }
 
     private bool IsLooping(string sessionId, string workingDirectory, string command)

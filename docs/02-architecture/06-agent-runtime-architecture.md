@@ -209,7 +209,7 @@ Client 只消费结构化状态，不承担业务裁决：
 3. 解决后会推送最新挂起列表，并根据状态推送 `PendingInteractionResolved`。
 4. 后台服务会周期性将过期项标记为 `Expired`，并推送 `PendingInteractionExpired`。
 5. 队列拒绝提示、运行时恢复停止提示和前端输入框占位文案复用同一挂起交互摘要，避免不同入口对同一阻塞原因给出不同表述。
-6. 审批或补充信息解决后会写入 `resolutionAction`，审批通过还会写入 `approvalScope`；恢复消息 metadata 也会携带同一组键，后端 Prompt 动态上下文可识别这是挂起交互恢复，而不是普通用户输入。
+6. 审批或补充信息解决后会写入 `resolutionAction`，审批通过还会写入 `approvalScope`；恢复执行走后端控制通道复用原 AI 消息，不向前端新增可见用户消息。
 7. 恢复上下文由 Core 层 `PendingInteractionResumeContextBuilder` 生成，只输出语义化的解决动作、审批范围和用户补充字段；`resolutionAction` / `approvalScope` 这类内部 metadata 键不直接暴露给模型。
 
 ## 7. Credential Runtime

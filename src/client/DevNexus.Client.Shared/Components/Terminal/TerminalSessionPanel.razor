@@ -114,6 +114,8 @@
     }
     else
     {
+        var outputViewport = GetOutputViewport(SelectedRecord);
+
         <div class="terminal-session-panel__meta">
             @if (!string.IsNullOrWhiteSpace(SelectedRecord.WorkingDirectory))
             {
@@ -183,13 +185,17 @@
                     <span class="terminal-session-panel__traffic-dot"></span>
                 </div>
                 <span class="terminal-session-panel__output-label">@GetOutputModeLabel(SelectedRecord)</span>
+                @if (!string.IsNullOrEmpty(GetOutputViewportNotice(outputViewport)))
+                {
+                    <span class="terminal-session-panel__output-viewport">@GetOutputViewportNotice(outputViewport)</span>
+                }
             </div>
-            <pre @ref="_outputRef" class="terminal-session-panel__output">@GetOutputText(SelectedRecord)</pre>
+            <pre @ref="_outputRef" class="terminal-session-panel__output">@outputViewport.Text</pre>
         </div>
 
         @if (_showScrollButton)
         {
-            <button type="button" class="terminal-session-panel__scroll" @onclick="() => ScrollToBottomAsync()">
+            <button type="button" class="terminal-session-panel__scroll" @onclick="() => ScrollToBottomAsync(force: true)">
                 回到底部
             </button>
         }

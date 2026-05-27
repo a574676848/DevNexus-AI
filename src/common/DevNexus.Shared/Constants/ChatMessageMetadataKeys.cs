@@ -147,6 +147,11 @@ public static class ChatMessageMetadataKeys
     public const string PendingInteractionApprovalScope = PendingInteractionMetadataKeys.ApprovalScope;
 
     /// <summary>
+    /// Agent 自动化审批模式。
+    /// </summary>
+    public const string AgentApprovalMode = "agentApprovalMode";
+
+    /// <summary>
     /// 判断 metadata 是否标记为 Swarm 模式。
     /// </summary>
     public static bool IsSwarmMode(IReadOnlyDictionary<string, object>? metadata)

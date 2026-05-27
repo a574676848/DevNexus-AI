@@ -34,11 +34,11 @@ public class CodeExecutionPlugin
         _logger = logger;
     }
 
-    [KernelFunction, Description("在工作区内动态执行代码片段 (Python, Node.js, PowerShell 等)")]
+    [KernelFunction, Description("在本机工作目录中动态执行代码片段 (Python, Node.js, PowerShell 等)")]
     public async Task<string> RunCodeAsync(
         [Description("编程语言，例如 python, node, pwsh, bash")] string language,
         [Description("要执行的代码内容")] string code,
-        [Description("工作目录（必须在受控工作区内）")] string workingDirectory,
+        [Description("本机工作目录；为空时使用服务默认目录")] string workingDirectory,
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(code)) return TaggedExecutionText.Failure("代码内容不能为空。");
@@ -50,11 +50,18 @@ public class CodeExecutionPlugin
         }
 
         var effectiveWorkingDirectory = _cliExecutionPolicyService.ResolveWorkingDirectory(userId.Value, workingDirectory);
+        if (!Directory.Exists(effectiveWorkingDirectory))
+        {
+            return TaggedExecutionText.Failure($"指定工作目录不存在或无法访问：{effectiveWorkingDirectory}");
+        }
 
         // ✅ 代码执行开始提醒
         await ThinkingContext.EmitAsync($"⚙️ 正在执行 {language} 代码...");
 
-        var policy = _cliExecutionPolicyService.EvaluateCodeContent(language, code);
+        var policy = _cliExecutionPolicyService.EvaluateCodeContent(
+            language,
+            code,
+            ChatExecutionContext.CurrentApprovalMode);
         if (!policy.Allowed)
         {
             await ThinkingContext.EmitAsync("🛡️ 当前代码内容命中执行策略，已停止。");

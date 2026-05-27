@@ -86,8 +86,6 @@ public static class ServiceCollectionExtensions
 
         // 业务处理逻辑
         services.AddScoped<FileUploadService>();
-        services.AddScoped<ChatArtifactTracker>();
-        services.AddScoped<ChatBlockCollectionService>();
         services.AddScoped<ChatArtifactPersistenceService>();
         services.AddScoped<IChatMessageProcessor, ChatMessageProcessor>();
         services.AddScoped<IMessageHandlingService, MessageHandlingService>();

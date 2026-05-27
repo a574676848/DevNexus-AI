@@ -54,6 +54,8 @@ public partial class MessageList : IAsyncDisposable
     /// 用户在生成期间主动向上滚动，锁定自动滚动直到用户回到底部或主动点击回到最新
     /// </summary>
     private bool _userScrolledAway = false;
+    private bool _autoFollowLatestMessage = true;
+    private DateTime _autoScrollLeaseUntil = DateTime.MinValue;
     private bool ShowTerminalSummaryCard =>
         CurrentSessionId != Guid.Empty
         && ChatState.GetTerminalPresentation(CurrentSessionId) != null;
@@ -64,13 +66,18 @@ public partial class MessageList : IAsyncDisposable
     private bool ShouldShowAiStatusIndicator =>
         ChatState != null
         && CurrentSessionId != Guid.Empty
-        && CurrentMessagePresentation.IsStreaming;
+        && (CurrentMessagePresentation.ShouldShowStatusIndicator || HasRuntimeActivity());
     private bool IsStreamingRun =>
         ChatState != null
         && CurrentSessionId != Guid.Empty
         && CurrentMessagePresentation.IsStreaming;
     private DateTime _lastAutoScrollAt = DateTime.MinValue;
-    private static readonly TimeSpan AutoScrollThrottleInterval = TimeSpan.FromMilliseconds(220);
+    private const int InitialScrollDelayMs = 50;
+    private const int AutoScrollThrottleIntervalMs = 120;
+    private const int StreamingAutoScrollLeaseMs = 900;
+    private const int StickyAutoScrollDurationMs = 320;
+    private static readonly TimeSpan AutoScrollThrottleInterval = TimeSpan.FromMilliseconds(AutoScrollThrottleIntervalMs);
+    private static readonly TimeSpan StreamingAutoScrollLease = TimeSpan.FromMilliseconds(StreamingAutoScrollLeaseMs);
 
     #endregion
 
@@ -91,6 +98,8 @@ public partial class MessageList : IAsyncDisposable
             _unreadMessageCount = 0;
             _showScrollButton = false;
             _userScrolledAway = false;
+            _autoFollowLatestMessage = true;
+            ExtendAutoScrollLease();
             return Task.CompletedTask;
         }
 
@@ -101,7 +110,16 @@ public partial class MessageList : IAsyncDisposable
         }
 
         var currentMessageCount = Messages?.Count ?? 0;
-        if (currentMessageCount > _lastMessageCount && !_isAtBottom)
+        var messageCountIncreased = currentMessageCount > _lastMessageCount;
+        if (messageCountIncreased && ShouldFollowNewMessage())
+        {
+            _autoFollowLatestMessage = true;
+            _unreadMessageCount = 0;
+            _showScrollButton = false;
+            _userScrolledAway = false;
+            ExtendAutoScrollLease();
+        }
+        else if (messageCountIncreased && !_isAtBottom)
         {
             _unreadMessageCount += currentMessageCount - _lastMessageCount;
             _showScrollButton = true;
@@ -134,8 +152,8 @@ public partial class MessageList : IAsyncDisposable
             {
                 _lastMessageCount = Messages.Count;
                 _lastFirstMessageId = Messages.FirstOrDefault()?.Id;
-                await Task.Delay(50);
-                await ScrollToBottomAsync(true);
+                await Task.Delay(InitialScrollDelayMs);
+                await ScrollToBottomAsync(force: true, sticky: true);
             }
         }
         else
@@ -145,20 +163,21 @@ public partial class MessageList : IAsyncDisposable
             {
                 _needsScrollToBottom = false;
                 _lastMessageCount = Messages?.Count ?? 0;
-                await Task.Delay(50);
-                await ScrollToBottomAsync(true);
+                await Task.Delay(InitialScrollDelayMs);
+                await ScrollToBottomAsync(force: true, sticky: true);
             }
             // 非首次渲染：仅当用户仍停留在底部且未主动上滚时才跟随新内容
             else if (Messages != null && Messages.Count != _lastMessageCount)
             {
                 _lastMessageCount = Messages.Count;
 
-                if (_isAtBottom && !_userScrolledAway)
+                if (_autoFollowLatestMessage || (_isAtBottom && !_userScrolledAway))
                 {
-                    await ScrollToBottomIfDueAsync();
+                    ExtendAutoScrollLease();
+                    await ScrollToBottomAsync(force: true, sticky: true);
                 }
             }
-            else if (IsStreamingRun && _isAtBottom && !_userScrolledAway)
+            else if (IsStreamingRun && ShouldKeepAutoFollowing())
             {
                 await ScrollToBottomIfDueAsync();
             }
@@ -197,13 +216,14 @@ public partial class MessageList : IAsyncDisposable
             _unreadMessageCount = 0;
             _userScrolledAway = false;
         }
-        else if (IsStreamingRun)
+        else if (IsStreamingRun && !IsWithinAutoScrollLease())
         {
             // 生成期间用户主动向上滚动，锁定自动滚动
             _userScrolledAway = true;
+            _autoFollowLatestMessage = false;
         }
 
-        var shouldShow = !isAtBottom && Messages.Count > 5;
+        var shouldShow = !isAtBottom && !_autoFollowLatestMessage && Messages.Count > 5;
         if (_showScrollButton != shouldShow)
         {
             _showScrollButton = shouldShow;
@@ -239,7 +259,36 @@ public partial class MessageList : IAsyncDisposable
             _unreadMessageCount = 0;
             _showScrollButton = false;
             _userScrolledAway = false;
+            _autoFollowLatestMessage = true;
             _lastAutoScrollAt = DateTime.UtcNow;
+            ExtendAutoScrollLease();
+        }
+        catch
+        {
+            // 忽略 JS 互操作错误
+        }
+    }
+
+    private async Task ScrollToBottomAsync(bool force, bool sticky)
+    {
+        try
+        {
+            var didScroll = sticky
+                ? await JS.InvokeAsync<bool>("scrollToBottomWhileStable", _listRef, StickyAutoScrollDurationMs)
+                : await JS.InvokeAsync<bool>(force ? "scrollToBottomForce" : "scrollToBottom", _listRef, force);
+
+            if (!didScroll)
+            {
+                return;
+            }
+
+            _isAtBottom = true;
+            _unreadMessageCount = 0;
+            _showScrollButton = false;
+            _userScrolledAway = false;
+            _autoFollowLatestMessage = true;
+            _lastAutoScrollAt = DateTime.UtcNow;
+            ExtendAutoScrollLease();
         }
         catch
         {
@@ -259,6 +308,41 @@ public partial class MessageList : IAsyncDisposable
         }
 
         await ScrollToBottomAsync();
+    }
+
+    private bool ShouldKeepAutoFollowing()
+    {
+        return !_userScrolledAway && (_isAtBottom || _autoFollowLatestMessage || IsWithinAutoScrollLease());
+    }
+
+    private bool ShouldFollowNewMessage()
+    {
+        var lastMessage = Messages?.LastOrDefault();
+        return _isAtBottom
+            || _autoFollowLatestMessage
+            || ChatConstants.IsUserSender(lastMessage?.SenderType);
+    }
+
+    private void ExtendAutoScrollLease()
+    {
+        _autoScrollLeaseUntil = DateTime.UtcNow.Add(StreamingAutoScrollLease);
+    }
+
+    private bool IsWithinAutoScrollLease()
+    {
+        return DateTime.UtcNow <= _autoScrollLeaseUntil;
+    }
+
+    private bool HasRuntimeActivity()
+    {
+        var toolActivity = ChatState.GetToolActivityPresentation(CurrentSessionId);
+        if (toolActivity?.IsActive == true)
+        {
+            return true;
+        }
+
+        var terminal = ChatState.GetTerminalPresentation(CurrentSessionId);
+        return terminal != null && (terminal.IsActive || terminal.WaitingForInput);
     }
 
     /// <summary>
@@ -317,6 +401,7 @@ public partial class MessageList : IAsyncDisposable
             or BlockType.Thinking
             or BlockType.Chart
             or BlockType.InteractiveCard
+            or BlockType.Terminal
             or BlockType.ArtifactStart
             or BlockType.ArtifactDelta
             or BlockType.ArtifactEnd

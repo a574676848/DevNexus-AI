@@ -11,16 +11,15 @@ namespace DevNexus.Core.Tests.Services.Chat;
 public sealed class PendingInteractionResolutionPolicyTests
 {
     /// <summary>
-    /// 兼容旧 approve 动作，并归一为单次审批。
+    /// 单次审批应带 Once 授权范围。
     /// </summary>
     [Fact]
-    public void Resolve_ShouldNormalizeApproveToApproveOnce()
+    public void Resolve_ShouldReturnOnceScope_WhenApproveOnce()
     {
-        var decision = PendingInteractionResolutionPolicy.Resolve("approve");
+        var decision = PendingInteractionResolutionPolicy.Resolve("approve-once");
 
         decision.Action.Should().Be(PendingInteractionResolutionActions.ApproveOnce);
         decision.ApprovalScope.Should().Be(CliApprovalGrantScope.Once);
-        decision.ResumeMessage.Should().Be("我已允许本次命令执行，请继续。");
     }
 
     /// <summary>
@@ -33,7 +32,6 @@ public sealed class PendingInteractionResolutionPolicyTests
 
         decision.Action.Should().Be(PendingInteractionResolutionActions.ApprovePattern);
         decision.ApprovalScope.Should().Be(CliApprovalGrantScope.Pattern);
-        decision.ResumeMessage.Should().Be("我已允许当前会话中的同类命令继续执行，请继续。");
     }
 
     /// <summary>
@@ -59,6 +57,5 @@ public sealed class PendingInteractionResolutionPolicyTests
 
         decision.Action.Should().Be(PendingInteractionResolutionActions.Submit);
         decision.ApprovalScope.Should().BeNull();
-        decision.ResumeMessage.Should().Be("我已补充所需信息，请继续。");
     }
 }

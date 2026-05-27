@@ -279,10 +279,7 @@ public class ChatController : AuthenticatedControllerBase
             InteractionId = interaction.Id,
             ShouldResume = interaction.Status == PendingInteractionStatus.Resolved,
             Action = resolutionDecision.Action,
-            ApprovalScope = resolutionDecision.ApprovalScope,
-            ResumeMessage = interaction.Status == PendingInteractionStatus.Resolved
-                ? resolutionDecision.ResumeMessage
-                : null
+            ApprovalScope = resolutionDecision.ApprovalScope
         });
     }
 

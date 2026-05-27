@@ -36,6 +36,13 @@
             <i class="fa-solid fa-book-open"></i>
         </button>
 
+        <button class="toolbar-btn toolbar-approval-btn approval-@AgentApprovalMode.ToString().ToLowerInvariant()"
+                title="@ApprovalModeTitle"
+                aria-label="@ApprovalModeTitle"
+                @onclick="ToggleApprovalModeAsync">
+            <i class="@ApprovalModeIcon"></i>
+        </button>
+
         @if (CanToggleSidekick)
         {
             <button class="toolbar-btn toolbar-sidekick-btn @(IsSidekickVisible ? "active" : string.Empty)"

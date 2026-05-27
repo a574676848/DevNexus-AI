@@ -3,11 +3,26 @@
     overflow-wrap: break-word;
     font-family: inherit;
     line-height: 1.6;
+    overflow-anchor: none;
+}
+
+.silky-markdown-content--streaming {
+    contain: layout paint;
+}
+
+.silky-markdown-content ::deep .silky-markdown-stream-text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.7;
 }
 
 /* 流式渲染时的平滑过渡效果 */
 .silky-markdown-content ::deep * {
     transition: opacity 0.1s ease-out;
+}
+
+.silky-markdown-content--streaming ::deep * {
+    transition-property: opacity;
 }
 
 /* 确保代码块样式正确，并复用 markdown.css 中的样式 */
@@ -20,6 +35,7 @@
     color: var(--md-code-text, #1a1a1a);
     position: relative;
     overflow: auto;
+    min-height: 44px;
 }
 
 /* 确保代码块内文字颜色正确 */
@@ -153,7 +169,22 @@
 
 .silky-markdown-content ::deep p {
     margin: 0.8em 0;
+    min-height: 1.7em;
     line-height: 1.7;
+}
+
+.silky-markdown-content--streaming ::deep p:first-child,
+.silky-markdown-content--streaming ::deep ul:first-child,
+.silky-markdown-content--streaming ::deep ol:first-child,
+.silky-markdown-content--streaming ::deep pre:first-child {
+    margin-top: 0;
+}
+
+.silky-markdown-content--streaming ::deep p:last-child,
+.silky-markdown-content--streaming ::deep ul:last-child,
+.silky-markdown-content--streaming ::deep ol:last-child,
+.silky-markdown-content--streaming ::deep pre:last-child {
+    margin-bottom: 0;
 }
 
 .silky-markdown-content ::deep h1 {

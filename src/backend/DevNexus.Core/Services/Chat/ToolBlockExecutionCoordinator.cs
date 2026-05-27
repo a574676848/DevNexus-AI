@@ -241,13 +241,13 @@ public sealed class ToolBlockExecutionCoordinator
             return;
         }
 
-        await ThinkingContext.EmitAsync($"🔎 正在进行联网搜索: {query}");
-        await ThinkingContext.EmitAsync("📡 正在查询搜索引擎，请稍候...");
+        await EmitToolThinkingAsync($"🔎 正在进行联网搜索: {query}", ToolInvocationStatus.Running);
+        await EmitToolThinkingAsync("📡 正在查询搜索引擎，请稍候...", ToolInvocationStatus.Running);
 
         var resultsJson = await ExecuteWebSearchAsync(providerId, query, maxResults, cancellationToken);
         var resultCount = ParseResultCount(resultsJson);
         var countMsg = resultCount > 0 ? $"📋 找到 {resultCount} 条结果，正在整理..." : "⚠️ 未找到相关结果";
-        await ThinkingContext.EmitAsync(countMsg);
+        await EmitToolThinkingAsync(countMsg, ToolInvocationStatus.Running);
 
         await blockWriter.WriteAsync(new BlockDto
         {
@@ -263,7 +263,7 @@ public sealed class ToolBlockExecutionCoordinator
             }
         }, cancellationToken);
 
-        await ThinkingContext.EmitAsync("✅ 搜索完成，正在整理结果...");
+        await EmitToolThinkingAsync("✅ 搜索完成，正在整理结果...", ToolInvocationStatus.Completed);
     }
 
     private async Task EmitAdvancedSearchResultBlockAsync(
@@ -291,19 +291,19 @@ public sealed class ToolBlockExecutionCoordinator
             return;
         }
 
-        await ThinkingContext.EmitAsync($"🔍 正在进行高级搜索: {query}");
-        await ThinkingContext.EmitAsync("📡 正在从搜索引擎获取相关链接...");
+        await EmitToolThinkingAsync($"🔍 正在进行高级搜索: {query}", ToolInvocationStatus.Running);
+        await EmitToolThinkingAsync("📡 正在从搜索引擎获取相关链接...", ToolInvocationStatus.Running);
 
         var urlListJson = await ExecuteWebSearchAsync(providerId, query, maxResults, cancellationToken);
         var urlCount = ParseResultCount(urlListJson);
 
         if (urlCount > 0)
         {
-            await ThinkingContext.EmitAsync($"📋 找到 {urlCount} 个相关网页，正在并发深度读取全文内容...");
+            await EmitToolThinkingAsync($"📋 找到 {urlCount} 个相关网页，正在并发深度读取全文内容...", ToolInvocationStatus.Running);
         }
         else
         {
-            await ThinkingContext.EmitAsync("⚠️ 搜索引擎未找到结果，尝试备用策略...");
+            await EmitToolThinkingAsync("⚠️ 搜索引擎未找到结果，尝试备用策略...", ToolInvocationStatus.Running);
         }
 
         var resultsJson = await ExecuteAdvancedSearchAsync(providerId, query, maxResults, cancellationToken);
@@ -311,7 +311,7 @@ public sealed class ToolBlockExecutionCoordinator
         var doneMsg = readCount > 0
             ? $"✅ 成功深度阅读 {readCount} 个网页，正在整理结果..."
             : "⚠️ 高级搜索未能读取网页内容";
-        await ThinkingContext.EmitAsync(doneMsg);
+        await EmitToolThinkingAsync(doneMsg, ToolInvocationStatus.Running);
 
         await blockWriter.WriteAsync(new BlockDto
         {
@@ -327,7 +327,7 @@ public sealed class ToolBlockExecutionCoordinator
             }
         }, cancellationToken);
 
-        await ThinkingContext.EmitAsync("✅ 高级搜索完成，正在整理结果...");
+        await EmitToolThinkingAsync("✅ 高级搜索完成，正在整理结果...", ToolInvocationStatus.Completed);
     }
 
     private async Task EmitWebpageResultBlockAsync(
@@ -349,7 +349,7 @@ public sealed class ToolBlockExecutionCoordinator
         var domain = ExtractDomain(url);
         var readerLabel = method == "auto" ? "自动选择最优阅读器" : method;
 
-        await ThinkingContext.EmitAsync($"📄 正在读取网页: {domain}");
+        await EmitToolThinkingAsync($"📄 正在读取网页: {domain}", ToolInvocationStatus.Running);
         string resultJson;
         if (WebResourceRoutingPolicy.IsGitRepositoryUrl(url))
         {
@@ -357,7 +357,7 @@ public sealed class ToolBlockExecutionCoordinator
                 "[AI.Chat] 已阻止 Git 仓库 URL 进入网页阅读器 | Url={Url} MessageId={MessageId}",
                 url,
                 messageId);
-            await ThinkingContext.EmitAsync("📦 检测到代码仓库地址，已转为仓库解析路径");
+            await EmitToolThinkingAsync("📦 检测到代码仓库地址，已转为仓库解析路径", ToolInvocationStatus.Running);
             resultJson = JsonSerializer.Serialize(new
             {
                 success = false,
@@ -368,7 +368,7 @@ public sealed class ToolBlockExecutionCoordinator
         }
         else
         {
-            await ThinkingContext.EmitAsync($"🌐 使用 [{readerLabel}] 读取 {domain}，正在将网页转为 Markdown...");
+            await EmitToolThinkingAsync($"🌐 使用 [{readerLabel}] 读取 {domain}，正在将网页转为 Markdown...", ToolInvocationStatus.Running);
             resultJson = await ExecuteWebpageReadAsync(providerId, url, method, cancellationToken);
         }
 
@@ -376,7 +376,7 @@ public sealed class ToolBlockExecutionCoordinator
         var readDoneMsg = contentLength > 0
             ? $"✅ 读取完成，获取到约 {contentLength / 1000.0:F1}K 字符的网页内容"
             : "⚠️ 网页读取完成，但内容为空";
-        await ThinkingContext.EmitAsync(readDoneMsg);
+        await EmitToolThinkingAsync(readDoneMsg, ToolInvocationStatus.Running);
 
         await blockWriter.WriteAsync(new BlockDto
         {
@@ -393,7 +393,15 @@ public sealed class ToolBlockExecutionCoordinator
             }
         }, cancellationToken);
 
-        await ThinkingContext.EmitAsync("✅ 网页读取完成，正在整理内容...");
+        await EmitToolThinkingAsync("✅ 网页读取完成，正在整理内容...", ToolInvocationStatus.Completed);
+    }
+
+    private static Task EmitToolThinkingAsync(string message, ToolInvocationStatus status)
+    {
+        return ThinkingContext.EmitAsync(
+            message,
+            FeedbackBlockMetadataConstants.SourceToolInvocation,
+            status);
     }
 
     private async Task<string> ExecuteWebSearchAsync(

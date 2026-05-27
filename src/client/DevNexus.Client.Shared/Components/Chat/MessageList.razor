@@ -39,6 +39,7 @@
                                  UserAvatarUrl="@UserAvatarUrl"
                                  IsLastAssistantMessage="@(IsLastAssistantMessage(message))"
                                  IsSidekickVisible="@ChatState.IsSidekickVisible"
+                                 OnOpenTerminalDetail="@OnOpenTerminalDetail"
                                  OnEdit="@(content => OnEditMessage.InvokeAsync((message, content)))"
                                  OnRegenerate="@(() => OnRegenerateMessage.InvokeAsync(message))"
                                  OnContinue="HandleContinueGeneration" />
@@ -53,6 +54,7 @@
                                  UserAvatarUrl="@UserAvatarUrl"
                                  IsLastAssistantMessage="@(IsLastAssistantMessage(message))"
                                  IsSidekickVisible="@ChatState.IsSidekickVisible"
+                                 OnOpenTerminalDetail="@OnOpenTerminalDetail"
                                  OnEdit="@(content => OnEditMessage.InvokeAsync((message, content)))"
                                  OnRegenerate="@(() => OnRegenerateMessage.InvokeAsync(message))"
                                  OnContinue="HandleContinueGeneration" />
@@ -66,16 +68,16 @@
                                      OnOpenDetail="OnOpenTerminalDetail" />
             }
 
-            @* AI 状态指示器：仅在真正流式执行阶段展示，挂起补参/审批时由挂起交互卡片承担状态表达 *@
+            @* AI 状态指示器：覆盖流式生成、终端运行/待输入、审批/补参等待和独立工具活动 *@
             @if (ShouldShowAiStatusIndicator)
             {
-                if (ChatState != null && ChatState.IsSwarmActive(CurrentSessionId))
-                {
+                <div class="message-stream-status" role="status" aria-live="polite" aria-atomic="false">
                     <AiStatusIndicator CurrentSessionId="@CurrentSessionId"
                                       CurrentBlocks="@CurrentBlocks"
+                                      OnOpenTerminalDetail="@OnOpenTerminalDetail"
                                       OnOpenSwarmSidekick="@OpenSwarmSidekick"
                                       Presentation="@CurrentMessagePresentation" />
-                }
+                </div>
             }
         }
     </div>

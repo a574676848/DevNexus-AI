@@ -3,6 +3,7 @@ using DevNexus.Client.Shared.Abstractions.Chat;
 using DevNexus.Client.Shared.Abstractions;
 using DevNexus.Client.Shared.Services.Storage;
 using DevNexus.Shared.DTOs;
+using DevNexus.Shared.Enums;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -26,6 +27,10 @@ public partial class InputBox
             var savedEnterMode = await JS.InvokeAsync<string>("localStorage.getItem", "devnexus_enter_to_send");
             if (!string.IsNullOrEmpty(savedEnterMode))
                 _enterToSend = savedEnterMode.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+            var savedApprovalMode = await JS.InvokeAsync<string>("localStorage.getItem", "devnexus_agent_approval_mode");
+            if (Enum.TryParse<AgentApprovalMode>(savedApprovalMode, ignoreCase: true, out var approvalMode))
+                _agentApprovalMode = approvalMode;
         }
         catch { /* 使用默认值 */ }
     }
@@ -47,6 +52,12 @@ public partial class InputBox
     {
         _enableRag = value;
         await SaveSettingAsync("devnexus_rag_enabled", value.ToString().ToLower());
+    }
+
+    private async Task OnAgentApprovalModeChanged(AgentApprovalMode value)
+    {
+        _agentApprovalMode = value;
+        await SaveSettingAsync("devnexus_agent_approval_mode", value.ToString());
     }
 
     private async Task OnEnterToSendChanged(bool value)

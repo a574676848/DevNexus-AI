@@ -8,55 +8,12 @@ namespace DevNexus.Client.Shared.Services.Chat;
 
 public class ChatMessageProcessor : IChatMessageProcessor
 {
-    private readonly ChatBlockCollectionService _blockCollectionService;
-    private readonly ChatArtifactTracker _artifactTracker;
     private readonly ChatArtifactPersistenceService _artifactPersistenceService;
 
     public ChatMessageProcessor(
-        ChatBlockCollectionService blockCollectionService,
-        ChatArtifactTracker artifactTracker,
         ChatArtifactPersistenceService artifactPersistenceService)
     {
-        _blockCollectionService = blockCollectionService;
-        _artifactTracker = artifactTracker;
         _artifactPersistenceService = artifactPersistenceService;
-    }
-
-    public void ProcessBlock(BlockDto block, List<BlockDto> currentBlocks, ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts)
-    {
-        switch (block.BlockType)
-        {
-            case BlockType.TextDelta:
-            case BlockType.Thinking:
-                _blockCollectionService.AddBlockIfMissing(block, currentBlocks);
-                break;
-
-            case BlockType.InteractiveCard:
-                _blockCollectionService.ProcessInteractiveCard(block, currentBlocks, completedArtifacts);
-                break;
-
-            case BlockType.Chart:
-            case BlockType.Warning:
-            case BlockType.Reference:
-            case BlockType.Truncated:
-                _blockCollectionService.AddBlockIfMissing(block, currentBlocks);
-                break;
-            case BlockType.Terminal:
-                _blockCollectionService.ProcessTerminalBlock(block, currentBlocks);
-                break;
-
-            case BlockType.ArtifactStart:
-                _artifactTracker.ProcessArtifactStart(block, ref currentArtifact);
-                break;
-
-            case BlockType.ArtifactDelta:
-                _artifactTracker.ProcessArtifactDelta(block, ref currentArtifact);
-                break;
-
-            case BlockType.ArtifactEnd:
-                _artifactTracker.ProcessArtifactEnd(block, ref currentArtifact, completedArtifacts);
-                break;
-        }
     }
 
     public async Task<ChatMessageDto?> BuildChatMessageAsync(
@@ -130,4 +87,3 @@ public class ChatMessageProcessor : IChatMessageProcessor
         return aiMessage;
     }
 }
-

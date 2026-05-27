@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using DevNexus.Client.Shared.Helpers;
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
 
@@ -20,7 +21,7 @@ public sealed class BlockIndexer : IDisposable
     private readonly List<BlockDto> _allBlocks = new();
     
     /// <summary>
-    /// 展示块列表（Terminal/Chart/InteractiveCard/Warning/Reference/Truncated）。
+    /// 展示块列表（TextDelta/Thinking/Terminal/Chart/InteractiveCard/Artifact/Warning/Reference/Truncated）。
     /// </summary>
     private readonly List<BlockDto> _orderedBlocks = new();
     
@@ -33,6 +34,16 @@ public sealed class BlockIndexer : IDisposable
     /// BlockId → _orderedBlocks 索引映射（O(1) 查找）
     /// </summary>
     private readonly Dictionary<Guid, int> _blockIdToOrderedIndex = new();
+
+    /// <summary>
+    /// Artifact 语义标识 → _orderedBlocks 索引映射，用于把流式 delta 合并成单个展示块。
+    /// </summary>
+    private readonly Dictionary<string, int> _artifactKeyToOrderedIndex = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 未携带 ArtifactId 的流式 delta 先按消息作用域暂存，最终完整块到达后再绑定真实 ArtifactId。
+    /// </summary>
+    private readonly Dictionary<string, int> _provisionalArtifactIndexByScope = new(StringComparer.Ordinal);
 
     #endregion
 
@@ -140,6 +151,18 @@ public sealed class BlockIndexer : IDisposable
                 case BlockType.Terminal:
                 case BlockType.Chart:
                 case BlockType.InteractiveCard:
+                case BlockType.ArtifactStart:
+                    AddArtifactStartBlock(block);
+                    break;
+
+                case BlockType.ArtifactDelta:
+                    AppendArtifactDeltaBlock(block);
+                    break;
+
+                case BlockType.ArtifactEnd:
+                    CompleteArtifactBlock(block);
+                    break;
+
                 case BlockType.Warning:
                 case BlockType.Reference:
                 case BlockType.Truncated:
@@ -240,6 +263,8 @@ public sealed class BlockIndexer : IDisposable
         _orderedBlocks.Clear();
         _blockIdToAllIndex.Clear();
         _blockIdToOrderedIndex.Clear();
+        _artifactKeyToOrderedIndex.Clear();
+        _provisionalArtifactIndexByScope.Clear();
         _textContent.Clear();
         _thinkingContent.Clear();
         
@@ -282,6 +307,8 @@ public sealed class BlockIndexer : IDisposable
         _orderedBlocks.Clear();
         _blockIdToAllIndex.Clear();
         _blockIdToOrderedIndex.Clear();
+        _artifactKeyToOrderedIndex.Clear();
+        _provisionalArtifactIndexByScope.Clear();
         _textContent.Clear();
         _thinkingContent.Clear();
     }
@@ -339,6 +366,154 @@ public sealed class BlockIndexer : IDisposable
     }
 
     /// <summary>
+    /// 添加 Artifact 起始块，后续 delta/end 会继续更新同一个展示块。
+    /// </summary>
+    /// <param name="block">Artifact 起始块。</param>
+    private void AddArtifactStartBlock(BlockDto block)
+    {
+        var key = GetExplicitArtifactKey(block);
+        var scope = GetArtifactScope(block);
+        if (key != null && _artifactKeyToOrderedIndex.TryGetValue(key, out var existingIndex))
+        {
+            _orderedBlocks[existingIndex] = block;
+            _blockIdToOrderedIndex[block.BlockId] = existingIndex;
+            return;
+        }
+
+        if (scope != null && _provisionalArtifactIndexByScope.TryGetValue(scope, out var provisionalIndex))
+        {
+            _orderedBlocks[provisionalIndex] = block;
+            _blockIdToOrderedIndex[block.BlockId] = provisionalIndex;
+            _provisionalArtifactIndexByScope.Remove(scope);
+            if (key != null)
+            {
+                _artifactKeyToOrderedIndex[key] = provisionalIndex;
+            }
+
+            return;
+        }
+
+        AddToOrderedBlocks(block);
+        if (key != null)
+        {
+            _artifactKeyToOrderedIndex[key] = _orderedBlocks.Count - 1;
+        }
+        else if (scope != null)
+        {
+            _provisionalArtifactIndexByScope[scope] = _orderedBlocks.Count - 1;
+        }
+    }
+
+    /// <summary>
+    /// 将 Artifact delta 累计到起始展示块，避免 AI 气泡里出现一串碎片代码块。
+    /// </summary>
+    /// <param name="block">Artifact delta 块。</param>
+    private void AppendArtifactDeltaBlock(BlockDto block)
+    {
+        if (!TryGetArtifactDisplayBlock(block, out var existing))
+        {
+            AddToOrderedBlocks(block);
+            var scope = GetArtifactScope(block);
+            if (scope != null)
+            {
+                _provisionalArtifactIndexByScope[scope] = _orderedBlocks.Count - 1;
+            }
+
+            return;
+        }
+
+        existing.Content += block.Content;
+        MergeBlockMetadata(existing, block.Metadata);
+    }
+
+    /// <summary>
+    /// 标记 Artifact 展示块完成，并保留最终元数据。
+    /// </summary>
+    /// <param name="block">Artifact 结束块。</param>
+    private void CompleteArtifactBlock(BlockDto block)
+    {
+        if (!TryGetArtifactDisplayBlock(block, out var existing))
+        {
+            AddToOrderedBlocks(block);
+            return;
+        }
+
+        existing.IsLast = true;
+        MergeBlockMetadata(existing, block.Metadata);
+    }
+
+    private bool TryGetArtifactDisplayBlock(BlockDto block, out BlockDto existing)
+    {
+        var explicitKey = GetExplicitArtifactKey(block);
+        if (TryGetOrderedArtifactBlock(_artifactKeyToOrderedIndex, explicitKey, out existing))
+        {
+            return true;
+        }
+
+        var scope = GetArtifactScope(block);
+        if (TryGetOrderedArtifactBlock(_provisionalArtifactIndexByScope, scope, out existing))
+        {
+            return true;
+        }
+
+        existing = default!;
+        return false;
+    }
+
+    private bool TryGetOrderedArtifactBlock(
+        Dictionary<string, int> indexByKey,
+        string? key,
+        out BlockDto existing)
+    {
+        if (key != null
+            && indexByKey.TryGetValue(key, out var index)
+            && index >= 0
+            && index < _orderedBlocks.Count)
+        {
+            existing = _orderedBlocks[index];
+            return true;
+        }
+
+        existing = default!;
+        return false;
+    }
+
+    private static string? GetExplicitArtifactKey(BlockDto block)
+    {
+        if (!string.IsNullOrWhiteSpace(block.ArtifactId))
+        {
+            return block.ArtifactId;
+        }
+
+        var metadataArtifactId = ChatMessageMetadataReader.GetGuid(
+            block.Metadata,
+            ArtifactBlockMetadataConstants.ArtifactId);
+        return metadataArtifactId?.ToString("N");
+    }
+
+    private static string? GetArtifactScope(BlockDto block)
+    {
+        return block.MessageId == Guid.Empty ? null : $"{block.MessageId:N}:{block.Version}";
+    }
+
+    private static void MergeBlockMetadata(BlockDto target, Dictionary<string, object>? source)
+    {
+        if (source == null || source.Count == 0)
+        {
+            return;
+        }
+
+        target.Metadata ??= new Dictionary<string, object>();
+        foreach (var item in source)
+        {
+            if (item.Value != null)
+            {
+                target.Metadata[item.Key] = item.Value;
+            }
+        }
+    }
+
+    /// <summary>
     /// 从展示块列表中移除块
     /// </summary>
     /// <param name="blockId">要移除的块 ID</param>
@@ -370,6 +545,9 @@ public sealed class BlockIndexer : IDisposable
                blockType == BlockType.Terminal ||
                blockType == BlockType.Chart ||
                blockType == BlockType.InteractiveCard ||
+               blockType == BlockType.ArtifactStart ||
+               blockType == BlockType.ArtifactDelta ||
+               blockType == BlockType.ArtifactEnd ||
                blockType == BlockType.Warning ||
                blockType == BlockType.Reference ||
                blockType == BlockType.Truncated;

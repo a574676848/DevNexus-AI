@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.JSInterop;
+using DevNexus.Shared.Enums;
 
 namespace DevNexus.Client.Shared.Components.Chat;
 
@@ -10,6 +11,7 @@ namespace DevNexus.Client.Shared.Components.Chat;
 public partial class InputToolbar
 {
     [Parameter] public bool EnableRag { get; set; } = true;
+    [Parameter] public AgentApprovalMode AgentApprovalMode { get; set; } = AgentApprovalMode.AskUser;
     [Parameter] public Guid? SelectedProviderId { get; set; }
     [Parameter] public string? SelectedProviderName { get; set; }
     [Parameter] public string? SelectedToolName { get; set; }
@@ -21,6 +23,7 @@ public partial class InputToolbar
     [Parameter] public bool IsSidekickVisible { get; set; }
     [Parameter] public bool CanToggleSidekick { get; set; }
     [Parameter] public EventCallback<bool> EnableRagChanged { get; set; }
+    [Parameter] public EventCallback<AgentApprovalMode> AgentApprovalModeChanged { get; set; }
     [Parameter] public EventCallback<(Guid? ProviderId, string? ProviderName)> OnProviderChanged { get; set; }
     [Parameter] public EventCallback OnOpenQuickCommand { get; set; }
     [Parameter] public EventCallback<InputFileChangeEventArgs> OnFileSelected { get; set; }
@@ -32,6 +35,21 @@ public partial class InputToolbar
 
     private InputFile? _fileInputRef;
     private bool HasActiveSelection => !string.IsNullOrWhiteSpace(SelectedToolName) || !string.IsNullOrWhiteSpace(SelectedSkillName);
+    private string ApprovalModeTitle => AgentApprovalMode switch
+    {
+        AgentApprovalMode.AskUser => "审批模式：始终询问用户",
+        AgentApprovalMode.AgentDecides => "审批模式：Agent 自主决策",
+        AgentApprovalMode.FullAccess => "审批模式：完全放权",
+        _ => "审批模式"
+    };
+
+    private string ApprovalModeIcon => AgentApprovalMode switch
+    {
+        AgentApprovalMode.AskUser => "fa-solid fa-hand",
+        AgentApprovalMode.AgentDecides => "fa-solid fa-scale-balanced",
+        AgentApprovalMode.FullAccess => "fa-solid fa-unlock",
+        _ => "fa-solid fa-shield-halved"
+    };
 
     /// <summary>
     /// 触发文件选择对话框
@@ -86,6 +104,21 @@ public partial class InputToolbar
     {
         EnableRag = !EnableRag;
         await EnableRagChanged.InvokeAsync(EnableRag);
+    }
+
+    /// <summary>
+    /// 按 Codex 三档审批语义循环切换。
+    /// </summary>
+    private async Task ToggleApprovalModeAsync()
+    {
+        AgentApprovalMode = AgentApprovalMode switch
+        {
+            AgentApprovalMode.AskUser => AgentApprovalMode.AgentDecides,
+            AgentApprovalMode.AgentDecides => AgentApprovalMode.FullAccess,
+            _ => AgentApprovalMode.AskUser
+        };
+
+        await AgentApprovalModeChanged.InvokeAsync(AgentApprovalMode);
     }
 
     /// <summary>

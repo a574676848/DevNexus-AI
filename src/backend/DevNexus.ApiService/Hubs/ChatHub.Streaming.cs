@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using DevNexus.ApiService.Services;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
+using DevNexus.Shared.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -85,6 +86,93 @@ public partial class ChatHub
     }
 
     /// <summary>
+    /// 恢复已解决的挂起交互。
+    /// 这是运行态控制通道，不代表用户发送了一条新的可见聊天消息。
+    /// </summary>
+    [Authorize]
+    public async Task ResumePendingInteraction(ChatRequest chatRequest)
+    {
+        var userId = GetCurrentUserId();
+        var userGroup = GetUserGroupName(userId);
+        var sessionId = chatRequest.SessionId ?? Guid.Empty;
+
+        if (!TryGetPendingInteractionResumeId(chatRequest, out var pendingInteractionId))
+        {
+            throw new HubException("恢复请求缺少挂起交互元数据。");
+        }
+
+        await ValidatePendingInteractionResumeAsync(userId, sessionId, pendingInteractionId);
+
+        SetUserContext(userId, chatRequest.SessionId);
+        await ExecuteStreamMessageAsync(chatRequest, userId, sessionId, userGroup);
+    }
+
+    private async Task ValidatePendingInteractionResumeAsync(
+        Guid userId,
+        Guid sessionId,
+        Guid pendingInteractionId)
+    {
+        var session = await _chatService.GetChatSessionAsync(sessionId, userId, Context.ConnectionAborted);
+        if (session == null)
+        {
+            throw new HubException("无权恢复该会话的挂起交互。");
+        }
+
+        var interaction = await _pendingInteractionRepository.GetByIdAsync(
+            pendingInteractionId,
+            Context.ConnectionAborted);
+        if (interaction == null
+            || interaction.SessionId != sessionId
+            || interaction.Status != PendingInteractionStatus.Resolved)
+        {
+            throw new HubException("挂起交互未解决或与当前会话不匹配。");
+        }
+    }
+
+    private static bool TryGetPendingInteractionResumeId(ChatRequest request, out Guid pendingInteractionId)
+    {
+        pendingInteractionId = Guid.Empty;
+        if (request.Metadata == null)
+        {
+            return false;
+        }
+
+        if (!TryGetBoolMetadata(request.Metadata, ChatMessageMetadataKeys.ResumePendingInteraction))
+        {
+            return false;
+        }
+
+        return TryGetGuidMetadata(
+            request.Metadata,
+            ChatMessageMetadataKeys.PendingInteractionId,
+            out pendingInteractionId);
+    }
+
+    private static bool TryGetBoolMetadata(IReadOnlyDictionary<string, object> metadata, string key)
+    {
+        if (!metadata.TryGetValue(key, out var value) || value == null)
+        {
+            return false;
+        }
+
+        return value is bool boolValue
+            ? boolValue
+            : bool.TryParse(value.ToString(), out var parsed) && parsed;
+    }
+
+    private static bool TryGetGuidMetadata(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        out Guid value)
+    {
+        value = Guid.Empty;
+        return metadata.TryGetValue(key, out var rawValue)
+            && rawValue != null
+            && Guid.TryParse(rawValue.ToString(), out value)
+            && value != Guid.Empty;
+    }
+
+    /// <summary>
     /// 执行流式消息发送（原有链路）。
     /// </summary>
     private async Task ExecuteStreamMessageAsync(
@@ -124,6 +212,10 @@ public partial class ChatHub
                     chatRequest,
                     userId,
                     channel.Writer,
+                    (message, token) => Clients.Group(userGroup).SendAsync(
+                        "MessageReceived",
+                        message,
+                        token),
                     Context.ConnectionAborted);
             }
             catch (Exception ex)

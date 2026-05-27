@@ -81,6 +81,11 @@ public interface ISignalRService : IAsyncDisposable
     Task SendMessageAsync(ChatRequest request);
 
     /// <summary>
+    /// 恢复已解决的挂起交互。
+    /// </summary>
+    Task ResumePendingInteractionAsync(ChatRequest request);
+
+    /// <summary>
     /// 取消生成
     /// </summary>
     Task CancelGenerationAsync(Guid sessionId);

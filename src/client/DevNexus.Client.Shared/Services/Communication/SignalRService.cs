@@ -20,7 +20,7 @@ public class SignalRService : ISignalRService
     private bool _isConnected;
     private bool _isChatHubConnected;
     private bool _isArtifactHubConnected;
-    
+
     /// <inheritdoc />
     public event Action<BlockDto>? OnBlockReceived;
 
@@ -124,7 +124,7 @@ public class SignalRService : ISignalRService
             })
             .WithAutomaticReconnect(new CustomRetryPolicy())
             .Build();
-        
+
         _hubConnection.ServerTimeout = TimeSpan.FromMinutes(5);
         _hubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
@@ -158,7 +158,7 @@ public class SignalRService : ISignalRService
         _artifactHubConnection.ServerTimeout = TimeSpan.FromMinutes(5);
         _artifactHubConnection.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
-        _artifactHubConnection.On<ArtifactStatusDto>("ReceiveArtifactStatus", status => 
+        _artifactHubConnection.On<ArtifactStatusDto>("ReceiveArtifactStatus", status =>
         {
              OnArtifactStatusReceived?.Invoke(status);
         });
@@ -177,10 +177,10 @@ public class SignalRService : ISignalRService
     public async Task DisconnectAsync()
     {
         var tasks = new List<Task>();
-        
+
         if (_hubConnection != null)
             tasks.Add(_hubConnection.StopAsync());
-            
+
         if (_artifactHubConnection != null)
             tasks.Add(_artifactHubConnection.StopAsync());
 
@@ -204,7 +204,7 @@ public class SignalRService : ISignalRService
     public async Task SendMessageAsync(ChatRequest request)
     {
         EnsureConnected();
-        
+
         try
         {
             await _hubConnection!.InvokeAsync("SendMessage", request);
@@ -240,6 +240,48 @@ public class SignalRService : ISignalRService
                 {
                     SessionId = request.SessionId ?? Guid.Empty,
                     ErrorMessage = $"发送消息失败：{ex.Message}",
+                    ErrorType = ex.GetType().Name
+            });
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task ResumePendingInteractionAsync(ChatRequest request)
+    {
+        EnsureConnected();
+
+        try
+        {
+            await _hubConnection!.InvokeAsync("ResumePendingInteraction", request);
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogError(ex, "SignalRService.ResumePendingInteractionAsync.Timeout | SessionId={SessionId}", request.SessionId);
+
+            EmitLocalRuntimeEvent(
+                request.SessionId ?? Guid.Empty,
+                ServerEventType.GenerationFailed,
+                new
+                {
+                    SessionId = request.SessionId ?? Guid.Empty,
+                    ErrorMessage = "恢复执行超时，请检查网络连接或稍后重试",
+                    ErrorType = nameof(TimeoutException)
+                });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SignalRService.ResumePendingInteractionAsync | SessionId={SessionId}", request.SessionId);
+
+            EmitLocalRuntimeEvent(
+                request.SessionId ?? Guid.Empty,
+                ServerEventType.GenerationFailed,
+                new
+                {
+                    SessionId = request.SessionId ?? Guid.Empty,
+                    ErrorMessage = $"恢复执行失败：{ex.Message}",
                     ErrorType = ex.GetType().Name
                 });
         }

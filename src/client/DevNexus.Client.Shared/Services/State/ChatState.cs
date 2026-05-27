@@ -21,6 +21,7 @@ public partial class ChatState : IChatState
     private readonly ConcurrentDictionary<Guid, SessionChatState> _sessions = new();
     private readonly ConcurrentDictionary<Guid, CliSessionStateDto> _cliExecSessions = new();
     private readonly ConcurrentDictionary<Guid, ChatSessionRuntimeDto> _sessionRuntimes = new();
+    private readonly ConcurrentDictionary<Guid, ToolActivityPresentationState> _toolActivities = new();
     private readonly ILogger<ChatState> _logger;
 
     /// <summary>
@@ -148,6 +149,15 @@ public partial class ChatState : IChatState
     public ChatSessionRuntimeDto? GetSessionRuntime(Guid sessionId)
     {
         return _sessionRuntimes.TryGetValue(sessionId, out var runtime) ? runtime : null;
+    }
+
+    /// <inheritdoc />
+    public ToolActivityPresentationState? GetToolActivityPresentation(Guid sessionId)
+    {
+        return _toolActivities.TryGetValue(sessionId, out var activity)
+            && activity.IsActive
+            ? activity
+            : null;
     }
 
     /// <inheritdoc />
@@ -303,6 +313,26 @@ public partial class ChatState : IChatState
     }
 
     /// <inheritdoc />
+    public void SetToolActivity(Guid sessionId, ToolActivityPresentationState activity)
+    {
+        ArgumentNullException.ThrowIfNull(activity);
+
+        activity.SessionId = sessionId;
+        activity.LastUpdatedAt = DateTime.UtcNow;
+        _toolActivities[sessionId] = activity;
+        NotifyStateChanged();
+    }
+
+    /// <inheritdoc />
+    public void ClearToolActivity(Guid sessionId)
+    {
+        if (_toolActivities.TryRemove(sessionId, out _))
+        {
+            NotifyStateChanged();
+        }
+    }
+
+    /// <inheritdoc />
     public void SetSessionRuntime(Guid sessionId, ChatSessionRuntimeDto runtime)
     {
         ArgumentNullException.ThrowIfNull(runtime);
@@ -403,6 +433,7 @@ public partial class ChatState : IChatState
 
         _cliExecSessions.TryRemove(sessionId, out _);
         _sessionRuntimes.TryRemove(sessionId, out _);
+        _toolActivities.TryRemove(sessionId, out _);
         ClearTerminalRecords(sessionId);
     }
 
@@ -525,6 +556,7 @@ public partial class ChatState : IChatState
         _sessions.TryRemove(sessionId, out _);
         _cliExecSessions.TryRemove(sessionId, out _);
         _sessionRuntimes.TryRemove(sessionId, out _);
+        _toolActivities.TryRemove(sessionId, out _);
         ClearTerminalRecords(sessionId);
     }
 
@@ -545,6 +577,7 @@ public partial class ChatState : IChatState
             _sessions.TryRemove(id, out _);
             _cliExecSessions.TryRemove(id, out _);
             _sessionRuntimes.TryRemove(id, out _);
+            _toolActivities.TryRemove(id, out _);
             _terminalRecords.TryRemove(id, out _);
         }
     }
@@ -557,6 +590,7 @@ public partial class ChatState : IChatState
         _sessions.Clear();
         _cliExecSessions.Clear();
         _sessionRuntimes.Clear();
+        _toolActivities.Clear();
         _terminalRecords.Clear();
         _currentSessionId = Guid.Empty;
         _isSidekickVisible = false;

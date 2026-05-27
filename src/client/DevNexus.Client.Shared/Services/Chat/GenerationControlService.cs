@@ -32,31 +32,23 @@ public class GenerationControlService : IGenerationControlService
     }
 
     /// <inheritdoc />
-    public async Task<ChatMessageDto?> HandleSendWithProviderAsync(
+    public Task<bool> HandleSendWithProviderAsync(
         string content, Guid sessionId, Guid? providerId,
         List<Guid>? artifactIds, List<ArtifactDto>? artifacts, bool enableRag,
         string? selectedSkillName = null, Dictionary<string, object>? metadata = null)
     {
         // 允许空内容但有附件的情况（如仅发送文件）
-        if (string.IsNullOrWhiteSpace(content) && (artifacts == null || !artifacts.Any())) return null;
+        if (string.IsNullOrWhiteSpace(content) && (artifacts == null || !artifacts.Any())) return Task.FromResult(false);
 
-        // 构建用户消息 DTO（供组件添加到消息列表进行乐观显示）
-        var userMessage = new ChatMessageDto
+        var hasActiveGeneration = _chatState.GetSessionRunControl(sessionId).IsGenerationLike;
+        if (!hasActiveGeneration)
         {
-            Id = Guid.NewGuid(),
-            ChatSessionId = sessionId,
-            SenderType = ChatConstants.RoleUser,
-            Content = content,
-            CreatedAt = DateTime.UtcNow,
-            Artifacts = artifacts,
-            Metadata = BuildUserMessageMetadata(selectedSkillName, metadata)
-        };
+            // 清空 ChatState 中该会话的旧 Blocks，防止状态恢复逻辑错误加载上一轮内容
+            _chatState.Clear(sessionId);
 
-        // 清空 ChatState 中该会话的旧 Blocks，防止状态恢复逻辑错误加载上一轮内容
-        _chatState.Clear(sessionId);
-
-        // 设置统一运行态
-        _chatState.SetSessionGeneratingOptimistic(sessionId, true);
+            // 设置统一运行态
+            _chatState.SetSessionGeneratingOptimistic(sessionId, true);
+        }
 
         try
         {
@@ -70,10 +62,9 @@ public class GenerationControlService : IGenerationControlService
                 EnableRag = enableRag,
                 EnableSwarm = string.IsNullOrWhiteSpace(selectedSkillName) && metadata?.ContainsKey("toolId") != true,
                 SelectedSkillName = selectedSkillName,
-                Metadata = metadata
+                Metadata = BuildRequestMetadata(selectedSkillName, metadata)
             };
-            
-            // 【修复乱序Bug】不要在这里 await，防止服务端急速下发第一包，导致回调线程早于外层 _messages.Add(userMessage) 触发，从而使得用户的气泡跑到了AI气泡的下方。
+
             _ = Task.Run(async () => 
             {
                 try 
@@ -89,7 +80,7 @@ public class GenerationControlService : IGenerationControlService
                     // ★ 兜底：SendMessageAsync 返回意味着服务端方法已完成
                     // 正常流程下结构化运行时事件已触发并重置了状态
                     // 此处仅在事件未送达（如 Redis 全面故障）时兜底重置，防止 UI 永久卡死
-                    if (_chatState.GetSessionRunControl(sessionId).IsGenerationLike)
+                    if (!hasActiveGeneration && _chatState.GetSessionRunControl(sessionId).IsGenerationLike)
                     {
                         _logger.LogWarning(
                             "[GenerationControl] 生成状态兜底重置（事件可能未送达） | SessionId={SessionId}",
@@ -103,13 +94,13 @@ public class GenerationControlService : IGenerationControlService
         {
             _logger.LogError(ex, "[GenerationControl] 发送消息失败");
             _chatState.SetSessionGeneratingOptimistic(sessionId, false);
-            return null;
+            return Task.FromResult(false);
         }
 
-        return userMessage;
+        return Task.FromResult(true);
     }
 
-    private static Dictionary<string, object>? BuildUserMessageMetadata(
+    private static Dictionary<string, object>? BuildRequestMetadata(
         string? selectedSkillName,
         Dictionary<string, object>? metadata)
     {
@@ -125,16 +116,11 @@ public class GenerationControlService : IGenerationControlService
             merged[ChatMessageMetadataKeys.SelectedSkillName] = selectedSkillName.Trim();
         }
 
-        merged ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-        merged[ChatMessageMetadataKeys.ClientDeliveryState] = ChatMessageMetadataKeys.DeliveryStateSending;
-        merged[ChatMessageMetadataKeys.ClientDeliveryTone] = ChatMessageMetadataKeys.DeliveryToneNeutral;
-        merged[ChatMessageMetadataKeys.ClientEntryAnimation] = ChatMessageMetadataKeys.EntryAnimationFresh;
-
         return merged;
     }
 
     /// <inheritdoc />
-    public async Task<ChatMessageDto?> HandleSendAsync(string content, Guid sessionId)
+    public async Task<bool> HandleSendAsync(string content, Guid sessionId)
     {
         return await HandleSendWithProviderAsync(content, sessionId, null, null, null, true);
     }

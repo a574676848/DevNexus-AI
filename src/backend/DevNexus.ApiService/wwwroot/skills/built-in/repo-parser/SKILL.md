@@ -52,18 +52,18 @@ description: 仓库解析技能，用于自动解析并读取 GitHub 和各类�
 
 ## 核心解析脚本与配置
 
-> ⚠️ **关键提示**：所有脚本**必须**通过 `--workdir` 参数指定输出目录（通常为用户的工作空间 tmp 路径）。
+> ⚠️ **关键提示**：所有脚本**必须**通过 `--workdir` 参数指定本机可写输出目录。
 > 脚本文件（A 目录）和执行工作目录（B 目录）是分离的，仓库代码**必须克隆到 B 目录**，而非脚本所在的 A 目录。
 
 ### 1. GitHub 仓库
 当用户提供 `github.com` 链接时：
 - **公开仓库**：直接调用，无需传入 Token：
   ```
-  repo-parser/scripts/parse_github.py <url> --workdir <用户工作空间tmp路径>
+  repo-parser/scripts/parse_github.py <url> --workdir <本机可写工作目录>
   ```
 - **私有仓库**：走上述**三级凭证策略**获取 Token 后，通过环境变量 `GITHUB_TOKEN` 注入：
   ```
-  GITHUB_TOKEN=<token> repo-parser/scripts/parse_github.py <url> --workdir <用户工作空间tmp路径>
+  GITHUB_TOKEN=<token> repo-parser/scripts/parse_github.py <url> --workdir <本机可写工作目录>
   ```
 - **如何判断公开/私有**：先不传 Token 直接执行，如果脚本返回 `auth_required`，则判定为私有仓库，启动凭证策略。
 
@@ -72,7 +72,7 @@ description: 仓库解析技能，用于自动解析并读取 GitHub 和各类�
 - **始终走凭证策略** — 因为非 GitHub 仓库大概率需要鉴权。
 - **执行命令**：获取 Token 后，通过环境变量 `GIT_TOKEN` 注入：
   ```
-  GIT_TOKEN=<token> repo-parser/scripts/parse_local_git.py <url> --workdir <用户工作空间tmp路径>
+  GIT_TOKEN=<token> repo-parser/scripts/parse_local_git.py <url> --workdir <本机可写工作目录>
   ```
 - **机制**：底层在指定的 `--workdir` 目录下创建 `temp_repo/` 子目录进行 `git clone/pull`，并主动过滤不相关的编译产物与多媒体文件。
 

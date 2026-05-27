@@ -22,8 +22,6 @@ public sealed class ChatSystemPromptBuilder
     private readonly IUserMemoryService _userMemoryService;
     private readonly ISkillRegistry _skillRegistry;
     private readonly ISkillMatcher _skillMatcher;
-    private readonly ISkillRuntimePathResolver _skillRuntimePathResolver;
-    private readonly IUserStoragePathService _userStoragePathService;
     private readonly ISessionMemoryService _sessionMemoryService;
     private readonly IPendingInteractionRepository _pendingInteractionRepository;
     private readonly ILogger<ChatSystemPromptBuilder> _logger;
@@ -34,8 +32,6 @@ public sealed class ChatSystemPromptBuilder
         IUserMemoryService userMemoryService,
         ISkillRegistry skillRegistry,
         ISkillMatcher skillMatcher,
-        ISkillRuntimePathResolver skillRuntimePathResolver,
-        IUserStoragePathService userStoragePathService,
         ISessionMemoryService sessionMemoryService,
         IPendingInteractionRepository pendingInteractionRepository,
         ILogger<ChatSystemPromptBuilder> logger)
@@ -45,8 +41,6 @@ public sealed class ChatSystemPromptBuilder
         _userMemoryService = userMemoryService;
         _skillRegistry = skillRegistry;
         _skillMatcher = skillMatcher;
-        _skillRuntimePathResolver = skillRuntimePathResolver;
-        _userStoragePathService = userStoragePathService;
         _sessionMemoryService = sessionMemoryService;
         _pendingInteractionRepository = pendingInteractionRepository;
         _logger = logger;
@@ -63,14 +57,9 @@ public sealed class ChatSystemPromptBuilder
     {
         var maxContextTokens = await EstimateMaxContextTokensAsync(providerId, cancellationToken);
 
-        var userTempPath = _userStoragePathService.GetUserTempPath(userId);
-        var userProjectPath = _userStoragePathService.GetUserProjectPath(userId);
-        var stablePrefixFragments = BuildStablePrefixFragments(userTempPath, userProjectPath);
+        var stablePrefixFragments = BuildStablePrefixFragments();
         var stablePrefix = PromptFragmentComposer.Compose(stablePrefixFragments);
-        var criticalSystemPrompt = string.Format(
-            PromptConstants.System.FileSecurityCompactReminderPrompt,
-            userTempPath,
-            userProjectPath);
+        var criticalSystemPrompt = PromptConstants.System.LocalHostToolCompactReminderPrompt;
         var dynamicContextBuilder = new StringBuilder();
         var dynamicContextFragments = new List<PromptFragment>();
 
@@ -148,12 +137,8 @@ public sealed class ChatSystemPromptBuilder
         };
     }
 
-    private IReadOnlyList<PromptFragment> BuildStablePrefixFragments(string userTempPath, string userProjectPath)
+    private IReadOnlyList<PromptFragment> BuildStablePrefixFragments()
     {
-        var fileSecurityPrompt = string.Format(
-            PromptConstants.System.FileSecuritySandboxPrompt,
-            userTempPath,
-            userProjectPath);
         var workflowPrompt = string.Concat(
             Environment.NewLine,
             PromptConstants.AgentLoop.AutonomousWorkflowPrompt,
@@ -166,7 +151,7 @@ public sealed class ChatSystemPromptBuilder
             PromptFragment.SystemIdentity(_chatPromptService.GetSystemIdentity()),
             PromptFragment.OutputContract(PromptConstants.Output.BlockFormatSpec),
             PromptFragment.ToolGuidance(PromptConstants.Output.ToolUsageGuide),
-            PromptFragment.SecurityBoundary(fileSecurityPrompt),
+            PromptFragment.SecurityBoundary(PromptConstants.System.LocalHostToolPrompt),
             PromptFragment.AgentWorkflow(workflowPrompt)
         ];
     }
@@ -361,14 +346,13 @@ public sealed class ChatSystemPromptBuilder
                         systemPromptBuilder.AppendLine($"\n### 技能: {match.Skill.Name} (匹配度: {match.Score:F2})");
                         systemPromptBuilder.AppendLine(instruction);
 
-                        var runtimeSkillPath = _skillRuntimePathResolver.TryResolveAccessiblePath(userId, match.Skill.DirectoryPath);
+                        var runtimeSkillPath = ResolveLocalSkillPath(match.Skill.DirectoryPath);
                         if (!string.IsNullOrWhiteSpace(runtimeSkillPath))
                         {
                             systemPromptBuilder.AppendLine("技能脚本执行约束：");
                             systemPromptBuilder.AppendLine($"- 此技能的可执行工作目录是: {runtimeSkillPath}");
                             systemPromptBuilder.AppendLine("- 当技能文档提到 scripts/... 或 <skill-root>/scripts/... 时，必须以上面的目录作为 workingDirectory 运行，不要假设当前用户项目目录包含这些脚本。");
                             systemPromptBuilder.AppendLine("- 如果需要调用 HostService.ExecuteCommandAsync，请把 workingDirectory 设为该技能目录，再使用相对脚本路径，例如 python scripts/xxx.py。");
-                            systemPromptBuilder.AppendLine("- 不要把 Skill 的源目录、仓库源目录或宿主 content-root 原样传给工具；如果看到这些路径，先改写为上面的镜像目录。");
                         }
                     }
                 }
@@ -452,6 +436,23 @@ public sealed class ChatSystemPromptBuilder
         }
 
         return explicitSkill;
+    }
+
+    private static string? ResolveLocalSkillPath(string? directoryPath)
+    {
+        if (string.IsNullOrWhiteSpace(directoryPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(directoryPath);
+        }
+        catch
+        {
+            return directoryPath;
+        }
     }
 
     private static void AppendToolSelectionContext(

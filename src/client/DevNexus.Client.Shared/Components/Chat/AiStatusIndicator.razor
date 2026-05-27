@@ -1,60 +1,254 @@
 @namespace DevNexus.Client.Shared.Components.Chat
 @inject IChatState ChatState
 @using DevNexus.Client.Shared.Models
+@using DevNexus.Shared.Constants
+@using DevNexus.Shared.Enums
+@using System.Text.Json
 
-@* AI 状态指示器 (Gemini 风格) *@
-@if (Presentation.IsStreaming)
+@if (ShouldShowStatusRow && ShouldRenderStatus)
 {
-    @* 1. 顶部状态指示器（仅限 Swarm 或 完全无内容时显示） *@
-    @if (ChatState != null && ChatState.IsSwarmActive(CurrentSessionId))
-    {
-        @* Swarm 模式状态指示器 *@
-        <div class="message-item ai-message">
-            <div class="message-avatar ai-avatar">
-                <DevNexusLogo Size="32" GlowIntensity="0" />
-            </div>
-            <div class="message-body">
-                <div class="ai-thinking-capsule swarm-capsule">
-                    <span class="thinking-icon-sparkle thinking-icon-sparkle--swarm">
-                        <i class="fa-solid fa-robot"></i>
-                    </span>
-                    <span class="thinking-text">Swarm 多智能体集群正在处理...</span>
-                    <a class="view-details-link" @onclick="OnOpenSwarmSidekick">
-                        查看详情 <i class="fa-solid fa-angle-right"></i>
-                    </a>
-                </div>
-            </div>
+    <div class="message-item ai-message ai-status-row @(IsSwarmActive ? "ai-status-row--swarm" : "")">
+        <div class="message-avatar ai-avatar" aria-hidden="true">
+            <DevNexusLogo Size="32" GlowIntensity="0" />
         </div>
-    }
-    else if (CurrentBlocks == null || !CurrentBlocks.Any())
-    {
-        @* 普通单 Agent 思考中，且无任何内容返回时 *@
-        <div class="message-item ai-message">
-            <div class="message-avatar ai-avatar">
-                <DevNexusLogo Size="32" GlowIntensity="0" />
-            </div>
-            <div class="message-body">
-                <div class="ai-thinking-capsule ai-thinking-capsule--streaming">
-                    <span class="thinking-icon-sparkle thinking-icon-sparkle--streaming">
+        <div class="message-body">
+            <div class="ai-thinking-capsule @(IsSwarmActive ? "swarm-capsule" : "ai-thinking-capsule--streaming")">
+                <span class="thinking-icon-sparkle @(IsSwarmActive ? "thinking-icon-sparkle--swarm" : "thinking-icon-sparkle--streaming")" aria-hidden="true">
+                    @if (IsSwarmActive)
+                    {
+                        <i class="fa-solid fa-robot"></i>
+                    }
+                    else
+                    {
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" class="sparkle-svg">
                             <path d="M12 2L14.4 7.2L20 9.6L14.4 12L12 17.2L9.6 12L4 9.6L9.6 7.2L12 2Z" fill="currentColor" />
                         </svg>
+                    }
+                </span>
+                <span class="thinking-text">@StatusText</span>
+                @if (LatestToolActivity != null)
+                {
+                    <span class="ai-activity-chip @LatestToolActivity.ToneClass">
+                        <span class="ai-activity-chip__label">工具</span>
+                        <span class="ai-activity-chip__text">@LatestToolActivity.Label</span>
                     </span>
-                    <span class="thinking-text">@Presentation.StatusText</span>
+                }
+                @if (TerminalActivity != null)
+                {
+                    <button type="button"
+                            class="ai-activity-chip ai-activity-chip--terminal @TerminalActivity.ToneClass"
+                            title="@TerminalActivity.Title"
+                            @onclick="OnOpenTerminalDetail">
+                        <span class="ai-activity-chip__label">终端</span>
+                        <span class="ai-activity-chip__text">@TerminalActivity.Label</span>
+                    </button>
+                }
+                @if (ShouldShowProgressDots)
+                {
                     <span class="thinking-dots" aria-hidden="true">
                         <span></span>
                         <span></span>
                         <span></span>
                     </span>
-                </div>
+                }
+                else if (IsSwarmActive)
+                {
+                    <button type="button" class="view-details-link" @onclick="OnOpenSwarmSidekick">
+                        查看详情 <i class="fa-solid fa-angle-right" aria-hidden="true"></i>
+                    </button>
+                }
             </div>
         </div>
-    }
+    </div>
 }
 
 @code {
+    private const string SwarmStatusText = "Swarm 多智能体集群正在处理";
+
     [Parameter] public Guid CurrentSessionId { get; set; }
     [Parameter] public List<BlockDto> CurrentBlocks { get; set; } = new();
+    [Parameter] public EventCallback OnOpenTerminalDetail { get; set; }
     [Parameter] public EventCallback OnOpenSwarmSidekick { get; set; }
     [Parameter] public SessionMessagePresentationState Presentation { get; set; } = new();
+
+    private bool IsSwarmActive => ChatState?.IsSwarmActive(CurrentSessionId) == true;
+
+    private bool HasCurrentBlocks => CurrentBlocks?.Any() == true;
+
+    private string? LatestThinkingStatus => GetLatestThinkingStatus();
+
+    private ActivityStatus? LatestToolActivity => GetRuntimeToolActivity() ?? GetLatestToolActivity();
+
+    private ActivityStatus? TerminalActivity => GetTerminalActivity();
+
+    private bool ShouldRenderStatus => IsSwarmActive
+        || !HasCurrentBlocks
+        || !string.IsNullOrWhiteSpace(LatestThinkingStatus)
+        || LatestToolActivity != null
+        || TerminalActivity != null;
+
+    private bool ShouldShowStatusRow => IsSwarmActive
+        || Presentation.ShouldShowStatusIndicator
+        || LatestToolActivity != null
+        || TerminalActivity != null;
+
+    private bool ShouldShowProgressDots => !IsSwarmActive && Presentation.ShouldAnimateStatus;
+
+    private string StatusText => IsSwarmActive
+        ? SwarmStatusText
+        : LatestThinkingStatus ?? Presentation.StatusText;
+
+    private string? GetLatestThinkingStatus()
+    {
+        if (CurrentBlocks == null || CurrentBlocks.Count == 0)
+        {
+            return null;
+        }
+
+        var latestThinkingIndex = -1;
+        var latestTextIndex = -1;
+        string? latestThinking = null;
+
+        for (var i = 0; i < CurrentBlocks.Count; i++)
+        {
+            var block = CurrentBlocks[i];
+            if (block.BlockType == BlockType.Thinking && !string.IsNullOrWhiteSpace(block.Content))
+            {
+                var toolStatus = GetMetadataValue(block, FeedbackBlockMetadataConstants.ToolStatus);
+                if (ShouldSurfaceThinkingStatus(toolStatus))
+                {
+                    latestThinkingIndex = i;
+                    latestThinking = block.Content.Trim();
+                }
+                continue;
+            }
+
+            if (block.BlockType == BlockType.TextDelta && !string.IsNullOrWhiteSpace(block.Content))
+            {
+                latestTextIndex = i;
+            }
+        }
+
+        return latestThinkingIndex > latestTextIndex ? latestThinking : null;
+    }
+
+    private ActivityStatus? GetLatestToolActivity()
+    {
+        if (CurrentBlocks == null || CurrentBlocks.Count == 0)
+        {
+            return null;
+        }
+
+        for (var i = CurrentBlocks.Count - 1; i >= 0; i--)
+        {
+            var block = CurrentBlocks[i];
+            if (block.BlockType != BlockType.Thinking)
+            {
+                continue;
+            }
+
+            var source = GetMetadataValue(block, FeedbackBlockMetadataConstants.Source);
+            if (!string.Equals(source, FeedbackBlockMetadataConstants.SourceToolInvocation, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var status = ToolInvocationStatusExtensions.Parse(
+                GetMetadataValue(block, FeedbackBlockMetadataConstants.ToolStatus));
+            if (status == ToolInvocationStatus.Completed || status == ToolInvocationStatus.Unknown)
+            {
+                return null;
+            }
+
+            return new ActivityStatus(GetToolStatusLabel(status), GetToolToneClass(status), block.Content.Trim());
+        }
+
+        return null;
+    }
+
+    private ActivityStatus? GetRuntimeToolActivity()
+    {
+        if (CurrentSessionId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var activity = ChatState?.GetToolActivityPresentation(CurrentSessionId);
+        return activity?.IsActive == true
+            ? new ActivityStatus(activity.Label, activity.ToneClass, activity.Title)
+            : null;
+    }
+
+    private ActivityStatus? GetTerminalActivity()
+    {
+        if (CurrentSessionId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var terminal = ChatState?.GetTerminalPresentation(CurrentSessionId);
+        if (terminal == null || (!terminal.IsActive && !terminal.WaitingForInput))
+        {
+            return null;
+        }
+
+        var label = terminal.WaitingForInput
+            ? "等待输入"
+            : terminal.IsActive ? "正在执行终端" : terminal.StatusLabel;
+        var title = string.IsNullOrWhiteSpace(terminal.Description) ? "查看终端详情" : terminal.Description;
+        return new ActivityStatus(label, terminal.WaitingForInput ? "ai-activity-chip--attention" : "ai-activity-chip--running", title);
+    }
+
+    private static bool ShouldSurfaceThinkingStatus(string? toolStatus)
+    {
+        if (string.IsNullOrWhiteSpace(toolStatus))
+        {
+            return true;
+        }
+
+        var status = ToolInvocationStatusExtensions.Parse(toolStatus);
+        return !status.IsTerminal() || status != ToolInvocationStatus.Completed;
+    }
+
+    private static string GetToolStatusLabel(ToolInvocationStatus status)
+    {
+        return status switch
+        {
+            ToolInvocationStatus.Queued => "已排队",
+            ToolInvocationStatus.Pending => "等待中",
+            ToolInvocationStatus.Running => "执行中",
+            ToolInvocationStatus.Failed => "失败",
+            ToolInvocationStatus.Cancelled => "已取消",
+            ToolInvocationStatus.Timeout => "超时",
+            _ => "处理中"
+        };
+    }
+
+    private static string GetToolToneClass(ToolInvocationStatus status)
+    {
+        return status switch
+        {
+            ToolInvocationStatus.Failed or ToolInvocationStatus.Timeout => "ai-activity-chip--danger",
+            ToolInvocationStatus.Cancelled => "ai-activity-chip--muted",
+            ToolInvocationStatus.Queued or ToolInvocationStatus.Pending => "ai-activity-chip--queued",
+            _ => "ai-activity-chip--running"
+        };
+    }
+
+    private static string? GetMetadataValue(BlockDto block, string key)
+    {
+        if (block.Metadata == null || !block.Metadata.TryGetValue(key, out var value))
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            string text => text,
+            JsonElement json when json.ValueKind == JsonValueKind.String => json.GetString(),
+            _ => value?.ToString()
+        };
+    }
+
+    private sealed record ActivityStatus(string Label, string ToneClass, string Title);
 }

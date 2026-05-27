@@ -8,7 +8,7 @@
 
 当前 CLI Runtime 已经形成以下闭环：
 
-1. 命令执行前统一进入 `CliExecutionPolicyService` 做工作目录、危险命令、审批与路径策略判断。
+1. 命令执行前统一进入 `CliExecutionPolicyService` 做本机工作目录解析、危险命令、审批与重复命令保护。
 2. `HostService` 负责把一次命令请求接入 CLI 主链，并创建审批事件、checkpoint 与终端输出通知。
 3. `ProcessCliRuntimeHost` 负责持久化 shell、输出缓冲、运行态快照、超时清理和会话终止；命令完成哨兵协议由 Core 层 `CliCommandCompletionProtocol` 统一构造和解析。
 4. `ICliRuntimeCoordinator` / `CliRuntimeCoordinator` 已作为统一协调入口，收口会话查询、日志分片、输入转发、等待终态、终止和回滚；stdin 输入由 Core 层 `CliRuntimeInputProtocol` 统一规范。
@@ -133,9 +133,11 @@ CLI 执行策略遵循以下规则：
 2. `DecisionCode` 是审批、阻断和循环保护的稳定事实，Host、Agent Loop、UI 和测试不得通过解析中文 `Message` 推断策略原因。
 3. 需要人工审批的命令必须携带 `CommandFingerprint` 与 `CommandPattern`，用于本次授权和同类命令授权。
 4. `Message` 只作为中文友好展示文案，不作为策略分支条件。
-5. 挂起交互解决动作由 `PendingInteractionResolutionPolicy` 统一归一：`approve` 兼容为 `approve-once`，`approve-pattern` 映射为会话内同类命令授权，`deny` 不写入授权，`submit` 用于补充信息。
-6. `PendingInteractionResolutionResponse` 返回归一后的 `Action` 与 `ApprovalScope`，后续恢复执行不需要解析中文 `ResumeMessage`。
-7. `PendingInteraction.ResolutionData` 与恢复消息 metadata 都写入 `resolutionAction` 和可选 `approvalScope`，确保审批通过后 Agent Loop 能按恢复上下文继续，而不是把恢复消息当普通聊天。
+5. 聊天工具栏提供三档 Agent 审批模式：`AskUser` 始终询问用户，`AgentDecides` 允许 Agent 自主执行中风险操作但高风险仍进入审批，`FullAccess` 完全放权；若 `CliPolicyOptions.AlwaysProtectHighRisk` 开启，`FullAccess` 仍保留高风险审批边界。
+6. 审批模式随聊天请求写入 `agentApprovalMode` metadata，并由 `ChatExecutionContext` 传递给 `HostService`、`CodeExecutionPlugin` 与 `CliExecutionPolicyService`；它不应作为全局静态状态或前端展示推断。
+7. 挂起交互解决动作由 `PendingInteractionResolutionPolicy` 统一归一：`approve-once` 映射为本次授权，`approve-pattern` 映射为会话内同类命令授权，`deny` 不写入授权，`submit` 用于补充信息。
+8. `PendingInteractionResolutionResponse` 只返回归一后的 `Action` 与 `ApprovalScope`，后续恢复执行由后端控制通道基于原 AI 消息继续，不向前端返回可见恢复文案。
+9. `PendingInteraction.ResolutionData` 与恢复 metadata 都写入 `resolutionAction` 和可选 `approvalScope`，确保审批通过后 Agent Loop 能按恢复上下文继续，而不是把恢复动作当普通用户输入。
 
 ### 4.2 统一协调入口
 

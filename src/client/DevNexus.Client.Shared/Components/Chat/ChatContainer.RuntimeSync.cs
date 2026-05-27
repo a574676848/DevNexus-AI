@@ -181,14 +181,16 @@ public partial class ChatContainer
             ChatState.CurrentSessionId,
             refreshPendingInteractions: true);
 
-        if (!response.ShouldResume || string.IsNullOrWhiteSpace(response.ResumeMessage))
+        if (!response.ShouldResume)
         {
             return;
         }
 
-        await HandleSendWithProviderAsync(new ChatComposerSubmission
+        await SignalR.ResumePendingInteractionAsync(new ChatRequest
         {
-            Content = response.ResumeMessage,
+            SessionId = ChatState.CurrentSessionId,
+            Content = string.Empty,
+            MessageType = ChatConstants.MessageTypeText,
             EnableRag = true,
             Metadata = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
@@ -199,11 +201,6 @@ public partial class ChatContainer
                     response.ApprovalScope?.ToString() ?? string.Empty
             }
         });
-    }
-
-    private Task PromoteOptimisticUserMessageAsync(Guid _)
-    {
-        return Task.CompletedTask;
     }
 
     private void SyncBlocks(List<BlockDto>? target, IReadOnlyList<BlockDto>? source)
@@ -279,6 +276,14 @@ public partial class ChatContainer
             return;
         }
 
+        if (ChatConstants.IsUserSender(message.SenderType))
+        {
+            ClearBlocksWithCache();
+            _completedArtifacts.Clear();
+            _currentArtifact = null;
+            _currentMessageId = Guid.NewGuid();
+        }
+
         var index = _messages.FindIndex(item => item.Id == message.Id);
         if (index >= 0)
         {
@@ -324,11 +329,13 @@ public partial class ChatContainer
             case ServerEventType.GenerationCompleted:
             case ServerEventType.GenerationCancelled:
                 ChatState.SetSessionGeneratingOptimistic(serverEvent.SessionId, false);
+                ChatState.ClearToolActivity(serverEvent.SessionId);
                 _generationTimeoutNotified = false;
                 ScheduleRuntimeRefresh(serverEvent.SessionId);
                 return;
             case ServerEventType.GenerationFailed:
                 ChatState.SetSessionGeneratingOptimistic(serverEvent.SessionId, false);
+                ChatState.ClearToolActivity(serverEvent.SessionId);
                 if (TryGetStringProperty(serverEvent.Data, "ErrorMessage", out var errorMessage)
                     && !string.IsNullOrWhiteSpace(errorMessage))
                 {
@@ -439,6 +446,13 @@ public partial class ChatContainer
             case ServerEventType.ToolInvocationStarted:
             case ServerEventType.ToolInvocationCompleted:
             case ServerEventType.ToolInvocationFailed:
+                ApplyToolActivityEvent(serverEvent);
+                _ = InvokeAsync(async () =>
+                {
+                    await RefreshRuntimeSnapshotAsync(serverEvent.SessionId);
+                    StateHasChanged();
+                });
+                return;
             case ServerEventType.PendingInteractionCreated:
             case ServerEventType.PendingInteractionResolved:
             case ServerEventType.PendingInteractionExpired:
@@ -475,6 +489,118 @@ public partial class ChatContainer
                 });
                 return;
         }
+    }
+
+    private void ApplyToolActivityEvent(ServerEvent serverEvent)
+    {
+        if (!TryReadToolInvocation(serverEvent.Data, out var invocation))
+        {
+            return;
+        }
+
+        var status = ToolInvocationStatusExtensions.Parse(invocation.Status);
+        if (status == ToolInvocationStatus.Completed)
+        {
+            ChatState.ClearToolActivity(serverEvent.SessionId);
+            return;
+        }
+
+        var fullName = BuildToolActivityName(invocation);
+        ChatState.SetToolActivity(
+            serverEvent.SessionId,
+            new ToolActivityPresentationState
+            {
+                ToolCallId = invocation.ToolCallId,
+                ToolName = fullName,
+                Status = status,
+                Label = GetToolActivityLabel(status),
+                Title = GetToolActivityTitle(status, fullName, invocation.ErrorMessage),
+                ToneClass = GetToolActivityToneClass(status),
+                IsActive = !status.IsTerminal()
+                    || status is ToolInvocationStatus.Failed
+                        or ToolInvocationStatus.Cancelled
+                        or ToolInvocationStatus.Timeout
+            });
+    }
+
+    private static bool TryReadToolInvocation(object? data, out ToolInvocationDto invocation)
+    {
+        invocation = new ToolInvocationDto();
+
+        if (data is not JsonElement element || element.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        var parsed = JsonSerializer.Deserialize<ToolInvocationDto>(
+            element.GetRawText(),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        if (parsed == null)
+        {
+            return false;
+        }
+
+        invocation = parsed;
+        return true;
+    }
+
+    private static string BuildToolActivityName(ToolInvocationDto invocation)
+    {
+        if (!string.IsNullOrWhiteSpace(invocation.PluginName)
+            && !string.IsNullOrWhiteSpace(invocation.FunctionName))
+        {
+            return $"{invocation.PluginName}.{invocation.FunctionName}";
+        }
+
+        return !string.IsNullOrWhiteSpace(invocation.FunctionName)
+            ? invocation.FunctionName
+            : "工具";
+    }
+
+    private static string GetToolActivityLabel(ToolInvocationStatus status)
+    {
+        return status switch
+        {
+            ToolInvocationStatus.Queued => "已排队",
+            ToolInvocationStatus.Pending => "等待中",
+            ToolInvocationStatus.Running => "执行中",
+            ToolInvocationStatus.Failed => "失败",
+            ToolInvocationStatus.Cancelled => "已取消",
+            ToolInvocationStatus.Timeout => "超时",
+            _ => "处理中"
+        };
+    }
+
+    private static string GetToolActivityTitle(
+        ToolInvocationStatus status,
+        string toolName,
+        string? errorMessage)
+    {
+        return status switch
+        {
+            ToolInvocationStatus.Failed when !string.IsNullOrWhiteSpace(errorMessage)
+                => $"{toolName} 执行失败：{errorMessage}",
+            ToolInvocationStatus.Failed => $"{toolName} 执行失败",
+            ToolInvocationStatus.Cancelled => $"{toolName} 已取消",
+            ToolInvocationStatus.Timeout => $"{toolName} 执行超时",
+            ToolInvocationStatus.Queued => $"{toolName} 已排队，等待执行",
+            ToolInvocationStatus.Pending => $"{toolName} 等待执行",
+            _ => $"{toolName} 正在执行"
+        };
+    }
+
+    private static string GetToolActivityToneClass(ToolInvocationStatus status)
+    {
+        return status switch
+        {
+            ToolInvocationStatus.Failed or ToolInvocationStatus.Timeout => "ai-activity-chip--danger",
+            ToolInvocationStatus.Cancelled => "ai-activity-chip--muted",
+            ToolInvocationStatus.Queued or ToolInvocationStatus.Pending => "ai-activity-chip--queued",
+            _ => "ai-activity-chip--running"
+        };
     }
 
     private static bool TryReadAgentTurnEventsUpdate(

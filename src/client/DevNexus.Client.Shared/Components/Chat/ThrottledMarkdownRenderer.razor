@@ -1,9 +1,8 @@
 @using System.Threading
-@using DevNexus.Client.Shared.Utilities
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div id="@_containerId" class="silky-markdown-content markdown-body"></div>
+<div id="@_containerId" class="@ContentClass"></div>
 
 @code {
     /// <summary>
@@ -21,21 +20,19 @@
     /// </summary>
     [Parameter] public int ThrottleMs { get; set; } = 50;
 
-    private string _containerId = $"smd-{Guid.NewGuid():N}";
+    private const int MinimumStreamingFrameMs = 16;
+    private const int StreamingRevealFrameMs = 18;
+    private readonly string _containerId = $"smd-{Guid.NewGuid():N}";
+    private readonly StreamingMarkdownFramePolicy _framePolicy = StreamingMarkdownFramePolicy.Default;
     private string _lastRenderedContent = "";
+    private string? _pendingStreamingContent;
     private bool _initialized;
-
-    // 使用 PerformanceHelper 的节流器
-    private Action<string>? _throttledRenderAction;
-
-    protected override void OnInitialized()
-    {
-        // 创建节流渲染动作 - 使用带泛型参数的版本
-        _throttledRenderAction = PerformanceHelper.Throttle<string>(
-            content => DoRender(content),
-            TimeSpan.FromMilliseconds(ThrottleMs)
-        );
-    }
+    private bool? _lastRenderedIsStreaming;
+    private DateTime _lastStreamingRenderAt = DateTime.MinValue;
+    private CancellationTokenSource? _trailingRenderCts;
+    private string ContentClass => IsStreaming
+        ? "silky-markdown-content silky-markdown-content--streaming markdown-body"
+        : "silky-markdown-content markdown-body";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -59,38 +56,109 @@
 
     private async Task TryRenderAsync()
     {
-        // 如果未初始化或内容未变，跳过
-        if (!_initialized || Content == _lastRenderedContent) return;
+        if (!_initialized)
+        {
+            return;
+        }
 
-        // 只有在流式模式下才启用节流
+        if (Content == _lastRenderedContent && IsStreaming == _lastRenderedIsStreaming)
+        {
+            return;
+        }
+
         if (IsStreaming)
         {
-            // 使用 PerformanceHelper 的节流器
-            _throttledRenderAction?.Invoke(Content);
+            await RenderStreamingAsync(Content);
+            return;
         }
-        else
-        {
-            // 非流式模式，立即渲染
-            await DoRenderAsync();
-        }
+
+        CancelTrailingRender();
+        await RenderContentAsync(Content, isStreaming: false, enhance: true);
     }
 
-    private void DoRender(string content)
+    private async Task RenderStreamingAsync(string content)
     {
-        _lastRenderedContent = content;
-        InvokeAsync(async () => await DoRenderAsync());
+        _pendingStreamingContent = content;
+        var interval = TimeSpan.FromMilliseconds(Math.Max(MinimumStreamingFrameMs, ThrottleMs));
+        var elapsed = DateTime.UtcNow - _lastStreamingRenderAt;
+
+        if (elapsed >= interval)
+        {
+            await RenderNextStreamingFrameAsync(content);
+            return;
+        }
+
+        ScheduleTrailingRender(interval - elapsed);
     }
 
-    private async Task DoRenderAsync()
+    private async Task RenderNextStreamingFrameAsync(string targetContent)
+    {
+        var frameContent = BuildStreamingFrame(targetContent);
+        var reachedTarget = string.Equals(frameContent, targetContent, StringComparison.Ordinal);
+
+        if (reachedTarget)
+        {
+            _pendingStreamingContent = null;
+        }
+
+        await RenderContentAsync(frameContent, isStreaming: true, enhance: false);
+        _lastStreamingRenderAt = DateTime.UtcNow;
+
+        if (!reachedTarget)
+        {
+            _pendingStreamingContent = targetContent;
+            ScheduleTrailingRender(TimeSpan.FromMilliseconds(StreamingRevealFrameMs));
+        }
+    }
+
+    private string BuildStreamingFrame(string targetContent)
+    {
+        return _framePolicy.BuildNextFrame(_lastRenderedContent, targetContent);
+    }
+
+    private void ScheduleTrailingRender(TimeSpan delay)
+    {
+        CancelTrailingRender();
+        _trailingRenderCts = new CancellationTokenSource();
+        var token = _trailingRenderCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, token);
+                if (token.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                var content = _pendingStreamingContent;
+                if (string.IsNullOrEmpty(content) || content == _lastRenderedContent)
+                {
+                    return;
+                }
+
+                await InvokeAsync(async () =>
+                {
+                    await RenderNextStreamingFrameAsync(content);
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                // 新 token 到达时取消旧尾帧。
+            }
+        }, token);
+    }
+
+    private async Task RenderContentAsync(string content, bool isStreaming, bool enhance)
     {
         try
         {
-            // 调用 JS 进行增量渲染
-            await JS.InvokeVoidAsync("devnexusSilkyMarkdown.render",
-                _containerId, Content, IsStreaming);
+            await JS.InvokeVoidAsync("devnexusSilkyMarkdown.render", _containerId, content, isStreaming);
+            _lastRenderedContent = content;
+            _lastRenderedIsStreaming = isStreaming;
 
-            // 非流式模式（已完成）或流式结束时，执行代码高亮等增强
-            if (!IsStreaming)
+            if (enhance)
             {
                 await JS.InvokeVoidAsync("devnexusSilkyMarkdown.enhance", _containerId);
             }
@@ -101,8 +169,17 @@
         }
     }
 
+    private void CancelTrailingRender()
+    {
+        _trailingRenderCts?.Cancel();
+        _trailingRenderCts?.Dispose();
+        _trailingRenderCts = null;
+    }
+
     public async ValueTask DisposeAsync()
     {
+        CancelTrailingRender();
+
         if (_initialized)
         {
             try

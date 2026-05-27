@@ -2,6 +2,7 @@ using DevNexus.Client.Shared.Models;
 using DevNexus.Client.Shared.Abstractions.Chat;
 using DevNexus.Client.Shared.Abstractions;
 using DevNexus.Client.Shared.Services.Storage;
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -322,6 +323,9 @@ public partial class InputBox
             metadata ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             metadata["attachmentUrls"] = attachmentUrls;
         }
+
+        metadata ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        metadata[ChatMessageMetadataKeys.AgentApprovalMode] = _agentApprovalMode.ToString();
 
         return metadata;
     }

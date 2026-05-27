@@ -29,6 +29,11 @@ public class ChatQueueDispatcher : IChatQueueDispatcher
     public event Action<Guid, Guid, Guid>? OnQueuedMessageStarted;
 
     /// <summary>
+    /// 当排队消息被持久化为正式用户消息时触发。参数：queuedMessageId, sessionId, userId, userMessage。
+    /// </summary>
+    public event Action<Guid, Guid, Guid, ChatMessageDto>? OnQueuedUserMessageAccepted;
+
+    /// <summary>
     /// 当排队消息产生流式块时触发。参数：queuedMessageId, sessionId, userId, block。
     /// </summary>
     public event Action<Guid, Guid, Guid, BlockDto>? OnQueuedMessageBlockReceived;
@@ -148,6 +153,11 @@ public class ChatQueueDispatcher : IChatQueueDispatcher
                 chatRequest,
                 userId,
                 channel.Writer,
+                (message, _) =>
+                {
+                    OnQueuedUserMessageAccepted?.Invoke(queuedMessage.Id, sessionId, userId, message);
+                    return Task.CompletedTask;
+                },
                 cancellationToken);
         }
         catch (Exception ex)

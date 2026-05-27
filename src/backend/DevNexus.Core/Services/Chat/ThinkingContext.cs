@@ -30,11 +30,14 @@ public static class ThinkingContext
     /// </summary>
     public static ThinkingEmitter? GetCurrentEmitter() => _emitter.Value;
 
-    public static async Task EmitAsync(string message, string? emoji = null)
+    public static async Task EmitAsync(
+        string message,
+        string? source = null,
+        ToolInvocationStatus? toolStatus = null)
     {
         if (_emitter.Value != null)
         {
-            await _emitter.Value.EmitAsync(message, emoji);
+            await _emitter.Value.EmitAsync(message, source, toolStatus);
         }
     }
 }
@@ -65,8 +68,20 @@ public class ThinkingEmitter
         _logger = logger;
     }
 
-    public async Task EmitAsync(string message, string? source = null)
+    public async Task EmitAsync(
+        string message,
+        string? source = null,
+        ToolInvocationStatus? toolStatus = null)
     {
+        var metadata = new Dictionary<string, object>
+        {
+            { FeedbackBlockMetadataConstants.Source, FeedbackBlockMetadataConstants.NormalizeSource(source) }
+        };
+        if (toolStatus.HasValue)
+        {
+            metadata[FeedbackBlockMetadataConstants.ToolStatus] = toolStatus.Value.ToWireValue();
+        }
+
         await _blockWriter.WriteAsync(new BlockDto
         {
             BlockId = Guid.NewGuid(),
@@ -75,10 +90,7 @@ public class ThinkingEmitter
             MessageId = _messageId,
             SessionId = _sessionId,
             IsLast = false,
-            Metadata = new Dictionary<string, object>
-            {
-                { FeedbackBlockMetadataConstants.Source, FeedbackBlockMetadataConstants.NormalizeSource(source) }
-            }
+            Metadata = metadata
         }, _cancellationToken);
 
         // ✅ 同时缓存到持久化缓冲

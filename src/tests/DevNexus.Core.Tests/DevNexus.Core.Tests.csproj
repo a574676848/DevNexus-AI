@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\backend\DevNexus.Core\DevNexus.Core.csproj" />
+    <ProjectReference Include="..\..\client\DevNexus.Client.Shared\DevNexus.Client.Shared.csproj" />
   </ItemGroup>
 
 </Project>

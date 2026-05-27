@@ -6,17 +6,17 @@ namespace DevNexus.Shared.Enums;
 public enum AgentApprovalMode
 {
     /// <summary>
-    /// 只建议，不自动执行高风险操作。
+    /// 所有策略命中的操作都询问用户。
     /// </summary>
-    Suggest = 0,
+    AskUser = 0,
 
     /// <summary>
-    /// 允许自动编辑，写操作仍需按风险审批。
+    /// 由 Agent 自主执行中风险操作，高风险操作仍询问用户。
     /// </summary>
-    AutoEdit = 1,
+    AgentDecides = 1,
 
     /// <summary>
-    /// 全自动模式，高风险操作仍保留系统级保护。
+    /// 完全放权给 Agent 执行。
     /// </summary>
-    FullAuto = 2
+    FullAccess = 2
 }

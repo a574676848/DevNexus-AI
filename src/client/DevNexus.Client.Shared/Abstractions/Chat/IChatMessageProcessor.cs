@@ -8,11 +8,6 @@ namespace DevNexus.Client.Shared.Abstractions;
 public interface IChatMessageProcessor
 {
     /// <summary>
-    /// 处理单个 Block
-    /// </summary>
-    void ProcessBlock(BlockDto block, List<BlockDto> currentBlocks, ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts);
-
-    /// <summary>
     /// 构建聊天消息
     /// </summary>
     Task<ChatMessageDto?> BuildChatMessageAsync(

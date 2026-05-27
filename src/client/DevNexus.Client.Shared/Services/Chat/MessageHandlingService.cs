@@ -561,39 +561,4 @@ public class MessageHandlingService : IMessageHandlingService
         return messageIdsToRemove;
     }
 
-    /// <inheritdoc />
-    public bool HandleBlockReceived(
-        BlockDto block, List<BlockDto> currentBlocks,
-        ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts,
-        Guid currentSessionId)
-    {
-        // 使用 Block 携带的 SessionId 分发到对应会话
-        var targetSessionId = block.SessionId != Guid.Empty ? block.SessionId : currentSessionId;
-
-        // 检测 Swarm 生命周期事件（通过 Block metadata 传递）
-        if (block.Metadata != null && block.Metadata.TryGetValue("swarmEvent", out var swarmEventObj))
-        {
-            var swarmEvent = SwarmEventNames.Normalize(swarmEventObj?.ToString());
-            if (SwarmEventNames.IsStarted(swarmEvent))
-            {
-                _chatState.SetSwarmActive(targetSessionId, true);
-            }
-            else if (SwarmEventNames.IsTerminal(swarmEvent))
-            {
-                _chatState.SetSwarmActive(targetSessionId, false);
-            }
-        }
-
-        // 直接添加到对应会话的 ChatState（不管是否是当前会话）
-        _chatState.AddBlock(targetSessionId, block);
-
-        // 仅当是当前会话时处理本地 _currentBlocks 和返回 true（需要刷新 UI）
-        if (targetSessionId != currentSessionId)
-            return false;
-
-        // 使用 MessageProcessor 处理 Block 合并和 Artifact 状态
-        _messageProcessor.ProcessBlock(block, currentBlocks, ref currentArtifact, completedArtifacts);
-
-        return true;
-    }
 }

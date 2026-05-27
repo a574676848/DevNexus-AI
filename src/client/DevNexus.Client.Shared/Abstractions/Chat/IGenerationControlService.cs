@@ -9,9 +9,9 @@ namespace DevNexus.Client.Shared.Abstractions.Chat;
 public interface IGenerationControlService
 {
     /// <summary>
-    /// 处理发送消息（带 Provider 选择和 Artifact ID），返回构建的用户消息 DTO（供组件添加到消息列表）
+    /// 处理发送消息（带 Provider 选择和 Artifact ID）。
     /// </summary>
-    Task<ChatMessageDto?> HandleSendWithProviderAsync(
+    Task<bool> HandleSendWithProviderAsync(
         string content, Guid sessionId, Guid? providerId,
         List<Guid>? artifactIds, List<ArtifactDto>? artifacts, bool enableRag,
         string? selectedSkillName = null, Dictionary<string, object>? metadata = null);
@@ -19,7 +19,7 @@ public interface IGenerationControlService
     /// <summary>
     /// 处理发送消息（不带 Provider，向后兼容）
     /// </summary>
-    Task<ChatMessageDto?> HandleSendAsync(string content, Guid sessionId);
+    Task<bool> HandleSendAsync(string content, Guid sessionId);
 
     /// <summary>
     /// 处理取消生成（Swarm 中止、内容固化、SignalR 取消）。

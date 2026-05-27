@@ -1,5 +1,6 @@
 using DevNexus.Core.Abstractions;
 using DevNexus.ApiService.Services;
+using DevNexus.Domain.Abstractions;
 using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
@@ -19,6 +20,7 @@ public partial class ChatHub : Hub
     private readonly ICliRuntimeCoordinator _cliRuntimeCoordinator;
     private readonly IChatQueueService _chatQueueService;
     private readonly IChatQueueDispatcher _chatQueueDispatcher;
+    private readonly IPendingInteractionRepository _pendingInteractionRepository;
     private readonly IRuntimeEventNotifier _runtimeEventNotifier;
     private readonly ILogger<ChatHub> _logger;
 
@@ -30,6 +32,7 @@ public partial class ChatHub : Hub
     /// <param name="cliRuntimeCoordinator">CLI 运行时协调器</param>
     /// <param name="chatQueueService">聊天消息排队服务</param>
     /// <param name="chatQueueDispatcher">聊天队列调度器</param>
+    /// <param name="pendingInteractionRepository">挂起交互仓储</param>
     /// <param name="runtimeEventNotifier">运行时结构化事件通知器</param>
     /// <param name="logger">日志记录器</param>
     public ChatHub(
@@ -38,6 +41,7 @@ public partial class ChatHub : Hub
         ICliRuntimeCoordinator cliRuntimeCoordinator,
         IChatQueueService chatQueueService,
         IChatQueueDispatcher chatQueueDispatcher,
+        IPendingInteractionRepository pendingInteractionRepository,
         IRuntimeEventNotifier runtimeEventNotifier,
         ILogger<ChatHub> logger)
     {
@@ -46,6 +50,7 @@ public partial class ChatHub : Hub
         _cliRuntimeCoordinator = cliRuntimeCoordinator;
         _chatQueueService = chatQueueService;
         _chatQueueDispatcher = chatQueueDispatcher;
+        _pendingInteractionRepository = pendingInteractionRepository;
         _runtimeEventNotifier = runtimeEventNotifier;
         _logger = logger;
     }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Threading;
+using DevNexus.Shared.Enums;
 
 namespace DevNexus.Core.Services.Chat;
 
@@ -37,6 +38,12 @@ public static class ChatExecutionContext
     public static int CurrentAttemptNumber => _current.Value?.AttemptNumber ?? 0;
 
     /// <summary>
+    /// 当前 Agent 审批模式。
+    /// </summary>
+    public static AgentApprovalMode CurrentApprovalMode =>
+        _current.Value?.ApprovalMode ?? AgentApprovalMode.AskUser;
+
+    /// <summary>
     /// 当前工具调用 ID
     /// </summary>
     public static Guid CurrentToolCallId
@@ -56,13 +63,18 @@ public static class ChatExecutionContext
     /// <summary>
     /// 初始化上下文（Attempt 级别）
     /// </summary>
-    public static void Begin(Guid sessionId, Guid messageId, int attemptNumber)
+    public static void Begin(
+        Guid sessionId,
+        Guid messageId,
+        int attemptNumber,
+        AgentApprovalMode approvalMode = AgentApprovalMode.AskUser)
     {
         _current.Value = new ChatExecutionContextState
         {
             SessionId = sessionId,
             MessageId = messageId,
             AttemptNumber = attemptNumber,
+            ApprovalMode = approvalMode,
             ToolRecords = new ConcurrentQueue<ToolExecutionRecord>()
         };
 
@@ -135,7 +147,8 @@ public static class ChatExecutionContext
             state.SessionId,
             state.MessageId,
             state.AttemptNumber,
-            CurrentToolCallId);
+            CurrentToolCallId,
+            state.ApprovalMode);
     }
 
     /// <summary>
@@ -155,6 +168,8 @@ public static class ChatExecutionContext
 
         public int AttemptNumber { get; set; }
 
+        public AgentApprovalMode ApprovalMode { get; set; } = AgentApprovalMode.AskUser;
+
         public ConcurrentQueue<ToolExecutionRecord> ToolRecords { get; set; } = new();
     }
 }
@@ -167,7 +182,12 @@ public readonly struct ChatExecutionContextSnapshot
     /// <summary>
     /// 空快照
     /// </summary>
-    public static readonly ChatExecutionContextSnapshot Empty = new(Guid.Empty, Guid.Empty, 0, Guid.Empty);
+    public static readonly ChatExecutionContextSnapshot Empty = new(
+        Guid.Empty,
+        Guid.Empty,
+        0,
+        Guid.Empty,
+        AgentApprovalMode.AskUser);
 
     /// <summary>
     /// 会话 ID
@@ -190,13 +210,24 @@ public readonly struct ChatExecutionContextSnapshot
     public Guid ToolCallId { get; }
 
     /// <summary>
+    /// Agent 审批模式。
+    /// </summary>
+    public AgentApprovalMode ApprovalMode { get; }
+
+    /// <summary>
     /// 构造函数
     /// </summary>
-    public ChatExecutionContextSnapshot(Guid sessionId, Guid messageId, int attemptNumber, Guid toolCallId)
+    public ChatExecutionContextSnapshot(
+        Guid sessionId,
+        Guid messageId,
+        int attemptNumber,
+        Guid toolCallId,
+        AgentApprovalMode approvalMode)
     {
         SessionId = sessionId;
         MessageId = messageId;
         AttemptNumber = attemptNumber;
         ToolCallId = toolCallId;
+        ApprovalMode = approvalMode;
     }
 }

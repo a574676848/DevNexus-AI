@@ -11,9 +11,9 @@ public enum CliExecutionPolicyDecisionCode
     Allowed = 0,
 
     /// <summary>
-    /// 工作目录不在允许范围内。
+    /// 工作目录不存在或无法访问。
     /// </summary>
-    WorkingDirectoryOutOfScope = 1,
+    WorkingDirectoryUnavailable = 1,
 
     /// <summary>
     /// 命令未在安全命令或允许列表中。
@@ -26,7 +26,7 @@ public enum CliExecutionPolicyDecisionCode
     DangerousCommandRequiresApproval = 3,
 
     /// <summary>
-    /// 命令包含越界绝对路径。
+    /// 保留历史裁决码：命令包含外部绝对路径。
     /// </summary>
     ExternalPathViolation = 4,
 

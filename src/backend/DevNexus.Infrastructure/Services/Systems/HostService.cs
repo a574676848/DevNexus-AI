@@ -24,8 +24,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
 {
     private readonly ILogger<HostService> _logger;
     private readonly IUserContextAccessor _userContextAccessor;
-    private readonly IUserStoragePathService _userStoragePathService;
-    private readonly ISkillRuntimePathResolver _skillRuntimePathResolver;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IRuntimeEventNotifier _runtimeEventNotifier;
     private readonly ICliSandboxWarmPool _cliSandboxWarmPool;
@@ -35,8 +33,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
     public HostService(
         ILogger<HostService> logger,
         IUserContextAccessor userContextAccessor,
-        IUserStoragePathService userStoragePathService,
-        ISkillRuntimePathResolver skillRuntimePathResolver,
         IServiceScopeFactory serviceScopeFactory,
         IRuntimeEventNotifier runtimeEventNotifier,
         ICliSandboxWarmPool cliSandboxWarmPool,
@@ -45,8 +41,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
     {
         _logger = logger;
         _userContextAccessor = userContextAccessor;
-        _userStoragePathService = userStoragePathService;
-        _skillRuntimePathResolver = skillRuntimePathResolver;
         _serviceScopeFactory = serviceScopeFactory;
         _runtimeEventNotifier = runtimeEventNotifier;
         _cliSandboxWarmPool = cliSandboxWarmPool;
@@ -85,7 +79,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
             ? Guid.NewGuid().ToString()
             : _userContextAccessor.CurrentSessionId!;
 
-        // 确保工作目录安全：未指定时回落到用户 tmp 目录
+        // userId/sessionId 仍用于会话隔离、审批和审计，不再用于限制本机目录边界。
         var userId = _userContextAccessor.CurrentUserId;
         if (!userId.HasValue)
         {
@@ -102,6 +96,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
         var cliExecCheckpointService = scope.ServiceProvider.GetRequiredService<ICliExecCheckpointService>();
         var cliExecSessionRepository = scope.ServiceProvider.GetRequiredService<ICliExecSessionRepository>();
 
+        var contextSnapshot = ChatExecutionContext.GetSnapshot();
         var targetWd = cliExecutionPolicyService.ResolveWorkingDirectory(userId.Value, workingDirectory);
         var policy = await cliExecutionPolicyService.EvaluateCommandAsync(
             userId.Value,
@@ -109,6 +104,7 @@ public partial class HostService : IHostStructuredService, ICliExecService
             command,
             arguments,
             targetWd,
+            contextSnapshot.ApprovalMode,
             cancellationToken);
         if (!policy.Allowed)
         {
@@ -139,7 +135,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         cliExecSessionRepository,
                         cancellationToken);
 
-                    var contextSnapshot = ChatExecutionContext.GetSnapshot();
                     var toolRecord = new ToolExecutionRecord
                     {
                         ToolName = "HostService.ExecuteCommandResultAsync",
@@ -220,25 +215,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
 
         targetWd = policy.EffectiveWorkingDirectory ?? targetWd;
 
-        var pathRewriteEntries = new List<PathRewriteEntry>();
-        command = RewriteAccessiblePathsInCommandText(userId.Value, command, pathRewriteEntries);
-        arguments = RewriteAccessiblePathsInCommandText(userId.Value, arguments, pathRewriteEntries);
-
-        if (pathRewriteEntries.Count > 0)
-        {
-            _logger.LogInformation(
-                "[HostService] 已重写命令中的路径片段 | Session={Session} Count={Count} Rewrites={Rewrites}",
-                publicSessionId,
-                pathRewriteEntries.Count,
-                pathRewriteEntries.Select(entry => new { entry.OriginalPath, entry.RewrittenPath }));
-
-            var rewriteSummary = string.Join("；", pathRewriteEntries
-                .Distinct()
-                .Take(3)
-                .Select(entry => $"{entry.OriginalPath} -> {entry.RewrittenPath}"));
-            await ThinkingContext.EmitAsync($"🧭 检测到越界路径，已自动映射到宿主沙箱：{rewriteSummary}");
-        }
-
         _logger.LogInformation("[HostService] 执行命令 (Session={Session}): {Cmd} {Args}", publicSessionId, command, arguments);
 
         // 如果存在已活跃的持久化会话，使用哨兵机制执行并截获
@@ -269,7 +245,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
 
             // 【AsyncLocal 降低依赖】在方法入口捕获上下文快照到局部变量，
             // 确保 HandleOutput 回调通过闭包使用稳定的局部变量，而非直接读取可能失效的上下文
-            var contextSnapshot = ChatExecutionContext.GetSnapshot();
             var messageId = contextSnapshot.MessageId;
             var attemptNumber = contextSnapshot.AttemptNumber;
             var parsedSessionId = Guid.TryParse(publicSessionId, out var sid) ? sid : Guid.Empty;
@@ -457,15 +432,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
 
                 if (exitCode != 0)
                 {
-                    if (pathRewriteEntries.Count > 0)
-                    {
-                        var failureRewriteSummary = string.Join("；", pathRewriteEntries
-                            .Distinct()
-                            .Take(3)
-                            .Select(entry => $"{entry.OriginalPath} -> {entry.RewrittenPath}"));
-                        output = $"[PATH_REWRITTEN] 已自动映射路径：{failureRewriteSummary}\n{output}";
-                    }
-
                     return new HostCommandExecutionResult
                     {
                         Status = HostOperationStatus.Failure,
@@ -473,15 +439,6 @@ public partial class HostService : IHostStructuredService, ICliExecService
                         Output = output,
                         ExitCode = exitCode
                     };
-                }
-
-                if (pathRewriteEntries.Count > 0)
-                {
-                    var successRewriteSummary = string.Join("；", pathRewriteEntries
-                        .Distinct()
-                        .Take(3)
-                        .Select(entry => $"{entry.OriginalPath} -> {entry.RewrittenPath}"));
-                    output = $"[PATH_REWRITTEN] 已自动映射路径：{successRewriteSummary}\n{output}";
                 }
 
                 return new HostCommandExecutionResult

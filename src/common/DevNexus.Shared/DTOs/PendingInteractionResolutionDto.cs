@@ -45,8 +45,4 @@ public class PendingInteractionResolutionResponse
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public CliApprovalGrantScope? ApprovalScope { get; set; }
 
-    /// <summary>
-    /// 建议用于继续执行的用户可见消息。
-    /// </summary>
-    public string? ResumeMessage { get; set; }
 }

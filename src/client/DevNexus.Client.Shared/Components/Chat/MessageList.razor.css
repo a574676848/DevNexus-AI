@@ -20,6 +20,12 @@
     scroll-behavior: auto;
     scrollbar-gutter: stable;
     overflow-anchor: none;
+    overscroll-behavior: contain;
+}
+
+.message-stream-status {
+    min-height: 34px;
+    overflow-anchor: none;
 }
 
 .message-loading-state {
@@ -141,6 +147,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
+    max-width: calc(100% - 48px);
     padding: 8px 16px;
     background: var(--dnx-bg-surface, #ffffff);
     border: 1px solid var(--dnx-border-default, #d5dbe0);
@@ -208,6 +215,9 @@
     background: transparent;
     color: inherit;
     box-shadow: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 @keyframes hint-bob {
@@ -503,6 +513,20 @@
     100% {
         transform: translateX(100%);
         opacity: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .message-list {
+        padding: 16px 12px 76px;
+        gap: 18px;
+    }
+
+    .scroll-to-bottom {
+        right: 12px;
+        bottom: 14px;
+        max-width: calc(100% - 24px);
+        padding: 8px 12px;
     }
 }
 

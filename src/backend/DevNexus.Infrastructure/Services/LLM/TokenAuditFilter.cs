@@ -60,14 +60,6 @@ public class TokenAuditFilter : IAutoFunctionInvocationFilter
 
             stopwatch.Stop();
 
-            await NotifyToolInvocationAsync(
-                toolCallId,
-                pluginName,
-                functionName,
-                ToolInvocationStatus.Completed,
-                stopwatch.ElapsedMilliseconds,
-                null);
-
             // 尝试从 Result 的 Metadata 中提取 Token 使用量
             var (inputTokens, outputTokens) = ExtractTokenUsageFromResult(context.Result);
 

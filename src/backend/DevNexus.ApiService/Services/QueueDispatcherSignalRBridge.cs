@@ -31,6 +31,7 @@ public class QueueDispatcherSignalRBridge : IHostedService
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _dispatcher.OnQueuedMessageStarted += HandleQueueDispatchStarted;
+        _dispatcher.OnQueuedUserMessageAccepted += HandleQueuedUserMessageAccepted;
         _dispatcher.OnQueuedMessageBlockReceived += HandleQueuedBlockReceived;
         _dispatcher.OnQueuedMessageCompleted += HandleQueueDispatchCompleted;
 
@@ -41,6 +42,7 @@ public class QueueDispatcherSignalRBridge : IHostedService
     public Task StopAsync(CancellationToken cancellationToken)
     {
         _dispatcher.OnQueuedMessageStarted -= HandleQueueDispatchStarted;
+        _dispatcher.OnQueuedUserMessageAccepted -= HandleQueuedUserMessageAccepted;
         _dispatcher.OnQueuedMessageBlockReceived -= HandleQueuedBlockReceived;
         _dispatcher.OnQueuedMessageCompleted -= HandleQueueDispatchCompleted;
 
@@ -56,6 +58,15 @@ public class QueueDispatcherSignalRBridge : IHostedService
     private void HandleQueuedBlockReceived(Guid queuedMessageId, Guid sessionId, Guid userId, BlockDto block)
     {
         _ = PublishQueuedMessageBlockAsync(sessionId, userId, block);
+    }
+
+    private void HandleQueuedUserMessageAccepted(
+        Guid queuedMessageId,
+        Guid sessionId,
+        Guid userId,
+        ChatMessageDto userMessage)
+    {
+        _ = PublishQueuedUserMessageAcceptedAsync(sessionId, userId, userMessage);
     }
 
     private void HandleQueueDispatchCompleted(
@@ -96,6 +107,25 @@ public class QueueDispatcherSignalRBridge : IHostedService
             _logger.LogWarning(
                 ex,
                 "[QueueDispatcherRuntimeBridge] 推送排队消息流式块失败 | SessionId={SessionId}",
+                sessionId);
+        }
+    }
+
+    private async Task PublishQueuedUserMessageAcceptedAsync(
+        Guid sessionId,
+        Guid userId,
+        ChatMessageDto userMessage)
+    {
+        try
+        {
+            var userGroup = $"user:{userId}";
+            await _hubContext.Clients.Group(userGroup).SendAsync("MessageReceived", userMessage);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "[QueueDispatcherRuntimeBridge] 推送排队用户消息失败 | SessionId={SessionId}",
                 sessionId);
         }
     }

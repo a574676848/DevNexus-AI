@@ -29,11 +29,23 @@
             return;
         }
 
-        if (content === instance.lastContent) {
+        if (content === instance.lastContent && isStreaming === instance.lastIsStreaming) {
             return;
         }
 
         instance.lastContent = content;
+        instance.lastIsStreaming = isStreaming;
+
+        if (isStreaming && window.devnexusSilkyMarkdown.canUseStreamingTextFastPath(content)) {
+            window.devnexusSilkyMarkdown.renderStreamingTextFastPath(instance, content);
+            instance.lastHtml = '';
+            instance.pendingEnhance = false;
+            return;
+        }
+
+        instance.lastRenderMode = 'markdown';
+        instance.streamingTextNode = null;
+        instance.lastStreamingTextContent = '';
         var processedContent = isStreaming
             ? window.devnexusSilkyMarkdown.preprocessStreaming(content)
             : content;

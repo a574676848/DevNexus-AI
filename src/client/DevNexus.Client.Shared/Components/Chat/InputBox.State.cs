@@ -3,6 +3,7 @@ using DevNexus.Client.Shared.Abstractions.Chat;
 using DevNexus.Client.Shared.Abstractions;
 using DevNexus.Client.Shared.Services.Storage;
 using DevNexus.Shared.DTOs;
+using DevNexus.Shared.Enums;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
@@ -29,6 +30,7 @@ public partial class InputBox
     private Guid? _selectedProviderId;
     private string? _selectedProviderName;
     private bool _enableRag = true;
+    private AgentApprovalMode _agentApprovalMode = AgentApprovalMode.AskUser;
     private bool _enterToSend = true;
 
     // UI 状态

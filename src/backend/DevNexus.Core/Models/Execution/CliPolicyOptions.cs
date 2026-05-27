@@ -20,4 +20,9 @@ public sealed class CliPolicyOptions
     /// 支持完整命令前缀、工作目录命令模式和命令根三种匹配。
     /// </summary>
     public string[] PermanentAllowedCommandPatterns { get; set; } = [];
+
+    /// <summary>
+    /// 完全放权模式下是否仍保护高风险命令。
+    /// </summary>
+    public bool AlwaysProtectHighRisk { get; set; }
 }

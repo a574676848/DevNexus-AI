@@ -27,6 +27,12 @@ public partial class InputBox
 
         try
         {
+            if (IsTerminalWaitingForInput)
+            {
+                await SendTerminalInputAsync();
+                return;
+            }
+
             var attachmentArtifacts = await CreateComposerAttachmentArtifactsAsync();
             var attachmentUrls = ResolveAttachmentUrls(attachmentArtifacts);
             var submission = new ChatComposerSubmission
@@ -65,6 +71,24 @@ public partial class InputBox
             _isSending = false;
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task SendTerminalInputAsync()
+    {
+        if (!SessionId.HasValue || SessionId.Value == Guid.Empty)
+        {
+            return;
+        }
+
+        var input = _content.TrimEnd();
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return;
+        }
+
+        _content = string.Empty;
+        RequestTextareaSync();
+        await SignalR.SendCliInputAsync(SessionId.Value, input);
     }
 
     private async Task<List<ArtifactDto>> CreateComposerAttachmentArtifactsAsync()

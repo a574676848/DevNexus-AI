@@ -145,6 +145,11 @@ public interface IChatState
     TerminalPresentationState? GetTerminalPresentation(Guid sessionId);
 
     /// <summary>
+    /// 获取指定会话当前工具活动展示状态。
+    /// </summary>
+    ToolActivityPresentationState? GetToolActivityPresentation(Guid sessionId);
+
+    /// <summary>
     /// 获取指定会话当前消息展示状态。
     /// </summary>
     SessionMessagePresentationState GetSessionMessagePresentation(Guid sessionId);
@@ -213,6 +218,16 @@ public interface IChatState
     /// 清理指定会话最近一轮工具执行事件批次。
     /// </summary>
     void ClearAgentTurnEvents(Guid sessionId);
+
+    /// <summary>
+    /// 设置指定会话当前工具活动展示状态。
+    /// </summary>
+    void SetToolActivity(Guid sessionId, ToolActivityPresentationState activity);
+
+    /// <summary>
+    /// 清理指定会话当前工具活动展示状态。
+    /// </summary>
+    void ClearToolActivity(Guid sessionId);
 
     /// <summary>
     /// 聚焦指定会话的终端记录。

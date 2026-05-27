@@ -30,7 +30,6 @@ public sealed class CliExecCheckpointService : ICliExecCheckpointService
     private static readonly string CheckpointRoot = Path.Combine(Path.GetTempPath(), "DevNexus-AI", "cli-checkpoints");
 
     private readonly ILogger<CliExecCheckpointService> _logger;
-    private readonly IUserStoragePathService _userStoragePathService;
     private readonly ICliExecCheckpointRepository _checkpointRepository;
     private readonly ICliProcessRegistry _cliProcessRegistry;
 
@@ -39,12 +38,10 @@ public sealed class CliExecCheckpointService : ICliExecCheckpointService
     /// </summary>
     public CliExecCheckpointService(
         ILogger<CliExecCheckpointService> logger,
-        IUserStoragePathService userStoragePathService,
         ICliExecCheckpointRepository checkpointRepository,
         ICliProcessRegistry cliProcessRegistry)
     {
         _logger = logger;
-        _userStoragePathService = userStoragePathService;
         _checkpointRepository = checkpointRepository;
         _cliProcessRegistry = cliProcessRegistry;
     }
@@ -145,18 +142,6 @@ public sealed class CliExecCheckpointService : ICliExecCheckpointService
                 RolledBack = false,
                 Message = "当前会话没有可回滚的快照。",
                 WorkingDirectory = null
-            };
-        }
-
-        if (!_userStoragePathService.ValidateUserPathAccess(userId, checkpoint.WorkingDirectory))
-        {
-            await InvalidateCheckpointAsync(checkpoint, cancellationToken);
-            return new CliExecRollbackResultDto
-            {
-                SessionId = sessionId,
-                RolledBack = false,
-                Message = "快照已失效，无法执行回滚。",
-                WorkingDirectory = checkpoint.WorkingDirectory
             };
         }
 

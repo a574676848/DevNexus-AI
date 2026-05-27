@@ -237,8 +237,7 @@ public partial class ChatContainer : IAsyncDisposable
             _currentSessionProviderId = providerId;
         }
 
-        // 委托服务构建用户消息并发送
-        var userMessage = await GenerationControlService.HandleSendWithProviderAsync(
+        var accepted = await GenerationControlService.HandleSendWithProviderAsync(
             content,
             ChatState.CurrentSessionId,
             providerId,
@@ -248,21 +247,12 @@ public partial class ChatContainer : IAsyncDisposable
             args.SelectedSkillName,
             args.Metadata);
 
-        if (userMessage == null) return;
+        if (!accepted) return;
 
-        // 本地 UI 状态更新
-        _messages.Add(userMessage);
-        ClearBlocksWithCache();
-        _completedArtifacts.Clear();
-        _currentArtifact = null;
-        _currentMessageId = Guid.NewGuid();
-        StateHasChanged();
-
-        _ = PromoteOptimisticUserMessageAsync(userMessage.Id);
-
-        // 发送消息后强制滚动到最新
         if (_messageList != null)
+        {
             await _messageList.ScrollToBottomAsync(true);
+        }
     }
 
     /// <summary>

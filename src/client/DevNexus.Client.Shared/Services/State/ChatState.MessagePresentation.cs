@@ -15,8 +15,27 @@ public partial class ChatState
             SessionId = sessionId,
             RunState = runState,
             IsStreaming = runState is ChatSessionRunState.Generating or ChatSessionRunState.Recovering,
+            ShouldShowStatusIndicator = ShouldShowMessageStatusIndicator(runState),
+            ShouldAnimateStatus = ShouldAnimateMessageStatus(runState),
             StatusText = ChatSessionRunStateDisplay.GetDescription(runState),
             CompactStatusText = ChatSessionRunStateDisplay.GetCompactLabel(runState)
         };
+    }
+
+    private static bool ShouldShowMessageStatusIndicator(ChatSessionRunState runState)
+    {
+        return runState is ChatSessionRunState.Generating
+            or ChatSessionRunState.Recovering
+            or ChatSessionRunState.Running
+            or ChatSessionRunState.WaitingForInput
+            or ChatSessionRunState.WaitingForPendingInput
+            or ChatSessionRunState.WaitingForApproval;
+    }
+
+    private static bool ShouldAnimateMessageStatus(ChatSessionRunState runState)
+    {
+        return runState is ChatSessionRunState.Generating
+            or ChatSessionRunState.Recovering
+            or ChatSessionRunState.Running;
     }
 }

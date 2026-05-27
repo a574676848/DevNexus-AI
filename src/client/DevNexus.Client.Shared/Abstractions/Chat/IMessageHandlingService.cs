@@ -66,17 +66,4 @@ public interface IMessageHandlingService
     /// <param name="currentBlocks">组件的 currentBlocks 列表（会被填充）</param>
     List<Guid> RestoreGeneratingState(Guid sessionId, List<BlockDto> currentBlocks);
 
-    /// <summary>
-    /// 处理接收到的 Block（支持多会话并行，含 Swarm 事件检测和 ChatState 分发）
-    /// </summary>
-    /// <param name="block">接收到的 Block</param>
-    /// <param name="currentBlocks">组件的 currentBlocks 列表</param>
-    /// <param name="currentArtifact">当前 Artifact 引用</param>
-    /// <param name="completedArtifacts">已完成的 Artifact 列表</param>
-    /// <param name="currentSessionId">当前会话 ID</param>
-    /// <returns>是否为当前会话的 Block（决定组件是否需要刷新 UI）</returns>
-    bool HandleBlockReceived(
-        BlockDto block, List<BlockDto> currentBlocks,
-        ref ArtifactDto? currentArtifact, List<ArtifactDto> completedArtifacts,
-        Guid currentSessionId);
 }

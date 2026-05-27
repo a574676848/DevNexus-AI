@@ -344,6 +344,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
     min-height: 34px;
     padding: 0 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -381,6 +382,12 @@
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: rgba(216, 222, 233, 0.66);
+}
+
+.terminal-session-panel__output-viewport {
+    margin-left: auto;
+    color: rgba(216, 222, 233, 0.52);
+    font-size: 11px;
 }
 
 .terminal-session-panel__output {

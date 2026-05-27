@@ -40,10 +40,16 @@ public partial class TerminalSessionPanel
     private bool _pendingSelectionPulse;
     private bool _pendingWaitingPulse;
     private bool _pendingAutoScroll;
+    private bool _autoFollowOutput = true;
+    private DateTime _autoScrollLeaseUntil = DateTime.MinValue;
     private int _selectionPulseVersion;
     private int _waitingPulseVersion;
     private DateTime _lastAutoScrollAt = DateTime.MinValue;
-    private static readonly TimeSpan AutoScrollThrottleInterval = TimeSpan.FromMilliseconds(220);
+    private const int AutoScrollThrottleIntervalMs = 120;
+    private const int OutputAutoScrollLeaseMs = 900;
+    private const int StableOutputScrollDurationMs = 320;
+    private static readonly TimeSpan AutoScrollThrottleInterval = TimeSpan.FromMilliseconds(AutoScrollThrottleIntervalMs);
+    private static readonly TimeSpan OutputAutoScrollLease = TimeSpan.FromMilliseconds(OutputAutoScrollLeaseMs);
     private CancellationTokenSource? _pollingCts;
     private Task? _pollingTask;
     private Guid? _pollingSessionId;
@@ -65,6 +71,8 @@ public partial class TerminalSessionPanel
             _lastOutputLength = outputLength;
             _showScrollButton = false;
             _isAtBottom = true;
+            _autoFollowOutput = true;
+            ExtendAutoScrollLease();
             _pendingSelectionPulse = recordId.HasValue;
             _pendingAutoScroll = recordId.HasValue;
             _lastPolledOutputLength = 0;
@@ -74,9 +82,11 @@ public partial class TerminalSessionPanel
         }
         else if (outputLength != _lastOutputLength)
         {
-            if (_isAtBottom)
+            if (ShouldFollowOutput())
             {
                 _pendingAutoScroll = true;
+                _autoFollowOutput = true;
+                ExtendAutoScrollLease();
             }
 
             _lastOutputLength = outputLength;
@@ -105,7 +115,7 @@ public partial class TerminalSessionPanel
             _scrollListenerAttached = true;
         }
 
-        if (_pendingAutoScroll && _isAtBottom)
+        if (_pendingAutoScroll && ShouldFollowOutput())
         {
             _pendingAutoScroll = false;
             await ScrollToBottomIfDueAsync(force: true);
@@ -128,7 +138,17 @@ public partial class TerminalSessionPanel
     public Task OnScrollPositionChanged(bool isAtBottom)
     {
         _isAtBottom = isAtBottom;
-        _showScrollButton = !isAtBottom;
+        if (isAtBottom)
+        {
+            _showScrollButton = false;
+            _autoFollowOutput = true;
+        }
+        else if (!IsWithinAutoScrollLease())
+        {
+            _showScrollButton = true;
+            _autoFollowOutput = false;
+        }
+
         StateHasChanged();
         return Task.CompletedTask;
     }
@@ -184,6 +204,18 @@ public partial class TerminalSessionPanel
         }
 
         return string.IsNullOrWhiteSpace(record.Output) ? "等待输出" : record.Output;
+    }
+
+    private TerminalLiveOutputViewport GetOutputViewport(TerminalRecordState record)
+    {
+        return TerminalLiveOutputViewportPolicy.Default.Create(GetOutputText(record));
+    }
+
+    private static string GetOutputViewportNotice(TerminalLiveOutputViewport viewport)
+    {
+        return viewport.WasTrimmed
+            ? $"实时视图 · 最近 {viewport.VisibleLineCount} 行"
+            : string.Empty;
     }
 
     private static string GetOutputModeLabel(TerminalRecordState record)
@@ -486,10 +518,20 @@ public partial class TerminalSessionPanel
 
     private async Task ScrollToBottomAsync(bool force = false)
     {
-        await JS.InvokeVoidAsync(force ? "scrollToBottomForce" : "scrollToBottom", _outputRef, force);
+        if (force)
+        {
+            await JS.InvokeAsync<bool>("scrollToBottomWhileStable", _outputRef, StableOutputScrollDurationMs);
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("scrollToBottom", _outputRef, false);
+        }
+
         _showScrollButton = false;
         _isAtBottom = true;
+        _autoFollowOutput = true;
         _lastAutoScrollAt = DateTime.UtcNow;
+        ExtendAutoScrollLease();
     }
 
     /// <summary>
@@ -504,6 +546,21 @@ public partial class TerminalSessionPanel
         }
 
         await ScrollToBottomAsync(force);
+    }
+
+    private bool ShouldFollowOutput()
+    {
+        return _isAtBottom || _autoFollowOutput || IsWithinAutoScrollLease();
+    }
+
+    private void ExtendAutoScrollLease()
+    {
+        _autoScrollLeaseUntil = DateTime.UtcNow.Add(OutputAutoScrollLease);
+    }
+
+    private bool IsWithinAutoScrollLease()
+    {
+        return DateTime.UtcNow <= _autoScrollLeaseUntil;
     }
 
     private async Task FocusComposerAsync()

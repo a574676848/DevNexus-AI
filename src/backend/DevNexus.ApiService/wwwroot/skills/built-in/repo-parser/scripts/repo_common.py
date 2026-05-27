@@ -208,8 +208,8 @@ def validate_workdir(workdir: str):
         msg = (
             "❌ 缺少必填参数: --workdir\n\n"
             "原因: 该脚本的代码下载目录(B)必须与脚本存项目目录(A)分离。\n"
-            "解决: 请传入用户工作空间的 tmp 路径。例如:\n"
-            "      --workdir \"E:\\zbg\\DevNexus-AI\\src\\backend\\DevNexus.ApiService\\wwwroot\\tmp\\user-uuid\""
+            "解决: 请传入本机可写工作目录。例如:\n"
+            "      --workdir \"E:\\work\\repo-parser-output\""
         )
         emit_json({
             "status": "error",

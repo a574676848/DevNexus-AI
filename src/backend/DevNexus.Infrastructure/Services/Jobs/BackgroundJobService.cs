@@ -16,20 +16,26 @@ public class BackgroundJobService : IBackgroundJobService
     private static readonly string[] LegacyRecurringJobIdFragments =
     [
         "workspace-cleanup",
-        "user-workspace-cleanup"
+        "user-workspace-cleanup",
+        "user-storage-cleanup",
+        "user-temp-cleanup"
     ];
 
     private static readonly string[] LegacyRecurringJobTypeNames =
     [
         "DevNexus.Infrastructure.Services.Jobs.UserWorkspaceCleanupJob",
-        "UserWorkspaceCleanupJob"
+        "UserWorkspaceCleanupJob",
+        "DevNexus.Infrastructure.Services.Jobs.UserStorageCleanupJob",
+        "UserStorageCleanupJob",
+        "DevNexus.Infrastructure.Services.Jobs.UserTempCleanupJob",
+        "UserTempCleanupJob"
     ];
 
     private readonly ILogger<BackgroundJobService> _logger;
     private readonly IBackgroundJobClient _jobClient;
     private readonly IRecurringJobManager _recurringJobManager;
     private readonly JobStorage _jobStorage;
-    
+
     public BackgroundJobService(
         ILogger<BackgroundJobService> logger,
         IBackgroundJobClient jobClient,
@@ -41,21 +47,21 @@ public class BackgroundJobService : IBackgroundJobService
         _recurringJobManager = recurringJobManager;
         _jobStorage = jobStorage;
     }
-    
+
     /// <inheritdoc />
     public string EnqueueCleanupExpiredFiles(int daysOld = 30)
     {
         var jobId = _jobClient.Enqueue<CleanupJob>(
             job => job.CleanupExpiredFilesAsync(daysOld, CancellationToken.None));
-        
+
         _logger.LogInformation(
             "[BackgroundJob.Enqueue] Cleanup job enqueued | JobId={JobId} DaysOld={DaysOld}",
             jobId,
             daysOld);
-        
+
         return jobId;
     }
-    
+
     /// <inheritdoc />
     public void ScheduleDailyCleanup()
     {
@@ -64,10 +70,10 @@ public class BackgroundJobService : IBackgroundJobService
             "daily-cleanup",
             job => job.CleanupExpiredFilesAsync(30, CancellationToken.None),
             Cron.Daily(2));
-        
+
         _logger.LogInformation("[BackgroundJob.Schedule] Daily cleanup job scheduled");
     }
-    
+
     /// <inheritdoc />
     public void ScheduleSessionCleanup()
     {
@@ -76,10 +82,10 @@ public class BackgroundJobService : IBackgroundJobService
             "daily-session-cleanup",
             job => job.CleanupInactiveSessionsAsync(90, CancellationToken.None),
             Cron.Daily(3));
-        
+
         _logger.LogInformation("[BackgroundJob.Schedule] Daily session cleanup job scheduled");
     }
-    
+
     /// <inheritdoc />
     public void ScheduleStuckMessagesCleanup()
     {
@@ -88,7 +94,7 @@ public class BackgroundJobService : IBackgroundJobService
             "hourly-stuck-messages-cleanup",
             job => job.CleanupStuckMessagesAsync(CancellationToken.None),
             Cron.Hourly());
-        
+
         _logger.LogInformation("[BackgroundJob.Schedule] Hourly stuck messages cleanup job scheduled");
     }
 
@@ -130,19 +136,19 @@ public class BackgroundJobService : IBackgroundJobService
             _logger.LogWarning(ex, "[BackgroundJob.Schedule] 清理历史循环任务失败，继续注册当前任务。");
         }
     }
-    
+
     /// <inheritdoc />
     public bool DeleteJob(string jobId)
     {
         try
         {
             var result = _jobClient.Delete(jobId);
-            
+
             _logger.LogInformation(
                 "[BackgroundJob.Delete] Job deleted | JobId={JobId} Success={Success}",
                 jobId,
                 result);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -154,52 +160,52 @@ public class BackgroundJobService : IBackgroundJobService
             return false;
         }
     }
-    
+
     /// <inheritdoc />
     public string ScheduleMemoryConsolidation(Guid sessionId, Guid userId, TimeSpan delay)
     {
         var jobId = _jobClient.Schedule<MemoryConsolidationJob>(
             job => job.ExecuteAsync(sessionId, userId, CancellationToken.None),
             delay);
-        
+
         _logger.LogInformation(
             "[BackgroundJob.Schedule] Memory consolidation scheduled | JobId={JobId} SessionId={SessionId} Delay={Delay}",
             jobId,
             sessionId,
             delay);
-        
+
         return jobId;
     }
-    
+
     /// <inheritdoc />
     public string EnqueueMemoryConsolidation(Guid sessionId, Guid userId)
     {
         var jobId = _jobClient.Enqueue<MemoryConsolidationJob>(
             job => job.ExecuteAsync(sessionId, userId, CancellationToken.None));
-        
+
         _logger.LogInformation(
             "[BackgroundJob.Enqueue] Memory consolidation enqueued | JobId={JobId} SessionId={SessionId}",
             jobId,
             sessionId);
-        
+
         return jobId;
     }
-    
+
     /// <inheritdoc />
     public bool CancelMemoryConsolidation(string jobId)
     {
         if (string.IsNullOrEmpty(jobId))
             return false;
-            
+
         try
         {
             var result = _jobClient.Delete(jobId);
-            
+
             _logger.LogInformation(
                 "[BackgroundJob.Cancel] Memory consolidation cancelled | JobId={JobId} Success={Success}",
                 jobId,
                 result);
-            
+
             return result;
         }
         catch (Exception ex)
@@ -211,7 +217,7 @@ public class BackgroundJobService : IBackgroundJobService
             return false;
         }
     }
-    
+
     /// <inheritdoc />
     public void ScheduleDailyMemoryConsolidationScan()
     {
@@ -220,7 +226,7 @@ public class BackgroundJobService : IBackgroundJobService
             "daily-memory-consolidation-scan",
             job => job.ExecuteAsync(CancellationToken.None),
             Cron.Daily(4));
-        
+
         _logger.LogInformation("[BackgroundJob.Schedule] Daily memory consolidation scan scheduled at 4:00 AM");
     }
 
@@ -239,7 +245,7 @@ public class BackgroundJobService : IBackgroundJobService
                 context.ContextCompressionSummaryFingerprint,
                 CancellationToken.None),
             delay);
-        
+
         _logger.LogInformation(
             "[BackgroundJob] 预定经验提纯任务 | SessionId={SessionId} Delay={Delay} " +
             "CandidateReason={CandidateReason} ContextPressureReason={ContextPressureReason} " +
@@ -259,7 +265,7 @@ public class BackgroundJobService : IBackgroundJobService
             "daily-experience-pruning",
             job => job.PruneAsync(CancellationToken.None),
             Cron.Daily(5)); // 凌晨 5 点
-        
+
         _logger.LogInformation("[BackgroundJob] 注册每日经验修剪任务");
     }
 

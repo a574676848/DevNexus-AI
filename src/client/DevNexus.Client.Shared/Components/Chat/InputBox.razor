@@ -32,6 +32,7 @@
 
     <!-- Toolbar -->
     <InputToolbar EnableRag="@_enableRag"
+                  AgentApprovalMode="@_agentApprovalMode"
                   SelectedProviderId="@_selectedProviderId"
                   SelectedProviderName="@_selectedProviderName"
                   IsUploading="@_isUploading"
@@ -43,6 +44,7 @@
                   SelectedSkillName="@_selectedSlashSkill?.Name"
                   SelectedSkillDescription="@_selectedSlashSkill?.Description"
                   EnableRagChanged="OnEnableRagChanged"
+                  AgentApprovalModeChanged="OnAgentApprovalModeChanged"
                   OnProviderChanged="HandleProviderChanged"
                   OnOpenQuickCommand="() => _showQuickCommandModal = true"
                   OnClearSelectedTool="ClearSelectedQuickTool"

@@ -14,8 +14,7 @@ public static class PendingInteractionResolutionPolicy
     {
         return action?.Trim().ToLowerInvariant() switch
         {
-            PendingInteractionResolutionActions.Approve
-                or PendingInteractionResolutionActions.ApproveOnce => PendingInteractionResolutionDecision.ApproveOnce(),
+            PendingInteractionResolutionActions.ApproveOnce => PendingInteractionResolutionDecision.ApproveOnce(),
             PendingInteractionResolutionActions.ApprovePattern => PendingInteractionResolutionDecision.ApprovePattern(),
             PendingInteractionResolutionActions.Deny => PendingInteractionResolutionDecision.Deny(),
             _ => PendingInteractionResolutionDecision.Submit()
@@ -28,11 +27,6 @@ public static class PendingInteractionResolutionPolicy
 /// </summary>
 public static class PendingInteractionResolutionActions
 {
-    /// <summary>
-    /// 兼容旧审批动作。
-    /// </summary>
-    public const string Approve = "approve";
-
     /// <summary>
     /// 仅允许本次命令。
     /// </summary>
@@ -75,11 +69,6 @@ public sealed record PendingInteractionResolutionDecision
     public bool IsDenied { get; init; }
 
     /// <summary>
-    /// 用于恢复 Agent Loop 的用户可见消息。
-    /// </summary>
-    public string ResumeMessage { get; init; } = "我已补充所需信息，请继续。";
-
-    /// <summary>
     /// 单次审批通过。
     /// </summary>
     public static PendingInteractionResolutionDecision ApproveOnce()
@@ -87,8 +76,7 @@ public sealed record PendingInteractionResolutionDecision
         return new PendingInteractionResolutionDecision
         {
             Action = PendingInteractionResolutionActions.ApproveOnce,
-            ApprovalScope = CliApprovalGrantScope.Once,
-            ResumeMessage = "我已允许本次命令执行，请继续。"
+            ApprovalScope = CliApprovalGrantScope.Once
         };
     }
 
@@ -100,8 +88,7 @@ public sealed record PendingInteractionResolutionDecision
         return new PendingInteractionResolutionDecision
         {
             Action = PendingInteractionResolutionActions.ApprovePattern,
-            ApprovalScope = CliApprovalGrantScope.Pattern,
-            ResumeMessage = "我已允许当前会话中的同类命令继续执行，请继续。"
+            ApprovalScope = CliApprovalGrantScope.Pattern
         };
     }
 
@@ -113,8 +100,7 @@ public sealed record PendingInteractionResolutionDecision
         return new PendingInteractionResolutionDecision
         {
             Action = PendingInteractionResolutionActions.Deny,
-            IsDenied = true,
-            ResumeMessage = "我已拒绝当前操作，请停止本次执行。"
+            IsDenied = true
         };
     }
 

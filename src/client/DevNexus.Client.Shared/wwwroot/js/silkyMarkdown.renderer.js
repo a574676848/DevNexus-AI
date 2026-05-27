@@ -99,6 +99,51 @@
         return markdown || '';
     }
 
+    function canUseStreamingTextFastPath(content) {
+        if (!content) {
+            return true;
+        }
+
+        return !/[#*_`\[\]<>\|!]/.test(content)
+            && !/(^|\n)\s*(?:[-+]\s|\d+\.\s|>\s)/.test(content)
+            && !/https?:\/\//i.test(content);
+    }
+
+    function renderStreamingTextFastPath(instance, content) {
+        if (!instance || !instance.container) {
+            return false;
+        }
+
+        if (instance.lastRenderMode !== 'streamText') {
+            instance.container.textContent = '';
+            var textNode = document.createElement('div');
+            textNode.className = 'silky-markdown-stream-text';
+            textNode.appendChild(document.createTextNode(content || ''));
+            instance.container.appendChild(textNode);
+            instance.streamingTextNode = textNode;
+            instance.lastStreamingTextContent = content || '';
+            instance.lastRenderMode = 'streamText';
+            return true;
+        }
+
+        var node = instance.streamingTextNode;
+        if (!node || !instance.container.contains(node)) {
+            instance.lastRenderMode = '';
+            return renderStreamingTextFastPath(instance, content);
+        }
+
+        var nextContent = content || '';
+        var previousContent = instance.lastStreamingTextContent || '';
+        if (nextContent.startsWith(previousContent) && node.firstChild) {
+            node.firstChild.appendData(nextContent.slice(previousContent.length));
+        } else {
+            node.textContent = nextContent;
+        }
+
+        instance.lastStreamingTextContent = nextContent;
+        return true;
+    }
+
     function patchDOM(container, newHtml) {
         if (!container) {
             return;
@@ -137,5 +182,7 @@
     window.devnexusSilkyMarkdown.initMarkdownIt = initMarkdownIt;
     window.devnexusSilkyMarkdown.preprocessStreaming = preprocessStreaming;
     window.devnexusSilkyMarkdown.preprocessMarkdown = preprocessMarkdown;
+    window.devnexusSilkyMarkdown.canUseStreamingTextFastPath = canUseStreamingTextFastPath;
+    window.devnexusSilkyMarkdown.renderStreamingTextFastPath = renderStreamingTextFastPath;
     window.devnexusSilkyMarkdown.patchDOM = patchDOM;
 })();

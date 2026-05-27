@@ -191,11 +191,149 @@ public partial class ChatService : IChatService
         return chatSession;
     }
 
+    private async Task<(ChatMessage UserMessage, ChatMessage AiMessage)> CreateNewTurnMessagesAsync(
+        ChatRequest chatRequest,
+        ChatSession chatSession,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var userMessage = await CreateUserMessageAsync(chatRequest, chatSession, userId, cancellationToken);
+        var aiMessage = new ChatMessage
+        {
+            ChatSessionId = chatSession.Id,
+            ParentMessageId = userMessage.Id,
+            SenderId = ChatConstants.AssistantSenderId,
+            SenderType = ChatConstants.RoleAssistant,
+            Content = new Dictionary<string, object> { { "text", string.Empty } },
+            MessageType = ChatConstants.MessageTypeText,
+            Status = ChatConstants.StatusInProgress
+        };
+
+        await _chatMessageRepository.AddAsync(aiMessage, cancellationToken);
+        return (userMessage, aiMessage);
+    }
+
+    private async Task<(ChatMessage UserMessage, ChatMessage AiMessage)> ResolvePendingInteractionResumeTurnAsync(
+        ChatRequest chatRequest,
+        ChatSession chatSession,
+        Guid pendingInteractionId,
+        CancellationToken cancellationToken)
+    {
+        var interaction = await _pendingInteractionRepository.GetByIdAsync(pendingInteractionId, cancellationToken)
+            ?? throw new InvalidOperationException("挂起交互不存在。");
+
+        if (interaction.SessionId != chatSession.Id || interaction.Status != PendingInteractionStatus.Resolved)
+        {
+            throw new InvalidOperationException("挂起交互未解决或与当前会话不匹配。");
+        }
+
+        if (!interaction.MessageId.HasValue || interaction.MessageId.Value == Guid.Empty)
+        {
+            throw new InvalidOperationException("挂起交互缺少原始 AI 消息。");
+        }
+
+        var aiMessage = await _chatMessageRepository.GetByIdAsync(interaction.MessageId.Value, cancellationToken)
+            ?? throw new InvalidOperationException("原始 AI 消息不存在。");
+
+        if (aiMessage.ChatSessionId != chatSession.Id
+            || !string.Equals(aiMessage.SenderType, ChatConstants.RoleAssistant, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("原始 AI 消息与当前会话不匹配。");
+        }
+
+        aiMessage.Status = ChatConstants.StatusInProgress;
+        aiMessage.UpdatedAt = DateTime.UtcNow;
+        await _chatMessageRepository.UpdateAsync(aiMessage, cancellationToken);
+
+        var controlResumeContent = BuildControlResumeContent(interaction);
+        return (CreateControlResumeUserMessage(chatRequest, chatSession, aiMessage, controlResumeContent), aiMessage);
+    }
+
+    private static ChatMessage CreateControlResumeUserMessage(
+        ChatRequest chatRequest,
+        ChatSession chatSession,
+        ChatMessage aiMessage,
+        string controlResumeContent)
+    {
+        return new ChatMessage
+        {
+            Id = Guid.NewGuid(),
+            ChatSessionId = chatSession.Id,
+            ParentMessageId = aiMessage.ParentMessageId,
+            SenderId = chatSession.UserId,
+            SenderType = ChatConstants.RoleUser,
+            Content = new Dictionary<string, object>
+            {
+                { "text", controlResumeContent }
+            },
+            MessageType = ChatConstants.MessageTypeText,
+            Status = ChatConstants.StatusCompleted,
+            Metadata = chatRequest.Metadata == null
+                ? null
+                : new Dictionary<string, object>(chatRequest.Metadata, StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static string BuildControlResumeContent(PendingInteraction interaction)
+    {
+        var action = interaction.ResolutionData != null
+            && interaction.ResolutionData.TryGetValue(PendingInteractionMetadataKeys.ResolutionAction, out var actionValue)
+                ? actionValue?.ToString()
+                : null;
+
+        return action switch
+        {
+            PendingInteractionResolutionActions.ApproveOnce => "我已允许本次命令执行，请继续。",
+            PendingInteractionResolutionActions.ApprovePattern => "我已允许当前会话中的同类命令继续执行，请继续。",
+            _ => "我已补充所需信息，请继续。"
+        };
+    }
+
+    private static bool IsPendingInteractionResumeRequest(ChatRequest request, out Guid pendingInteractionId)
+    {
+        pendingInteractionId = Guid.Empty;
+        return request.Metadata != null
+            && TryGetBoolMetadata(request.Metadata, ChatMessageMetadataKeys.ResumePendingInteraction)
+            && TryGetGuidMetadata(request.Metadata, ChatMessageMetadataKeys.PendingInteractionId, out pendingInteractionId);
+    }
+
+    private static bool TryGetBoolMetadata(IReadOnlyDictionary<string, object> metadata, string key)
+    {
+        return metadata.TryGetValue(key, out var value)
+            && value != null
+            && (value is bool boolValue
+                ? boolValue
+                : bool.TryParse(value.ToString(), out var parsed) && parsed);
+    }
+
+    private static bool TryGetGuidMetadata(
+        IReadOnlyDictionary<string, object> metadata,
+        string key,
+        out Guid value)
+    {
+        value = Guid.Empty;
+        return metadata.TryGetValue(key, out var rawValue)
+            && rawValue != null
+            && Guid.TryParse(rawValue.ToString(), out value)
+            && value != Guid.Empty;
+    }
+
+    private static string GetMessageContentText(ChatMessage message, string key)
+    {
+        if (!message.Content.TryGetValue(key, out var value) || value == null)
+        {
+            return string.Empty;
+        }
+
+        return value.ToString() ?? string.Empty;
+    }
+
     /// <inheritdoc />
     public async Task<ChatMessageDto> StreamMessageAsync(
         ChatRequest chatRequest,
         Guid userId,
         ChannelWriter<BlockDto> blockWriter,
+        Func<ChatMessageDto, CancellationToken, Task>? onUserMessageAccepted = null,
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug(
@@ -211,22 +349,16 @@ public partial class ChatService : IChatService
         }
         chatSession = await EnsureSessionProviderBindingAsync(chatSession, cancellationToken);
 
-        // 创建用户消息
-        var userMessage = await CreateUserMessageAsync(chatRequest, chatSession, userId, cancellationToken);
+        var isControlResume = IsPendingInteractionResumeRequest(chatRequest, out var pendingInteractionId);
+        var (userMessage, aiMessage) = isControlResume
+            ? await ResolvePendingInteractionResumeTurnAsync(chatRequest, chatSession, pendingInteractionId, cancellationToken)
+            : await CreateNewTurnMessagesAsync(chatRequest, chatSession, userId, cancellationToken);
 
-        // 创建 AI 消息实体
-        var aiMessage = new ChatMessage
+        if (!isControlResume && onUserMessageAccepted != null)
         {
-            ChatSessionId = chatSession.Id,
-            ParentMessageId = userMessage.Id,
-            SenderId = ChatConstants.AssistantSenderId,
-            SenderType = ChatConstants.RoleAssistant,
-            Content = new Dictionary<string, object> { { "text", string.Empty } },
-            MessageType = ChatConstants.MessageTypeText,
-            Status = ChatConstants.StatusInProgress
-        };
-
-        await _chatMessageRepository.AddAsync(aiMessage, cancellationToken);
+            var userMessageDto = await BuildAcceptedUserMessageDtoAsync(userMessage, cancellationToken);
+            await onUserMessageAccepted(userMessageDto, cancellationToken);
+        }
 
         // 创建取消令牌源
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -234,45 +366,48 @@ public partial class ChatService : IChatService
 
         try
         {
-            // === 1. System 1: 语义缓存快思考 (零延迟拦截) ===
-            var matchResult = await _agentMemoryService.SearchExperienceAsync(
-                chatRequest.Content,
-                ExperienceType.QA,
-                cts.Token);
-
-            if (matchResult != null)
+            if (!isControlResume)
             {
-                var replayDecision = SystemExperienceReplayPolicy.Decide(matchResult);
-                if (replayDecision.ShouldAnswerDirectly)
-                {
-                    _logger.LogInformation(
-                        "[AI.Chat] Semantic Cache Hit | SessionId={SessionId} Score={Score} UUID={Id}",
-                        chatSession.Id, matchResult.Similarity, matchResult.Experience.Id);
+                // === 1. System 1: 语义缓存快思考 (零延迟拦截) ===
+                var matchResult = await _agentMemoryService.SearchExperienceAsync(
+                    chatRequest.Content,
+                    ExperienceType.QA,
+                    cts.Token);
 
-                    return await CompleteSystemExperienceReplayAsync(
-                        aiMessage,
-                        chatSession,
-                        userId,
-                        matchResult,
-                        replayDecision,
-                        blockWriter,
-                        cts.Token);
-                }
-                else if (replayDecision.ShouldInjectDynamicContext)
+                if (matchResult != null)
                 {
-                    _logger.LogInformation(
-                        "[AI.Chat] Partial Cache Hit (DynamicContext) | SessionId={SessionId} Score={Score}",
-                        chatSession.Id, matchResult.Similarity);
+                    var replayDecision = SystemExperienceReplayPolicy.Decide(matchResult);
+                    if (replayDecision.ShouldAnswerDirectly)
+                    {
+                        _logger.LogInformation(
+                            "[AI.Chat] Semantic Cache Hit | SessionId={SessionId} Score={Score} UUID={Id}",
+                            chatSession.Id, matchResult.Similarity, matchResult.Experience.Id);
 
-                    chatRequest.Metadata ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
-                    chatRequest.Metadata[ChatMessageMetadataKeys.SystemExperienceContext] =
-                        SystemExperienceReplayContextBuilder.Build(matchResult);
-                    SystemExperienceReplayMetadata.Apply(chatRequest.Metadata, replayDecision);
+                        return await CompleteSystemExperienceReplayAsync(
+                            aiMessage,
+                            chatSession,
+                            userId,
+                            matchResult,
+                            replayDecision,
+                            blockWriter,
+                            cts.Token);
+                    }
+                    else if (replayDecision.ShouldInjectDynamicContext)
+                    {
+                        _logger.LogInformation(
+                            "[AI.Chat] Partial Cache Hit (DynamicContext) | SessionId={SessionId} Score={Score}",
+                            chatSession.Id, matchResult.Similarity);
+
+                        chatRequest.Metadata ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                        chatRequest.Metadata[ChatMessageMetadataKeys.SystemExperienceContext] =
+                            SystemExperienceReplayContextBuilder.Build(matchResult);
+                        SystemExperienceReplayMetadata.Apply(chatRequest.Metadata, replayDecision);
+                    }
                 }
             }
 
             // === 2. Swarm 自动评估与路由 ===
-            if (chatRequest.EnableSwarm)
+            if (!isControlResume && chatRequest.EnableSwarm)
             {
                 var providerId = chatSession.LLMProviderId
                     ?? throw new InvalidOperationException("Swarm 路径要求聊天会话已绑定 LLM Provider。");
@@ -350,5 +485,28 @@ public partial class ChatService : IChatService
             _cancellationTokenSources.TryRemove(chatSession.Id, out _);
             cts.Dispose();
         }
+    }
+
+    private async Task<ChatMessageDto> BuildAcceptedUserMessageDtoAsync(
+        ChatMessage message,
+        CancellationToken cancellationToken)
+    {
+        var artifacts = await _artifactService.GetMessageArtifactsAsync(message.Id, cancellationToken);
+
+        return new ChatMessageDto
+        {
+            Id = message.Id,
+            ChatSessionId = message.ChatSessionId,
+            ParentMessageId = message.ParentMessageId,
+            SenderId = message.SenderId,
+            SenderType = message.SenderType,
+            Content = GetMessageContentText(message, "text"),
+            MessageType = message.MessageType,
+            Status = message.Status,
+            CreatedAt = message.CreatedAt,
+            UpdatedAt = message.UpdatedAt,
+            Metadata = message.Metadata,
+            Artifacts = artifacts.Count > 0 ? artifacts : null
+        };
     }
 }

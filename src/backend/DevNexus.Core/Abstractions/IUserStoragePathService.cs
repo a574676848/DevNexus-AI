@@ -1,8 +1,8 @@
 namespace DevNexus.Core.Abstractions;
 
 /// <summary>
-/// 用户存储路径服务接口
-/// 管理每个用户独立的临时目录和项目目录
+/// 用户存储路径服务接口。
+/// 只管理平台内部的用户临时目录和项目目录，不作为 HostService 的本机路径访问边界。
 /// </summary>
 public interface IUserStoragePathService
 {
@@ -36,7 +36,7 @@ public interface IUserStoragePathService
     bool IsUserPathAccessible(Guid userId, string path);
 
     /// <summary>
-    /// 验证指定路径是否在用户允许的存储范围内（tmp 或 project）
+    /// 验证指定路径是否属于平台内部用户存储范围。
     /// </summary>
     /// <param name="userId">用户ID</param>
     /// <param name="path">需要验证的路径</param>

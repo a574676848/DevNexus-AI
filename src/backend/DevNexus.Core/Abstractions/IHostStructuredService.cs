@@ -9,7 +9,7 @@ namespace DevNexus.Core.Abstractions;
 public interface IHostStructuredService
 {
     /// <summary>
-    /// 验证路径是否在允许的工作区范围内。
+    /// 验证路径格式是否可解析；实际访问权限由操作系统决定。
     /// </summary>
     bool ValidatePathAccess(string path);
 

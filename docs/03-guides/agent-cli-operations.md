@@ -39,7 +39,7 @@
 CLI 主链路按以下顺序工作：
 
 1. 用户或模型发起命令。
-2. `HostService` 进入 CLI 执行策略，必要时创建审批或 checkpoint。
+2. `HostService` 进入 CLI 执行策略，按真实本机路径解析工作目录，必要时创建审批或 checkpoint。
 3. `ProcessCliRuntimeHost` 创建或复用持久化 shell。
 4. 输出进入进程内缓冲，并由终端归档链路写入事实源。
 5. `CliRuntimeCoordinator` 统一提供会话状态、日志分块、stdin、等待终态、停止和回滚。
@@ -48,6 +48,8 @@ CLI 主链路按以下顺序工作：
 8. Agent Loop 根据工具结果中的 `ToolSuggestedAction` 和 `recommendedTool` 选择继续等待、发送输入、停止或总结。
 
 维护时不要绕过 `ICliRuntimeCoordinator` 直接操作 `ICliProcessRegistry`。普通 Agent Loop 和 Swarm 工作包都应走同一协调器入口，避免状态、日志和持久化事实分叉。
+
+后台清理任务只允许清理平台内部过期资源，不应扫描或删除用户显式传入的 CLI `workingDirectory`。
 
 ## 状态与下一步动作
 

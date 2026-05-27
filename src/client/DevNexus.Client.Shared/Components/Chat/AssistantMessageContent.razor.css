@@ -17,6 +17,11 @@
     padding-left: 2px;
 }
 
+.assistant-block-stage--text {
+    overflow-anchor: none;
+    contain: layout paint;
+}
+
 .assistant-block-stage--artifact,
 .assistant-block-stage--tool,
 .assistant-block-stage--terminal {

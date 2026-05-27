@@ -61,9 +61,18 @@ public partial class ChatService
             ThinkingContext.SetEmitter(thinkingEmitter);
 
             // ✅ 设置执行上下文（供 HostService 等使用）
-            ChatExecutionContext.Begin(chatSession.Id, aiMessage.Id, agentLoopAttempt);
+            ChatExecutionContext.Begin(
+                chatSession.Id,
+                aiMessage.Id,
+                agentLoopAttempt,
+                ResolveAgentApprovalMode(chatRequest.Metadata));
 
             preParserThinking = new StringBuilder();
+            var existingThinking = GetMessageContentText(aiMessage, "thinking");
+            if (!string.IsNullOrWhiteSpace(existingThinking))
+            {
+                preParserThinking.AppendLine(existingThinking);
+            }
             partialTextBuffer = new StringBuilder();
             var lastTextPersistAt = DateTime.UtcNow;
             const int partialTextPersistThreshold = 256;
@@ -83,7 +92,7 @@ public partial class ChatService
             var userQuery = preparation.UserQuery;
             var chatHistory = preparation.ChatHistory;
 
-            fullResponse = new System.Text.StringBuilder();
+            fullResponse = new System.Text.StringBuilder(GetMessageContentText(aiMessage, "text"));
 
             _logger.LogDebug(
                 "[AI.Chat] Starting streaming completion | SessionId={SessionId} MessageId={MessageId} RagEnabled={RagEnabled}",
@@ -103,6 +112,7 @@ public partial class ChatService
 
             // 用于捕获 FinishReason（检测 max_tokens 截断）
             string? lastFinishReason = null;
+            var toolExecutionTasks = new List<Task>();
 
             // ✅ 仅在首次调用时显示生成提示（避免递归时重复）
             if (agentLoopAttempt == 0)
@@ -191,13 +201,13 @@ public partial class ChatService
 
                     if (_toolBlockExecutionCoordinator.CanHandle(block))
                     {
-                        await _toolBlockExecutionCoordinator.HandleAsync(
+                        toolExecutionTasks.Add(_toolBlockExecutionCoordinator.HandleAsync(
                             block,
                             providerId,
                             aiMessage.Id,
                             chatSession.Id,
                             blockWriter,
-                            cancellationToken);
+                            cancellationToken));
                     }
                 }
             }
@@ -224,6 +234,11 @@ public partial class ChatService
                     }
                 }
                 await blockWriter.WriteAsync(remainingBlock, cancellationToken);
+            }
+
+            if (toolExecutionTasks.Count > 0)
+            {
+                await Task.WhenAll(toolExecutionTasks);
             }
 
             // ★ 检测 max_tokens 截断（FinishReason == "Length"）
@@ -427,5 +442,19 @@ public partial class ChatService
             // ✅ 清理思维链上下文
             ThinkingContext.Clear();
         }
+    }
+
+    private static AgentApprovalMode ResolveAgentApprovalMode(IReadOnlyDictionary<string, object>? metadata)
+    {
+        if (metadata == null
+            || !metadata.TryGetValue(ChatMessageMetadataKeys.AgentApprovalMode, out var value)
+            || value == null)
+        {
+            return AgentApprovalMode.AskUser;
+        }
+
+        return Enum.TryParse<AgentApprovalMode>(value.ToString(), ignoreCase: true, out var mode)
+            ? mode
+            : AgentApprovalMode.AskUser;
     }
 }

@@ -24,7 +24,7 @@ public partial class ChatService
 
         var messages = await _chatMessageRepository.ListBySessionAsync(sessionId, cancellationToken);
         messages = messages
-            .Where(message => !IsInternalRepairPrompt(message))
+            .Where(message => !IsInternalRepairPrompt(message) && !IsControlPlaneMessage(message))
             .ToList();
 
         if (messages.Count == 0)
@@ -233,6 +233,21 @@ public partial class ChatService
         }
 
         return bool.TryParse(value.ToString(), out var isHidden) && isHidden;
+    }
+
+    private static bool IsControlPlaneMessage(ChatMessage message)
+    {
+        if (!ChatConstants.IsUserSender(message.SenderType)
+            || message.Metadata == null
+            || !message.Metadata.TryGetValue(ChatMessageMetadataKeys.ResumePendingInteraction, out var value)
+            || value == null)
+        {
+            return false;
+        }
+
+        return value is bool boolValue
+            ? boolValue
+            : bool.TryParse(value.ToString(), out var parsed) && parsed;
     }
 
     /// <inheritdoc />

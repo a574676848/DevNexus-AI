@@ -122,7 +122,7 @@ Elasticsearch 搜索地址优先读取 `ConnectionStrings:elasticsearch`，适�
 
 ## 文件运行时配置
 
-文件任务由平台创建和调度，格式特化处理由受控工作区中的外部 Runner 完成：
+文件任务由平台创建和调度，格式特化处理由任务工作目录中的外部 Runner 完成：
 
 - `runner.ps1`
 - `runner.py`
@@ -186,3 +186,4 @@ export ConnectionStrings__elasticsearch="http://prod-elasticsearch:9200"
 - `Storage.Provider` 与实际存储配置一致。
 - 生产环境不使用仓库模板中的占位密钥。
 - 文件任务工作区具备必要的 Runner 和输出目录权限。
+- HostService / CLI 使用真实本机工作目录，路径访问由操作系统和服务运行账户权限决定；平台清理任务不会清理用户显式传入的 `workingDirectory`。

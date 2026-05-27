@@ -193,11 +193,13 @@ public partial class ChatContainer
                 _currentMessageId = block.MessageId;
             }
 
+            ApplyStreamingBlockState(block);
             _blockIndexer?.AddBlock(block);
             _lastStreamingActivityAt = DateTime.UtcNow;
             _generationTimeoutNotified = false;
 
             streamingMsg.Content = _blockIndexer?.GetFullContent() ?? string.Empty;
+            SyncBlocks(_currentBlocks, _blockIndexer?.GetOrderedBlocks());
             SyncBlocks(streamingMsg.OrderedBlocks, _blockIndexer?.GetOrderedBlocks());
             SyncArtifacts(streamingMsg.Artifacts, _completedArtifacts);
         }
