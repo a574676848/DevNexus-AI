@@ -10,7 +10,6 @@ using DevNexus.Shared.Utils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -41,7 +40,9 @@ public partial class ChatService : IChatService
     private readonly IChatMessageCompletionCoordinator _chatMessageCompletionCoordinator;
     private readonly IExecutionStrategyExecutor _executionStrategyExecutor;
     private readonly IUnitOfWorkTransactionFactory _unitOfWorkTransactionFactory;
-    private readonly ConcurrentDictionary<Guid, CancellationTokenSource> _cancellationTokenSources = new();
+    private readonly ChatGenerationCancellationRegistry _generationCancellationRegistry = new();
+
+    private const string ConcurrentGenerationMessage = "当前会话已有生成任务正在运行，请等待完成或取消后再发送。";
 
     // New Services
     private readonly ChatHistoryService _chatHistoryService;
@@ -204,7 +205,7 @@ public partial class ChatService : IChatService
             ParentMessageId = userMessage.Id,
             SenderId = ChatConstants.AssistantSenderId,
             SenderType = ChatConstants.RoleAssistant,
-            Content = new Dictionary<string, object> { { "text", string.Empty } },
+            Content = new Dictionary<string, object> { { ChatMessageContentKeys.Text, string.Empty } },
             MessageType = ChatConstants.MessageTypeText,
             Status = ChatConstants.StatusInProgress
         };
@@ -264,7 +265,7 @@ public partial class ChatService : IChatService
             SenderType = ChatConstants.RoleUser,
             Content = new Dictionary<string, object>
             {
-                { "text", controlResumeContent }
+                { ChatMessageContentKeys.Text, controlResumeContent }
             },
             MessageType = ChatConstants.MessageTypeText,
             Status = ChatConstants.StatusCompleted,
@@ -349,23 +350,26 @@ public partial class ChatService : IChatService
         }
         chatSession = await EnsureSessionProviderBindingAsync(chatSession, cancellationToken);
 
-        var isControlResume = IsPendingInteractionResumeRequest(chatRequest, out var pendingInteractionId);
-        var (userMessage, aiMessage) = isControlResume
-            ? await ResolvePendingInteractionResumeTurnAsync(chatRequest, chatSession, pendingInteractionId, cancellationToken)
-            : await CreateNewTurnMessagesAsync(chatRequest, chatSession, userId, cancellationToken);
-
-        if (!isControlResume && onUserMessageAccepted != null)
-        {
-            var userMessageDto = await BuildAcceptedUserMessageDtoAsync(userMessage, cancellationToken);
-            await onUserMessageAccepted(userMessageDto, cancellationToken);
-        }
-
-        // 创建取消令牌源
         var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _cancellationTokenSources[chatSession.Id] = cts;
+        if (!_generationCancellationRegistry.TryRegister(chatSession.Id, cts))
+        {
+            cts.Dispose();
+            throw new InvalidOperationException(ConcurrentGenerationMessage);
+        }
 
         try
         {
+            var isControlResume = IsPendingInteractionResumeRequest(chatRequest, out var pendingInteractionId);
+            var (userMessage, aiMessage) = isControlResume
+                ? await ResolvePendingInteractionResumeTurnAsync(chatRequest, chatSession, pendingInteractionId, cts.Token)
+                : await CreateNewTurnMessagesAsync(chatRequest, chatSession, userId, cts.Token);
+
+            if (!isControlResume && onUserMessageAccepted != null)
+            {
+                var userMessageDto = await BuildAcceptedUserMessageDtoAsync(userMessage, cts.Token);
+                await onUserMessageAccepted(userMessageDto, cts.Token);
+            }
+
             if (!isControlResume)
             {
                 // === 1. System 1: 语义缓存快思考 (零延迟拦截) ===
@@ -425,7 +429,7 @@ public partial class ChatService : IChatService
                     aiMessage.Metadata[ChatMessageMetadataKeys.SwarmMode] = true;
                     aiMessage.Content = new Dictionary<string, object>
                     {
-                        { "text", SwarmChatPresentation.BuildStartedMessage() }
+                        { ChatMessageContentKeys.Text, SwarmChatPresentation.BuildStartedMessage() }
                     };
                     await _chatMessageRepository.UpdateAsync(aiMessage, cts.Token);
 
@@ -433,24 +437,36 @@ public partial class ChatService : IChatService
                         aiMessage, chatSession, chatRequest.Content,
                         providerId, complexity, blockWriter, cts.Token);
 
-                    var swarmThinking = aiMessage.Content.ContainsKey("thinking") ? aiMessage.Content["thinking"]?.ToString() ?? "" : "";
-                    var swarmText = aiMessage.Content["text"]?.ToString() ?? string.Empty;
+                    var swarmThinking = aiMessage.Content.ContainsKey(ChatMessageContentKeys.Thinking) ? aiMessage.Content[ChatMessageContentKeys.Thinking]?.ToString() ?? "" : "";
+                    var swarmText = aiMessage.Content[ChatMessageContentKeys.Text]?.ToString() ?? string.Empty;
                     return new ChatMessageDto
                     {
                         Id = aiMessage.Id,
                         ChatSessionId = chatSession.Id,
                         SenderId = aiMessage.SenderId,
                         SenderType = aiMessage.SenderType,
-                        Content = string.IsNullOrEmpty(swarmThinking) ? swarmText : $"<think>{swarmThinking}</think>\n{swarmText}",
+                        Content = swarmText,
+                        TextContent = swarmText,
+                        ThinkingContent = string.IsNullOrEmpty(swarmThinking) ? null : swarmThinking,
                         MessageType = aiMessage.MessageType,
                         CreatedAt = aiMessage.CreatedAt,
                         Metadata = aiMessage.Metadata
                     };
                 }
 
-                _logger.LogDebug(
-                    "[AI.Chat] Complexity below Swarm threshold | Score={Score}, using single-agent path",
-                    complexity.CompositeScore);
+                if (complexity.IsEvaluationFallback)
+                {
+                    _logger.LogWarning(
+                        "[AI.Swarm] Complexity evaluation fallback, using single-agent path | SessionId={SessionId} Reason={Reason}",
+                        chatSession.Id,
+                        complexity.EvaluationFailureReason ?? "unknown");
+                }
+                else
+                {
+                    _logger.LogDebug(
+                        "[AI.Chat] Complexity below Swarm threshold | Score={Score}, using single-agent path",
+                        complexity.CompositeScore);
+                }
             }
 
             // === 常规单 Agent 流式路径 ===
@@ -464,15 +480,17 @@ public partial class ChatService : IChatService
                 cts.Token);
 
             // 返回最终生成的 AI 消息 DTO（包含 thinking 以保证客户端 ParseContent 能正确渲染思考过程）
-            var finalThinkingContent = aiMessage.Content.ContainsKey("thinking") ? aiMessage.Content["thinking"]?.ToString() ?? "" : "";
-            var finalTextContent = aiMessage.Content["text"]?.ToString() ?? string.Empty;
+            var finalThinkingContent = aiMessage.Content.ContainsKey(ChatMessageContentKeys.Thinking) ? aiMessage.Content[ChatMessageContentKeys.Thinking]?.ToString() ?? "" : "";
+            var finalTextContent = aiMessage.Content[ChatMessageContentKeys.Text]?.ToString() ?? string.Empty;
             return new Shared.DTOs.ChatMessageDto
             {
                 Id = aiMessage.Id,
                 ChatSessionId = chatSession.Id,
                 SenderId = aiMessage.SenderId,
                 SenderType = aiMessage.SenderType,
-                Content = string.IsNullOrEmpty(finalThinkingContent) ? finalTextContent : $"<think>{finalThinkingContent}</think>\n{finalTextContent}",
+                Content = finalTextContent,
+                TextContent = finalTextContent,
+                ThinkingContent = string.IsNullOrEmpty(finalThinkingContent) ? null : finalThinkingContent,
                 MessageType = aiMessage.MessageType,
                 CreatedAt = aiMessage.CreatedAt,
                 Metadata = aiMessage.Metadata
@@ -482,7 +500,7 @@ public partial class ChatService : IChatService
         {
             // 通知消费者：不会再有新 Block（正常/异常路径统一关闭）
             blockWriter.TryComplete();
-            _cancellationTokenSources.TryRemove(chatSession.Id, out _);
+            _generationCancellationRegistry.Complete(chatSession.Id, cts);
             cts.Dispose();
         }
     }
@@ -500,7 +518,8 @@ public partial class ChatService : IChatService
             ParentMessageId = message.ParentMessageId,
             SenderId = message.SenderId,
             SenderType = message.SenderType,
-            Content = GetMessageContentText(message, "text"),
+            Content = GetMessageContentText(message, ChatMessageContentKeys.Text),
+            TextContent = GetMessageContentText(message, ChatMessageContentKeys.Text),
             MessageType = message.MessageType,
             Status = message.Status,
             CreatedAt = message.CreatedAt,

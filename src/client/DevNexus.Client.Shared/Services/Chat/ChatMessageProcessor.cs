@@ -47,12 +47,10 @@ public class ChatMessageProcessor : IChatMessageProcessor
                      && b.BlockType != BlockType.Thinking)
             .ToList();
 
-        // 构建完整内容
-        var aiContent = string.IsNullOrEmpty(thoughtContent) 
-                ? textContent 
-                : $"<think>{thoughtContent}</think>\n{textContent}";
+        // 构建正文内容，thinking 仅通过结构化字段传递。
+        var aiContent = textContent;
         
-        if (string.IsNullOrEmpty(aiContent) && !chartBlocks.Any() && !interactiveBlocks.Any() && !warningBlocks.Any() && !orderedBlocks.Any())
+        if (string.IsNullOrEmpty(aiContent) && string.IsNullOrEmpty(thoughtContent) && !chartBlocks.Any() && !interactiveBlocks.Any() && !warningBlocks.Any() && !orderedBlocks.Any())
         {
             return null;
         }
@@ -63,6 +61,8 @@ public class ChatMessageProcessor : IChatMessageProcessor
             ChatSessionId = sessionId,
             SenderType = ChatConstants.RoleAssistant,
             Content = aiContent,
+            TextContent = textContent,
+            ThinkingContent = string.IsNullOrEmpty(thoughtContent) ? null : thoughtContent,
             CreatedAt = DateTime.UtcNow,
             ChartBlocks = chartBlocks.Any() ? chartBlocks : null,
             InteractiveBlocks = interactiveBlocks.Any() ? interactiveBlocks : null,

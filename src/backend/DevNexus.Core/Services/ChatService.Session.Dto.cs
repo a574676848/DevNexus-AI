@@ -30,8 +30,8 @@ public partial class ChatService
                 Id = lastMessage.Id,
                 ChatSessionId = lastMessage.ChatSessionId,
                 SenderType = lastMessage.SenderType,
-                Content = lastMessage.Content.ContainsKey("text")
-                    ? lastMessage.Content["text"].ToString() ?? string.Empty
+                Content = lastMessage.Content.ContainsKey(ChatMessageContentKeys.Text)
+                    ? lastMessage.Content[ChatMessageContentKeys.Text].ToString() ?? string.Empty
                     : string.Empty,
                 CreatedAt = lastMessage.CreatedAt
             } : null,
@@ -143,8 +143,8 @@ public partial class ChatService
         var conversationSummary = string.Join("\n", recentMessages.Select(m =>
         {
             var role = ChatConstants.IsUserSender(m.SenderType) ? "用户" : "AI";
-            var content = m.Content.ContainsKey("text")
-                ? m.Content["text"].ToString() ?? ""
+            var content = m.Content.ContainsKey(ChatMessageContentKeys.Text)
+                ? m.Content[ChatMessageContentKeys.Text].ToString() ?? ""
                 : "";
             // 截取每条消息的前 100 个字符
             var truncated = content.Length > 100 ? content[..100] + "..." : content;

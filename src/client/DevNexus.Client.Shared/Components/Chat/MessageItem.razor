@@ -196,19 +196,24 @@
         _imageUrl = "";
         
         // 如果是图片类型的消息，提取图片 URL
+        var parsedMessage = Message;
         if (string.Equals(Message.MessageType, "image", StringComparison.OrdinalIgnoreCase))
         {
             if (!string.IsNullOrEmpty(rawContent))
             {
                 _imageUrl = UrlService.GetFullUrl(rawContent) ?? rawContent;
-                // 清空 rawContent，因为我们将使用专门的组件渲染图片
-                rawContent = "";
+                // 清空显示文本，因为图片由专门组件渲染。
+                parsedMessage = new ChatMessageDto
+                {
+                    SenderType = Message.SenderType,
+                    Content = string.Empty,
+                    TextContent = string.Empty,
+                    ThinkingContent = Message.ThinkingContent
+                };
             }
         }
 
-        var (content, thoughts) = MessageContentParser.ParseContent(
-            rawContent, 
-            Message.SenderType ?? "");
+        var (content, thoughts) = MessageContentParser.ParseContent(parsedMessage);
         
         _displayedContent = content;
         _thoughts = thoughts;

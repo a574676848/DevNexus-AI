@@ -276,13 +276,7 @@ public partial class ChatContainer
             return;
         }
 
-        if (ChatConstants.IsUserSender(message.SenderType))
-        {
-            ClearBlocksWithCache();
-            _completedArtifacts.Clear();
-            _currentArtifact = null;
-            _currentMessageId = Guid.NewGuid();
-        }
+        ResetStreamingStateForAcceptedUserMessage(message);
 
         var index = _messages.FindIndex(item => item.Id == message.Id);
         if (index >= 0)
@@ -299,17 +293,23 @@ public partial class ChatContainer
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private void HandleConnectionChanged(bool connected)
+    private bool ResetStreamingStateForAcceptedUserMessage(ChatMessageDto message)
     {
-        ChatState.SetRealtimeConnectionState(connected);
-
-        if (connected && ChatState.CurrentSessionId != Guid.Empty)
+        if (!ChatConstants.IsUserSender(message.SenderType))
         {
-            ScheduleRuntimeRefresh(ChatState.CurrentSessionId);
-            return;
+            return false;
         }
 
-        _ = InvokeAsync(StateHasChanged);
+        if (CurrentRunPresentation.RunState.IsGenerationLike())
+        {
+            return false;
+        }
+
+        ClearBlocksWithCache();
+        _completedArtifacts.Clear();
+        _currentArtifact = null;
+        _currentMessageId = Guid.NewGuid();
+        return true;
     }
 
     private void HandleServerEvent(ServerEvent serverEvent)
@@ -328,24 +328,17 @@ public partial class ChatContainer
                 return;
             case ServerEventType.GenerationCompleted:
             case ServerEventType.GenerationCancelled:
-                ChatState.SetSessionGeneratingOptimistic(serverEvent.SessionId, false);
-                ChatState.ClearToolActivity(serverEvent.SessionId);
-                _generationTimeoutNotified = false;
-                ScheduleRuntimeRefresh(serverEvent.SessionId);
+                _ = InvokeAsync(async () =>
+                {
+                    await ApplyGenerationTerminalEventAsync(serverEvent.SessionId);
+                });
                 return;
             case ServerEventType.GenerationFailed:
-                ChatState.SetSessionGeneratingOptimistic(serverEvent.SessionId, false);
-                ChatState.ClearToolActivity(serverEvent.SessionId);
-                if (TryGetStringProperty(serverEvent.Data, "ErrorMessage", out var errorMessage)
-                    && !string.IsNullOrWhiteSpace(errorMessage))
+                _ = InvokeAsync(async () =>
                 {
-                    _ = NotificationService.ShowDeduplicatedAsync(
-                        "生成失败",
-                        errorMessage,
-                        suppressSeconds: 8,
-                        dedupeKey: $"runtime-generation-failed:{serverEvent.SessionId}");
-                }
-                ScheduleRuntimeRefresh(serverEvent.SessionId);
+                    FlushPendingBlocks();
+                    await HandleGenerationFailedEventAsync(serverEvent);
+                });
                 return;
             case ServerEventType.CliExecRequested:
             case ServerEventType.CliExecStarted:
@@ -489,6 +482,17 @@ public partial class ChatContainer
                 });
                 return;
         }
+    }
+
+    private Task ApplyGenerationTerminalEventAsync(Guid sessionId)
+    {
+        FlushPendingBlocks();
+        ChatState.SetSessionGeneratingOptimistic(sessionId, false);
+        ChatState.ClearToolActivity(sessionId);
+        _generationTimeoutNotified = false;
+        ScheduleRuntimeRefresh(sessionId);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void ApplyToolActivityEvent(ServerEvent serverEvent)

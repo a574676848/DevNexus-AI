@@ -1,6 +1,7 @@
 // using DevNexus.Domain.Abstractions via GlobalUsings
 // using DevNexus.Domain.Entities via GlobalUsings
 using DevNexus.Domain.Abstractions;
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using Microsoft.Extensions.Logging;
 
@@ -43,8 +44,8 @@ public class ChatSearchService
                 SessionId = message.ChatSessionId.ToString(),
                 UserId = userId.ToString(),
                 Role = message.SenderType,
-                Content = message.Content.ContainsKey("text")
-                    ? message.Content["text"].ToString() ?? string.Empty
+                Content = message.Content.ContainsKey(ChatMessageContentKeys.Text)
+                    ? message.Content[ChatMessageContentKeys.Text].ToString() ?? string.Empty
                     : string.Empty,
                 CreatedAt = message.CreatedAt
             };
@@ -72,8 +73,8 @@ public class ChatSearchService
         {
             var lastMessage = await _chatMessageRepository.GetLatestBySessionAsync(session.Id, cancellationToken);
 
-            var lastMessagePreview = lastMessage?.Content.ContainsKey("text") == true
-                ? lastMessage.Content["text"].ToString()
+            var lastMessagePreview = lastMessage?.Content.ContainsKey(ChatMessageContentKeys.Text) == true
+                ? lastMessage.Content[ChatMessageContentKeys.Text].ToString()
                 : null;
 
             var sessionDoc = new SessionSearchDocumentDto

@@ -101,25 +101,21 @@ public partial class ChatService
             }
 
             var isInProgress = ChatConstants.IsInProgressStatus(message.Status);
-            var textContent = GetContentString(message.Content, "text");
+            var textContent = GetContentString(message.Content, ChatMessageContentKeys.Text);
             if (isInProgress && string.IsNullOrEmpty(textContent))
             {
-                textContent = GetContentString(message.Content, "text_partial");
+                textContent = GetContentString(message.Content, ChatMessageContentKeys.TextPartial);
             }
 
-            var thinkingContent = GetContentString(message.Content, "thinking");
+            var thinkingContent = GetContentString(message.Content, ChatMessageContentKeys.Thinking);
             if (isInProgress && string.IsNullOrEmpty(thinkingContent))
             {
-                thinkingContent = GetContentString(message.Content, "thinking_partial");
+                thinkingContent = GetContentString(message.Content, ChatMessageContentKeys.ThinkingPartial);
             }
 
             var terminalStreams = terminalStreamsLookup.TryGetValue(message.Id, out var streams)
                 ? streams
                 : new List<TerminalStreamSnapshot>();
-
-            var fullContentString = string.IsNullOrEmpty(thinkingContent)
-                ? textContent
-                : $"<think>{thinkingContent}</think>\n{textContent}";
 
             if (terminalStreams.Count > 0)
             {
@@ -209,7 +205,9 @@ public partial class ChatService
                 ParentMessageId = message.ParentMessageId,
                 SenderId = message.SenderId,
                 SenderType = message.SenderType,
-                Content = fullContentString,
+                Content = textContent,
+                TextContent = textContent,
+                ThinkingContent = string.IsNullOrEmpty(thinkingContent) ? null : thinkingContent,
                 MessageType = message.MessageType,
                 Status = message.Status,
                 CreatedAt = message.CreatedAt,

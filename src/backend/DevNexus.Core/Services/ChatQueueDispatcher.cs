@@ -81,6 +81,17 @@ public class ChatQueueDispatcher : IChatQueueDispatcher
         {
             using var scope = _serviceScopeFactory.CreateScope();
             var queueRepository = scope.ServiceProvider.GetRequiredService<IQueuedChatMessageRepository>();
+            var pendingInteractionRepository = scope.ServiceProvider.GetRequiredService<IPendingInteractionRepository>();
+
+            var activeInteractions = await pendingInteractionRepository.GetActiveBySessionIdAsync(sessionId, cancellationToken);
+            if (activeInteractions.Count > 0)
+            {
+                _logger.LogInformation(
+                    "[ChatQueueDispatcher] 会话存在待处理交互，暂停队列派发 | SessionId={SessionId} PendingInteractions={Count}",
+                    sessionId,
+                    activeInteractions.Count);
+                return;
+            }
 
             var queuedMessage = await queueRepository.TryDequeueNextAsync(sessionId, cancellationToken);
 

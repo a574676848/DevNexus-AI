@@ -360,7 +360,7 @@ public partial class ChatHub
             CancellationToken.None);
 
         // 生成完成后触发队列消费（仅在没有异常的情况下）
-        _ = TriggerQueueDispatchAsync(sessionId);
+        _ = TriggerQueueDispatchAsync(sessionId, Context.ConnectionAborted);
     }
 
     private async Task HandleConsumerFailureAsync(
@@ -451,17 +451,23 @@ public partial class ChatHub
         }
 
         // 取消后也触发队列消费，让排队消息有机会被调度
-        _ = TriggerQueueDispatchAsync(sessionId);
+        _ = TriggerQueueDispatchAsync(sessionId, Context.ConnectionAborted);
     }
 
     /// <summary>
     /// 触发队列消费（fire-and-forget，不阻塞当前请求）。
     /// </summary>
-    private async Task TriggerQueueDispatchAsync(Guid sessionId)
+    private async Task TriggerQueueDispatchAsync(Guid sessionId, CancellationToken cancellationToken)
     {
         try
         {
-            await _chatQueueDispatcher.TriggerDispatchAsync(sessionId, CancellationToken.None);
+            await _chatQueueDispatcher.TriggerDispatchAsync(sessionId, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug(
+                "[SignalR.Chat] 队列调度因连接取消而停止 | SessionId={SessionId}",
+                sessionId);
         }
         catch (Exception ex)
         {

@@ -33,10 +33,9 @@ public partial class ChatService
             _logger.LogWarning(ex, "Failed to abort Swarm session {SessionId}", sessionId);
         }
 
-        if (_cancellationTokenSources.TryRemove(sessionId, out var cts))
+        if (_generationCancellationRegistry.Cancel(sessionId))
         {
-            // ★ 向流式操作发出取消信号
-            cts.Cancel();
+            // Registry 已移除会话注册并向流式操作发出取消信号。
 
             // ★ 重要：不要在这里修改消息状态或内容！
             // Stream 中的 catch(OperationCanceledException) 块会负责：
@@ -316,7 +315,7 @@ public partial class ChatService
             SenderType = ChatConstants.RoleUser,
             Content = new Dictionary<string, object>
             {
-                { "text", chatRequest.Content }
+                { ChatMessageContentKeys.Text, chatRequest.Content }
             },
             MessageType = ChatConstants.NormalizeMessageType(chatRequest.MessageType),
             Status = ChatConstants.StatusCompleted,
@@ -368,7 +367,7 @@ public partial class ChatService
             SenderType = ChatConstants.NormalizeSenderType(type, ChatConstants.RoleSystem), 
             Content = new Dictionary<string, object>
             {
-                { "text", content }
+                { ChatMessageContentKeys.Text, content }
             },
             MessageType = ChatConstants.MessageTypeText,
             Status = ChatConstants.StatusCompleted,

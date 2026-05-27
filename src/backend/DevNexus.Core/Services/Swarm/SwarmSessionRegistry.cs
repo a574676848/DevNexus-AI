@@ -14,6 +14,16 @@ public enum SwarmControlStatus
 }
 
 /// <summary>
+/// Swarm 会话控制状态快照。
+/// </summary>
+public readonly record struct SwarmSessionControlSnapshot(
+    string SessionId,
+    SwarmControlStatus? Status)
+{
+    public bool IsPaused => Status == SwarmControlStatus.Paused;
+}
+
+/// <summary>
 /// Swarm 会话注册表 - Singleton 服务
 /// 负责跨 Scoped 实例共享会话控制状态和 CancellationTokenSource
 /// 解决会话编排链路与 SwarmHub 之间的跨作用域访问问题
@@ -37,9 +47,26 @@ public class SwarmSessionRegistry
     public SwarmControlStatus? GetStatus(string sessionId)
         => _sessionStates.TryGetValue(sessionId, out var s) ? s : null;
 
+    /// <summary>读取当前会话控制状态快照。</summary>
+    public SwarmSessionControlSnapshot GetSnapshot(string sessionId)
+    {
+        var currentStatus = _sessionStates.TryGetValue(sessionId, out var status)
+            ? status
+            : (SwarmControlStatus?)null;
+        return new SwarmSessionControlSnapshot(sessionId, currentStatus);
+    }
+
     /// <summary>设置控制状态</summary>
     public void SetStatus(string sessionId, SwarmControlStatus status)
-        => _sessionStates[sessionId] = status;
+    {
+        _sessionStates.AddOrUpdate(
+            sessionId,
+            status,
+            (_, currentStatus) =>
+                currentStatus == SwarmControlStatus.Aborted && status != SwarmControlStatus.Aborted
+                    ? currentStatus
+                    : status);
+    }
 
     /// <summary>暂停会话</summary>
     public void Pause(string sessionId) => SetStatus(sessionId, SwarmControlStatus.Paused);

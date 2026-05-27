@@ -64,7 +64,7 @@ public class SwarmController : AuthenticatedControllerBase
                 OwnedFiles = package.OwnedFiles,
                 OwnedSymbols = package.OwnedSymbols
             }).ToList();
-            var isPaused = _sessionControlService.GetStatus(session.SessionId) == DevNexus.Core.Services.Swarm.SwarmControlStatus.Paused;
+            var sessionSnapshot = _sessionControlService.GetSnapshot(session.SessionId);
 
             return new ContextSwarmSessionDto
             {
@@ -72,7 +72,7 @@ public class SwarmController : AuthenticatedControllerBase
                 Title = session.Title,
                 Status = session.Status.ToString(),
                 Packages = packages,
-                StatusSummary = DevNexus.Core.Services.Swarm.SwarmSessionStatusSummaryBuilder.Build(packages, isPaused)
+                StatusSummary = DevNexus.Core.Services.Swarm.SwarmSessionStatusSummaryBuilder.Build(packages, sessionSnapshot.IsPaused)
             };
         }).ToList();
 

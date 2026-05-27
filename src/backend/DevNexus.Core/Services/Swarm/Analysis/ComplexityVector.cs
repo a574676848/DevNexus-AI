@@ -54,6 +54,16 @@ public record ComplexityVector
     public double StepComplexity { get; init; }
 
     /// <summary>
+    /// 是否来自复杂度评估失败后的兜底结果。
+    /// </summary>
+    public bool IsEvaluationFallback { get; init; }
+
+    /// <summary>
+    /// 复杂度评估失败原因，仅用于结构化诊断。
+    /// </summary>
+    public string? EvaluationFailureReason { get; init; }
+
+    /// <summary>
     /// 综合评分 (0-100)
     /// 权重分配：任务规模(25%) + 工作流深度(20%) + 技能跨度(15%) +
     ///           工具复杂度(15%) + 语义熵(10%) + 风险等级(10%) + 上下文深度(5%)

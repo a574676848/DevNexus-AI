@@ -222,27 +222,32 @@ public sealed class BlockIndexer : IDisposable
     }
 
     /// <summary>
-    /// 获取完整内容（含 Thinking 标签）
+    /// 获取正文内容。
     /// </summary>
-    /// <returns>完整的消息内容</returns>
+    /// <returns>正文内容</returns>
     public string GetFullContent()
     {
-        // 快速路径：无 Thinking 时直接返回文本
-        if (_thinkingCount == 0)
-            return _textContent.ToString();
+        return _textContent.ToString();
+    }
 
-        // 重建思维链（仅在需要时）
+    /// <summary>
+    /// 获取结构化思考内容。
+    /// </summary>
+    /// <returns>思考内容</returns>
+    public string GetThinkingContent()
+    {
+        if (_thinkingCount == 0)
+        {
+            return string.Empty;
+        }
+
         if (_needsThinkingRebuild)
         {
             RebuildThinkingContent();
             _needsThinkingRebuild = false;
         }
 
-        // 组合内容
-        if (_thinkingContent.Length == 0)
-            return _textContent.ToString();
-
-        return $"<think>{_thinkingContent}</think>\n{_textContent}";
+        return _thinkingContent.ToString();
     }
 
     /// <summary>

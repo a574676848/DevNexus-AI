@@ -137,6 +137,16 @@ public partial class ChatContainer
     /// </summary>
     private Task FlushPendingBlocksAndRenderAsync()
     {
+        if (FlushPendingBlocks())
+        {
+            StateHasChanged();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private bool FlushPendingBlocks()
+    {
         List<DevNexus.Shared.DTOs.BlockDto>? blocksToFlush = null;
 
         lock (_pendingBlockSync)
@@ -144,7 +154,7 @@ public partial class ChatContainer
             if (_pendingBlocks.Count == 0)
             {
                 _hasPendingBlockFlush = false;
-                return Task.CompletedTask;
+                return false;
             }
 
             blocksToFlush = new List<DevNexus.Shared.DTOs.BlockDto>(_pendingBlocks);
@@ -153,8 +163,7 @@ public partial class ChatContainer
         }
 
         ApplyPendingBlocks(blocksToFlush);
-        StateHasChanged();
-        return Task.CompletedTask;
+        return true;
     }
 
     /// <summary>
@@ -199,6 +208,9 @@ public partial class ChatContainer
             _generationTimeoutNotified = false;
 
             streamingMsg.Content = _blockIndexer?.GetFullContent() ?? string.Empty;
+            streamingMsg.TextContent = streamingMsg.Content;
+            var thinkingContent = _blockIndexer?.GetThinkingContent() ?? string.Empty;
+            streamingMsg.ThinkingContent = string.IsNullOrEmpty(thinkingContent) ? null : thinkingContent;
             SyncBlocks(_currentBlocks, _blockIndexer?.GetOrderedBlocks());
             SyncBlocks(streamingMsg.OrderedBlocks, _blockIndexer?.GetOrderedBlocks());
             SyncArtifacts(streamingMsg.Artifacts, _completedArtifacts);

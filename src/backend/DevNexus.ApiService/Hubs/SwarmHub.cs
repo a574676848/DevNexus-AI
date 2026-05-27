@@ -1,12 +1,8 @@
 using Microsoft.AspNetCore.SignalR;
-using DevNexus.Shared.DTOs.Swarm;
 using DevNexus.Shared.DTOs;
 using DevNexus.Shared.Enums;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using DevNexus.Domain.Models.Swarm;
+using DevNexus.Core.Services.Swarm;
 
 namespace DevNexus.ApiService.Hubs;
 
@@ -17,23 +13,26 @@ namespace DevNexus.ApiService.Hubs;
 /// </summary>
 public class SwarmHub : Hub
 {
-    // 单例缓存，用于存储当前活跃的智能体状态（解决新加入客户端看缺失问题）
-    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, AgentStatusDto>> _activeAgents = new();
+    private const string ServerEventReceivedMethod = "ServerEventReceived";
+
     private readonly ILogger<SwarmHub> _logger;
     private readonly DevNexus.Core.Services.Swarm.ISwarmSessionControlService _sessionControlService;
     private readonly DevNexus.Core.Services.Swarm.ISwarmSessionViewService _sessionViewService;
     private readonly DevNexus.Core.Abstractions.IConfirmationService _confirmationService;
+    private readonly ISwarmAgentStatusStore _agentStatusStore;
 
     public SwarmHub(
         ILogger<SwarmHub> logger,
         DevNexus.Core.Services.Swarm.ISwarmSessionControlService sessionControlService,
         DevNexus.Core.Services.Swarm.ISwarmSessionViewService sessionViewService,
-        DevNexus.Core.Abstractions.IConfirmationService confirmationService)
+        DevNexus.Core.Abstractions.IConfirmationService confirmationService,
+        ISwarmAgentStatusStore agentStatusStore)
     {
         _logger = logger;
         _sessionControlService = sessionControlService;
         _sessionViewService = sessionViewService;
         _confirmationService = confirmationService;
+        _agentStatusStore = agentStatusStore;
     }
 
     /// <summary>
@@ -61,7 +60,7 @@ public class SwarmHub : Hub
         if (packageSnapshot.PackageCount > 0)
         {
             await Clients.Caller.SendAsync(
-                "ServerEventReceived",
+                ServerEventReceivedMethod,
                 new ServerEvent
                 {
                     SessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : Guid.Empty,
@@ -73,36 +72,31 @@ public class SwarmHub : Hub
                 packageSnapshot.PackageCount, Context.ConnectionId, sessionId);
         }
 
-        // 5.2 推送当前智能体状态缓存
-        if (_activeAgents.TryGetValue(sessionId, out var agents) && agents.Any())
+        await PushCachedAgentStatusAsync(sessionId);
+    }
+
+    private async Task PushCachedAgentStatusAsync(string sessionId)
+    {
+        var agents = _agentStatusStore.GetSnapshot(sessionId);
+        if (agents.Count == 0)
         {
-            foreach (var agent in agents.Values)
-            {
-                await Clients.Caller.SendAsync(
-                    "ServerEventReceived",
-                    new ServerEvent
-                    {
-                        SessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : Guid.Empty,
-                        EventType = ServerEventType.SwarmAgentStatusChanged,
-                        Data = new { SessionId = sessionId, agent.Name, agent.Status, agent.CurrentAction },
-                        Timestamp = DateTime.UtcNow
-                    });
-            }
-            _logger.LogInformation("Pushed {Count} cached agents to client {ConnectionId}", agents.Count, Context.ConnectionId);
+            return;
         }
-    }
 
-    // 供外部 Service 更新缓存的静态入口
-    public static void TrackAgentStatus(string sessionId, string agentName, string status, string currentAction)
-    {
-        var sessionCache = _activeAgents.GetOrAdd(sessionId, _ => new ConcurrentDictionary<string, AgentStatusDto>());
-        sessionCache[agentName] = new AgentStatusDto { Name = agentName, Status = status, CurrentAction = currentAction };
-    }
+        foreach (var agent in agents)
+        {
+            await Clients.Caller.SendAsync(
+                ServerEventReceivedMethod,
+                new ServerEvent
+                {
+                    SessionId = Guid.TryParse(sessionId, out var parsedSessionId) ? parsedSessionId : Guid.Empty,
+                    EventType = ServerEventType.SwarmAgentStatusChanged,
+                    Data = new { SessionId = sessionId, agent.Name, agent.Status, agent.CurrentAction },
+                    Timestamp = DateTime.UtcNow
+                });
+        }
 
-    // 会话结束时清理缓存
-    public static void ClearSessionCache(string sessionId)
-    {
-        _activeAgents.TryRemove(sessionId, out _);
+        _logger.LogInformation("Pushed {Count} cached agents to client {ConnectionId}", agents.Count, Context.ConnectionId);
     }
 
     public async Task PauseSession(string sessionId)

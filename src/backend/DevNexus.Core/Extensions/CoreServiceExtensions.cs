@@ -51,6 +51,7 @@ public static class CoreServiceExtensions
         services.AddScoped<Services.Chat.IAgentLoopRecoveryGuard, Services.Chat.AgentLoopRecoveryGuard>();
         services.AddScoped<Services.Chat.ChatAgentLoopCoordinator>();
         services.AddScoped<Services.Chat.IPendingInteractionService, Services.Chat.PendingInteractionService>();
+        services.AddScoped<Services.Chat.PendingInteractionExpirationCoordinator>();
         services.AddScoped<Services.Chat.IChatSessionRuntimeService, Services.Chat.ChatSessionRuntimeService>();
         services.AddScoped<Services.Chat.ChatThinkingPersistenceCoordinator>();
         services.AddScoped<Services.Chat.ChatSwarmFinalizer>();
@@ -71,6 +72,7 @@ public static class CoreServiceExtensions
         services.AddScoped<Services.Swarm.Evaluation.IContextEvaluationService, Services.Swarm.Evaluation.DefaultContextEvaluationService>();
         services.AddScoped<Services.Swarm.ISwarmSessionControlService, Services.Swarm.SwarmSessionControlService>();
         services.AddScoped<Services.Swarm.ISwarmSessionViewService, Services.Swarm.SwarmSessionViewService>();
+        services.AddSingleton<Services.Swarm.ISwarmAgentStatusStore, Services.Swarm.SwarmAgentStatusStore>();
         services.AddScoped<Services.Swarm.Planning.ISwarmPackageScheduler, Services.Swarm.Planning.SwarmPackageScheduler>();
 
         // 注册 Artifact 服务

@@ -42,7 +42,7 @@ public partial class ChatService
 
         aiMessage.Metadata ??= new Dictionary<string, object>();
         SystemExperienceReplayMetadata.ApplyDirectHit(aiMessage.Metadata, replayDecision);
-        aiMessage.Content = new Dictionary<string, object> { { "text", directContent } };
+        aiMessage.Content = new Dictionary<string, object> { { ChatMessageContentKeys.Text, directContent } };
         aiMessage.Status = ChatConstants.StatusCompleted;
         aiMessage.UpdatedAt = DateTime.UtcNow;
         await _chatMessageRepository.UpdateAsync(aiMessage, cancellationToken);

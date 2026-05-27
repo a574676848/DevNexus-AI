@@ -32,4 +32,9 @@ public interface ISwarmSessionControlService
     /// 获取当前会话控制状态。
     /// </summary>
     SwarmControlStatus? GetStatus(string sessionId);
+
+    /// <summary>
+    /// 获取当前会话控制状态快照。
+    /// </summary>
+    SwarmSessionControlSnapshot GetSnapshot(string sessionId);
 }

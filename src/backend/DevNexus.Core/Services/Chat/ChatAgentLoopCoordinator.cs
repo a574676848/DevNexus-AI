@@ -266,7 +266,7 @@ public sealed class ChatAgentLoopCoordinator
             ParentMessageId = aiMessage.Id,
             SenderId = userId,
             SenderType = ChatConstants.RoleUser,
-            Content = new Dictionary<string, object> { { "text", repairPrompt } },
+            Content = new Dictionary<string, object> { { ChatMessageContentKeys.Text, repairPrompt } },
             MessageType = ChatConstants.MessageTypeText,
             Metadata = new Dictionary<string, object>
             {

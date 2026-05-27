@@ -67,8 +67,8 @@ public sealed class ChatHistoryMessageBuilder
             .Select(message => new ChatHistoryMessageEntry(
                 message.SenderType,
                 ChatHistoryReplayTextSanitizer.Clean(
-                    message.Content.ContainsKey("text")
-                        ? message.Content["text"].ToString()
+                    message.Content.ContainsKey(ChatMessageContentKeys.Text)
+                        ? message.Content[ChatMessageContentKeys.Text].ToString()
                         : string.Empty)))
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Content))
             .ToList();

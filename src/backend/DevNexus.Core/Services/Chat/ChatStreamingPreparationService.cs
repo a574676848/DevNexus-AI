@@ -1,3 +1,4 @@
+using DevNexus.Shared.Constants;
 using DevNexus.Shared.DTOs;
 using DevNexus.Domain.Models;
 using Microsoft.Extensions.Logging;
@@ -71,7 +72,7 @@ public sealed class ChatStreamingPreparationService
         CancellationToken cancellationToken)
     {
         var providerId = await ResolveProviderIdAsync(chatSession, cancellationToken);
-        var userQuery = userMessage.Content["text"].ToString() ?? string.Empty;
+        var userQuery = userMessage.Content[ChatMessageContentKeys.Text].ToString() ?? string.Empty;
 
         if (agentLoopAttempt == 0)
         {

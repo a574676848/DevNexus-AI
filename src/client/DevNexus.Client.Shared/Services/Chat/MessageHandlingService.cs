@@ -61,14 +61,10 @@ public class MessageHandlingService : IMessageHandlingService
                     _logger.LogInformation("[LoadSession] Detected active Swarm message for session {SessionId}, restoring state", sessionId);
 
                     // 把该消息转换到流式生成层，不显示在历史记录以避免冲突和渲染跳动
-                    messages.Remove(activeSwarmMsg);
-                    _chatState.SetSessionGeneratingOptimistic(sessionId, true);
-                    _chatState.SetSwarmActive(sessionId, true);
-
                     var block = new BlockDto
                     {
                         BlockType = BlockType.TextDelta,
-                        Content = activeSwarmMsg.Content ?? "",
+                        Content = activeSwarmMsg.TextContent ?? activeSwarmMsg.Content ?? "",
                         MessageId = activeSwarmMsg.Id,
                         SessionId = sessionId
                     };
@@ -139,9 +135,9 @@ public class MessageHandlingService : IMessageHandlingService
     {
         var blocks = new List<BlockDto>();
 
-        if (!string.IsNullOrEmpty(message.Content))
+        if (!string.IsNullOrEmpty(message.Content) || message.TextContent != null || message.ThinkingContent != null)
         {
-            var parsed = MessageContentParser.ParseContent(message.Content, "assistant");
+            var parsed = MessageContentParser.ParseContent(message);
             var thoughtText = string.Join("\n", parsed.Thoughts);
             if (!string.IsNullOrEmpty(thoughtText))
             {
@@ -437,9 +433,7 @@ public class MessageHandlingService : IMessageHandlingService
         var thoughtContent = MetadataHelper.JoinThoughtSegments(currentBlocks
             .Where(b => b.BlockType == BlockType.Thinking).Select(b => b.Content));
 
-        var existingContent = string.IsNullOrEmpty(thoughtContent)
-            ? textContent
-            : $"<think>{thoughtContent}</think>\n{textContent}";
+        var existingContent = textContent;
 
         // 构建包含已生成内容和错误信息的完整 AI 消息
         var fullContent = string.IsNullOrEmpty(existingContent)
@@ -452,6 +446,8 @@ public class MessageHandlingService : IMessageHandlingService
             ChatSessionId = targetSessionId,
             SenderType = ChatConstants.RoleAssistant,
             Content = fullContent,
+            TextContent = fullContent,
+            ThinkingContent = string.IsNullOrEmpty(thoughtContent) ? null : thoughtContent,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -502,12 +498,10 @@ public class MessageHandlingService : IMessageHandlingService
         var thoughtContent = MetadataHelper.JoinThoughtSegments(currentBlocks
             .Where(b => b.BlockType == BlockType.Thinking).Select(b => b.Content));
 
-        var existingContent = string.IsNullOrEmpty(thoughtContent)
-            ? textContent
-            : $"<think>{thoughtContent}</think>\n{textContent}";
+        var existingContent = textContent;
 
         ChatMessageDto? cancelledMsg = null;
-        if (!string.IsNullOrEmpty(existingContent))
+        if (!string.IsNullOrEmpty(existingContent) || !string.IsNullOrEmpty(thoughtContent))
         {
             cancelledMsg = new ChatMessageDto
             {
@@ -515,6 +509,8 @@ public class MessageHandlingService : IMessageHandlingService
                 ChatSessionId = targetSessionId,
                 SenderType = ChatConstants.RoleAssistant,
                 Content = existingContent + "\n\n(已取消生成)",
+                TextContent = existingContent + "\n\n(已取消生成)",
+                ThinkingContent = string.IsNullOrEmpty(thoughtContent) ? null : thoughtContent,
                 CreatedAt = DateTime.UtcNow
             };
         }
@@ -536,20 +532,14 @@ public class MessageHandlingService : IMessageHandlingService
             if (savedBlocks != null && savedBlocks.Any())
             {
                 currentBlocks.Clear();
-                // ChatState.CurrentBlocks 中的 TextDelta 和 Thinking 已经是合并后的
-                // 直接复制即可，不需要再次调用 ProcessBlockMerge
-                currentBlocks.AddRange(savedBlocks.Select(b => new BlockDto
+                using var blockIndexer = new BlockIndexer();
+                foreach (var savedBlock in savedBlocks)
                 {
-                    BlockType = b.BlockType,
-                    BlockId = b.BlockId,
-                    SessionId = b.SessionId,
-                    MessageId = b.MessageId,
-                    Content = b.Content,
-                    IsLast = b.IsLast,
-                    Metadata = b.Metadata
-                }));
+                    blockIndexer.AddBlock(CloneBlockForRestore(savedBlock));
+                }
 
-                // 关键修复：返回正在生成的消息 ID，组件需要从历史消息中移除该消息避免重复显示
+                currentBlocks.AddRange(blockIndexer.GetOrderedBlocks().Select(CloneBlockForRestore));
+
                 var generatingMessageId = savedBlocks.FirstOrDefault()?.MessageId;
                 if (generatingMessageId.HasValue && generatingMessageId.Value != Guid.Empty)
                 {
@@ -559,6 +549,26 @@ public class MessageHandlingService : IMessageHandlingService
         }
 
         return messageIdsToRemove;
+    }
+
+    private static BlockDto CloneBlockForRestore(BlockDto block)
+    {
+        return new BlockDto
+        {
+            BlockType = block.BlockType,
+            BlockId = block.BlockId,
+            ArtifactId = block.ArtifactId,
+            Version = block.Version,
+            Action = block.Action,
+            SessionId = block.SessionId,
+            MessageId = block.MessageId,
+            Content = block.Content,
+            IsLast = block.IsLast,
+            Highlight = block.Highlight,
+            Metadata = block.Metadata == null
+                ? null
+                : new Dictionary<string, object>(block.Metadata)
+        };
     }
 
 }

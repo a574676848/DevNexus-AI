@@ -15,6 +15,13 @@ public class LlmComplexityEvaluator : IComplexityEvaluator
     private readonly IKernelService _kernelService;
     private readonly ILogger<LlmComplexityEvaluator> _logger;
     private const double SwarmThreshold = 60.0;
+    private const double FallbackSemanticEntropy = 0.5;
+    private const double FallbackSkillBreadth = 6.0;
+    private const double FallbackContextDepth = 3.0;
+    private const double FallbackToolComplexity = 5.0;
+    private const double FallbackRiskLevel = 3.0;
+    private const double FallbackTaskScale = 7.5;
+    private const double FallbackStepComplexity = 7.0;
 
     public LlmComplexityEvaluator(IKernelService kernelService, ILogger<LlmComplexityEvaluator> logger)
     {
@@ -95,16 +102,20 @@ public class LlmComplexityEvaluator : IComplexityEvaluator
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to evaluate complexity with LLM. Falling back to default (General/Low Complexity).");
+            _logger.LogWarning(ex, "Failed to evaluate complexity with LLM. Falling back to explicit borderline single-agent mode.");
 
             return new ComplexityVector
             {
                 PrimaryDomain = DomainType.General,
-                SemanticEntropy = 0.1,
-                SkillBreadth = 0,
-                ContextDepth = 0,
-                ToolComplexity = 0,
-                RiskLevel = 0
+                SemanticEntropy = FallbackSemanticEntropy,
+                SkillBreadth = FallbackSkillBreadth,
+                ContextDepth = FallbackContextDepth,
+                ToolComplexity = FallbackToolComplexity,
+                RiskLevel = FallbackRiskLevel,
+                TaskScale = FallbackTaskScale,
+                StepComplexity = FallbackStepComplexity,
+                IsEvaluationFallback = true,
+                EvaluationFailureReason = ex.GetType().Name
             };
         }
     }

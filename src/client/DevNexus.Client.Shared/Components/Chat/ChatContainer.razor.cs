@@ -43,12 +43,14 @@ public partial class ChatContainer : IAsyncDisposable
     private static readonly TimeSpan SessionLoadTimeout = TimeSpan.FromSeconds(12);
     private static readonly TimeSpan StreamingIdleTimeout = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan StreamingMonitorInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ConnectionRecoveryDelay = TimeSpan.FromMilliseconds(250);
     private readonly object _pendingBlockSync = new();
     private readonly List<BlockDto> _pendingBlocks = new();
     private bool _hasPendingBlockFlush;
     private CancellationTokenSource? _streamingMonitorCts;
     private Task? _streamingMonitorTask;
     private CancellationTokenSource? _connectionRecoveryCts;
+    private bool _needsConnectionRecovery;
     private DateTime _lastStreamingActivityAt = DateTime.UtcNow;
     private bool _generationTimeoutNotified;
 
@@ -405,6 +407,7 @@ public partial class ChatContainer : IAsyncDisposable
     {
         _currentBlocks.Clear();
         _blockIndexer?.Clear();
+        _currentMessageId = Guid.Empty;
         _streamingMessage = null;
     }
 

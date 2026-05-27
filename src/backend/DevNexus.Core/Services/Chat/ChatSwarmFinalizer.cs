@@ -12,6 +12,8 @@ namespace DevNexus.Core.Services.Chat;
 /// </summary>
 public sealed class ChatSwarmFinalizer
 {
+    private const string SwarmEventMetadataKey = "swarmEvent";
+
     private readonly IChatMessageRepository _chatMessageRepository;
     private readonly ChatThinkingPersistenceCoordinator _thinkingCoordinator;
     private readonly IChatMessageCompletionCoordinator _messageCompletionCoordinator;
@@ -43,7 +45,7 @@ public sealed class ChatSwarmFinalizer
     {
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", swarmResult }
+            { ChatMessageContentKeys.Text, swarmResult }
         };
 
         _thinkingCoordinator.ApplyFinalThinking(aiMessage, thinkingContent);
@@ -75,8 +77,9 @@ public sealed class ChatSwarmFinalizer
             MessageId = aiMessage.Id,
             SessionId = chatSession.Id,
             IsLast = false,
-            Metadata = new Dictionary<string, object> { ["swarmEvent"] = SwarmEventNames.Completed }
+            Metadata = new Dictionary<string, object> { [SwarmEventMetadataKey] = SwarmEventNames.Completed }
         }, cancellationToken);
+        await WriteTerminalBlockAsync(aiMessage, chatSession, blockWriter, cancellationToken);
 
         _logger.LogInformation(
             "[AI.Swarm] Swarm orchestration completed | SessionId={SessionId} ResultLength={Length}",
@@ -93,7 +96,7 @@ public sealed class ChatSwarmFinalizer
     {
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", "Swarm 执行被用户中止（已部分生成）" }
+            { ChatMessageContentKeys.Text, "Swarm 执行被用户中止（已部分生成）" }
         };
 
         _thinkingCoordinator.ApplyFinalThinking(aiMessage, thinkingContent);
@@ -117,8 +120,9 @@ public sealed class ChatSwarmFinalizer
             MessageId = aiMessage.Id,
             SessionId = chatSession.Id,
             IsLast = false,
-            Metadata = new Dictionary<string, object> { ["swarmEvent"] = SwarmEventNames.Failed }
+            Metadata = new Dictionary<string, object> { [SwarmEventMetadataKey] = SwarmEventNames.Failed }
         }, cancellationToken);
+        await WriteTerminalBlockAsync(aiMessage, chatSession, blockWriter, cancellationToken);
     }
 
     public async Task FinalizeFailedAsync(
@@ -138,23 +142,16 @@ public sealed class ChatSwarmFinalizer
             {
                 [FeedbackBlockMetadataConstants.Level] = FeedbackBlockMetadataConstants.LevelError,
                 [FeedbackBlockMetadataConstants.Source] = FeedbackBlockMetadataConstants.SourceChatServiceSwarm,
-                ["swarmEvent"] = SwarmEventNames.Failed
+                [SwarmEventMetadataKey] = SwarmEventNames.Failed
             }
         }, cancellationToken);
 
-        await blockWriter.WriteAsync(new BlockDto
-        {
-            BlockType = BlockType.TextDelta,
-            Content = string.Empty,
-            MessageId = aiMessage.Id,
-            SessionId = chatSession.Id,
-            IsLast = true
-        }, cancellationToken);
+        await WriteTerminalBlockAsync(aiMessage, chatSession, blockWriter, cancellationToken);
 
         aiMessage.Status = ChatConstants.StatusError;
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", $"Swarm 编排执行失败：{errorDetails}" }
+            { ChatMessageContentKeys.Text, $"Swarm 编排执行失败：{errorDetails}" }
         };
         aiMessage.UpdatedAt = DateTime.UtcNow;
         aiMessage.Metadata ??= new Dictionary<string, object>();
@@ -166,5 +163,21 @@ public sealed class ChatSwarmFinalizer
             chatSession.Id.ToString(),
             errorDetails,
             cancellationToken);
+    }
+
+    private static async Task WriteTerminalBlockAsync(
+        ChatMessage aiMessage,
+        ChatSession chatSession,
+        ChannelWriter<BlockDto> blockWriter,
+        CancellationToken cancellationToken)
+    {
+        await blockWriter.WriteAsync(new BlockDto
+        {
+            BlockType = BlockType.TextDelta,
+            Content = string.Empty,
+            MessageId = aiMessage.Id,
+            SessionId = chatSession.Id,
+            IsLast = true
+        }, cancellationToken);
     }
 }

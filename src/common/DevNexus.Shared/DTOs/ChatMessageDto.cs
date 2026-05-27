@@ -39,10 +39,22 @@ public class ChatMessageDto
     public string SenderType { get; set; } = ChatConstants.RoleUser;
     
     /// <summary>
-    /// 消息内容
+    /// 消息内容，保留为正文兼容字段。
     /// </summary>
     [JsonPropertyName("content")]
     public string Content { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 结构化正文内容。
+    /// </summary>
+    [JsonPropertyName("textContent")]
+    public string? TextContent { get; set; }
+
+    /// <summary>
+    /// 结构化思考内容。
+    /// </summary>
+    [JsonPropertyName("thinkingContent")]
+    public string? ThinkingContent { get; set; }
     
     /// <summary>
     /// 消息类型

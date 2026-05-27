@@ -15,6 +15,7 @@ public class ThinkingAccumulatingChannelWriter : ChannelWriter<BlockDto>
 {
     private readonly ChannelWriter<BlockDto> _innerWriter;
     private readonly StringBuilder _thinkingAccumulator;
+    private readonly object _thinkingLock = new();
     
     // ★ 周期性持久化配置
     private int _thinkingBlockCount = 0;
@@ -34,7 +35,10 @@ public class ThinkingAccumulatingChannelWriter : ChannelWriter<BlockDto>
     /// </summary>
     public void SetPersistenceCallback(Func<string, Task>? callback)
     {
-        _persistenceCallback = callback;
+        lock (_thinkingLock)
+        {
+            _persistenceCallback = callback;
+        }
     }
 
     public override bool TryWrite(BlockDto item)
@@ -62,6 +66,14 @@ public class ThinkingAccumulatingChannelWriter : ChannelWriter<BlockDto>
     {
         return _innerWriter.TryComplete(error);
     }
+
+    public string SnapshotThinkingContent()
+    {
+        lock (_thinkingLock)
+        {
+            return _thinkingAccumulator.ToString();
+        }
+    }
     
     /// <summary>
     /// 触发异步持久化（火即忘，不阻塞流式输出）
@@ -73,19 +85,27 @@ public class ThinkingAccumulatingChannelWriter : ChannelWriter<BlockDto>
             return;
         }
 
-        _thinkingAccumulator.Append(item.Content);
-        _thinkingBlockCount++;
+        string? partialThinking = null;
+        Func<string, Task>? persistenceCallback = null;
 
-        if (_thinkingBlockCount < PERSISTENCE_THRESHOLD || _persistenceCallback == null)
+        lock (_thinkingLock)
         {
-            return;
+            _thinkingAccumulator.Append(item.Content);
+            _thinkingBlockCount++;
+
+            if (_thinkingBlockCount < PERSISTENCE_THRESHOLD || _persistenceCallback == null)
+            {
+                return;
+            }
+
+            partialThinking = DrainThinkingAccumulatorCore();
+            persistenceCallback = _persistenceCallback;
         }
 
-        var partialThinking = DrainThinkingAccumulator();
-        TriggerPersistenceAsync(partialThinking);
+        TriggerPersistenceAsync(partialThinking, persistenceCallback);
     }
 
-    private string DrainThinkingAccumulator()
+    private string DrainThinkingAccumulatorCore()
     {
         var content = _thinkingAccumulator.ToString();
         _thinkingAccumulator.Clear();
@@ -93,15 +113,15 @@ public class ThinkingAccumulatingChannelWriter : ChannelWriter<BlockDto>
         return content;
     }
 
-    private void TriggerPersistenceAsync(string content)
+    private static void TriggerPersistenceAsync(string content, Func<string, Task>? persistenceCallback)
     {
-        if (_persistenceCallback == null || string.IsNullOrEmpty(content)) return;
+        if (persistenceCallback == null || string.IsNullOrEmpty(content)) return;
         
         _ = Task.Run(async () =>
         {
             try
             {
-                await _persistenceCallback(content);
+                await persistenceCallback(content);
             }
             catch (Exception ex)
             {

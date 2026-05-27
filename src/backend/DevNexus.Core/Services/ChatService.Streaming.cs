@@ -68,7 +68,7 @@ public partial class ChatService
                 ResolveAgentApprovalMode(chatRequest.Metadata));
 
             preParserThinking = new StringBuilder();
-            var existingThinking = GetMessageContentText(aiMessage, "thinking");
+            var existingThinking = GetMessageContentText(aiMessage, ChatMessageContentKeys.Thinking);
             if (!string.IsNullOrWhiteSpace(existingThinking))
             {
                 preParserThinking.AppendLine(existingThinking);
@@ -92,7 +92,7 @@ public partial class ChatService
             var userQuery = preparation.UserQuery;
             var chatHistory = preparation.ChatHistory;
 
-            fullResponse = new System.Text.StringBuilder(GetMessageContentText(aiMessage, "text"));
+            fullResponse = new System.Text.StringBuilder(GetMessageContentText(aiMessage, ChatMessageContentKeys.Text));
 
             _logger.LogDebug(
                 "[AI.Chat] Starting streaming completion | SessionId={SessionId} MessageId={MessageId} RagEnabled={RagEnabled}",
@@ -268,16 +268,6 @@ public partial class ChatService
                 });
             }
 
-            // 发送最后的标记 Block
-            await blockWriter.WriteAsync(new BlockDto
-            {
-                BlockType = BlockType.TextDelta,
-                Content = string.Empty,
-                MessageId = aiMessage.Id,
-                SessionId = chatSession.Id,
-                IsLast = true
-            });
-
             var parserThinking = blockParser.GetAccumulatedThinking();
             var preThinking = preParserThinking?.ToString() ?? string.Empty;
             var contextThinking = thinkingEmitter.GetAccumulatedThinking();
@@ -365,6 +355,8 @@ public partial class ChatService
                 memoryDecision,
                 toolRecords);
 
+            await WriteTerminalBlockAsync(aiMessage.Id, chatSession.Id, blockWriter, cancellationToken);
+
             if (agentLoopDecision.Action == AgentLoopAction.Stop)
             {
                 return;
@@ -424,14 +416,13 @@ public partial class ChatService
                 errorDetails,
                 CancellationToken.None);
 
-            await blockWriter.WriteAsync(new BlockDto
-            {
-                BlockType = BlockType.TextDelta,
-                Content = renderedError,
-                MessageId = aiMessage.Id,
-                SessionId = chatSession.Id,
-                IsLast = true
-            });
+            await TryWriteErrorTerminalBlockAsync(
+                aiMessage.Id,
+                chatSession.Id,
+                renderedError,
+                blockWriter,
+                _logger,
+                cancellationToken);
 
             // 移除 throw; 使得外部当做普通消息完成，从而推送流终止状态和完成事件
         }
@@ -456,5 +447,66 @@ public partial class ChatService
         return Enum.TryParse<AgentApprovalMode>(value.ToString(), ignoreCase: true, out var mode)
             ? mode
             : AgentApprovalMode.AskUser;
+    }
+
+    private static async Task WriteTerminalBlockAsync(
+        Guid messageId,
+        Guid sessionId,
+        ChannelWriter<BlockDto> blockWriter,
+        CancellationToken cancellationToken)
+    {
+        await blockWriter.WriteAsync(new BlockDto
+        {
+            BlockType = BlockType.TextDelta,
+            Content = string.Empty,
+            MessageId = messageId,
+            SessionId = sessionId,
+            IsLast = true
+        }, cancellationToken);
+    }
+
+    private static async Task TryWriteErrorTerminalBlockAsync(
+        Guid messageId,
+        Guid sessionId,
+        string renderedError,
+        ChannelWriter<BlockDto> blockWriter,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var block = new BlockDto
+        {
+            BlockType = BlockType.TextDelta,
+            Content = renderedError,
+            MessageId = messageId,
+            SessionId = sessionId,
+            IsLast = true
+        };
+
+        try
+        {
+            if (blockWriter.TryWrite(block))
+            {
+                return;
+            }
+
+            if (await blockWriter.WaitToWriteAsync(cancellationToken))
+            {
+                await blockWriter.WriteAsync(block, cancellationToken);
+            }
+        }
+        catch (ChannelClosedException ex)
+        {
+            logger.LogDebug(ex,
+                "[AI.Chat] Error terminal block skipped because stream channel is closed | SessionId={SessionId} MessageId={MessageId}",
+                sessionId,
+                messageId);
+        }
+        catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogDebug(ex,
+                "[AI.Chat] Error terminal block skipped because stream channel is cancelled | SessionId={SessionId} MessageId={MessageId}",
+                sessionId,
+                messageId);
+        }
     }
 }

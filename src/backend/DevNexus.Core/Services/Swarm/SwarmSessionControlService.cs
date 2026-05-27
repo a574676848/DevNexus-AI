@@ -286,6 +286,12 @@ public class SwarmSessionControlService : ISwarmSessionControlService
         return _sessionRegistry.GetStatus(sessionId);
     }
 
+    /// <inheritdoc />
+    public SwarmSessionControlSnapshot GetSnapshot(string sessionId)
+    {
+        return _sessionRegistry.GetSnapshot(sessionId);
+    }
+
     private async Task NotifyPackagesAsync(
         string sessionId,
         IReadOnlyCollection<ContextWorkPackageRecord> packageRecords,

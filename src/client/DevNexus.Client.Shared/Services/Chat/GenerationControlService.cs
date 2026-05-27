@@ -158,12 +158,10 @@ public class GenerationControlService : IGenerationControlService
                 var thoughtContent = MetadataHelper.JoinThoughtSegments(currentBlocks
                     .Where(b => b.BlockType == BlockType.Thinking).Select(b => b.Content));
 
-                // 构建完整内容：如果有结构化思考，使用 <think> 标签格式
-                var fullContent = string.IsNullOrEmpty(thoughtContent)
-                    ? textContent
-                    : $"<think>{thoughtContent}</think>\n{textContent}";
+                // 构建正文内容；thinking 仅通过结构化字段传递。
+                var fullContent = textContent;
 
-                if (!string.IsNullOrEmpty(fullContent))
+                if (!string.IsNullOrEmpty(fullContent) || !string.IsNullOrEmpty(thoughtContent))
                 {
                     solidifiedMessage = new ChatMessageDto
                     {
@@ -171,6 +169,8 @@ public class GenerationControlService : IGenerationControlService
                         ChatSessionId = sessionId,
                         SenderType = ChatConstants.RoleAssistant,
                         Content = fullContent + "\n\n(已停止生成)",
+                        TextContent = fullContent + "\n\n(已停止生成)",
+                        ThinkingContent = string.IsNullOrEmpty(thoughtContent) ? null : thoughtContent,
                         CreatedAt = DateTime.UtcNow
                     };
                 }

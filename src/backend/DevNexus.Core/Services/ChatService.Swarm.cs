@@ -73,7 +73,7 @@ public partial class ChatService
             }
 
             // 4. 将 Swarm 汇总结果写入 Block Channel
-            await blockWriter.WriteAsync(new BlockDto
+            await wrappedWriter.WriteAsync(new BlockDto
             {
                 BlockType = BlockType.TextDelta,
                 Content = swarmResult,
@@ -105,17 +105,7 @@ public partial class ChatService
                 });
             }
 
-            // 必然要发送最后的标记 Block (告诉流结束)
-            await blockWriter.WriteAsync(new BlockDto
-            {
-                BlockType = BlockType.TextDelta,
-                Content = string.Empty,
-                MessageId = aiMessage.Id,
-                SessionId = chatSession.Id,
-                IsLast = true
-            }, cancellationToken);
-
-            var thinkingContent = thinkingAccumulator.ToString();
+            var thinkingContent = wrappedWriter.SnapshotThinkingContent();
             thinkingContent = await MergeExternalThinkingForPersistenceAsync(aiMessage.Id, thinkingContent);
             await _chatSwarmFinalizer.FinalizeCompletedAsync(
                 aiMessage,
@@ -133,7 +123,7 @@ public partial class ChatService
                 chatSession.Id,
                 aiMessage.Id);
 
-            var accumulatedThinking = thinkingAccumulator.ToString();
+            var accumulatedThinking = wrappedWriter.SnapshotThinkingContent();
             accumulatedThinking = await MergeExternalThinkingForPersistenceAsync(aiMessage.Id, accumulatedThinking);
             await _chatSwarmFinalizer.FinalizeCancelledAsync(
                 aiMessage,

@@ -6,71 +6,53 @@ using DevNexus.Shared.Enums;
 namespace DevNexus.Client.Shared.Components.Chat;
 
 /// <summary>
-/// 消息内容解析器，负责解析思维链、过滤块标记等
+/// 消息内容解析器，负责读取结构化正文、思考内容并过滤块标记。
 /// </summary>
 public static class MessageContentParser
 {
     /// <summary>
-    /// 解析消息内容，提取思维链和显示内容
+    /// 解析消息内容，thinking 只来自结构化字段。
     /// </summary>
-    public static (string DisplayedContent, List<string> Thoughts) ParseContent(string content, string senderType)
+    public static (string DisplayedContent, List<string> Thoughts) ParseContent(ChatMessageDto message)
+    {
+        if (ChatConstants.IsUserSender(message.SenderType))
+        {
+            return (message.TextContent ?? message.Content, new List<string>());
+        }
+
+        var displayedContent = StripBlockMarkers(message.TextContent ?? message.Content);
+        return (displayedContent, SplitThoughts(message.ThinkingContent));
+    }
+
+    private static string StripBlockMarkers(string? content)
     {
         if (string.IsNullOrEmpty(content))
         {
-            return ("", new List<string>());
+            return string.Empty;
         }
 
-        // 用户消息直接返回
-        if (ChatConstants.IsUserSender(senderType))
+        var displayedContent = System.Text.RegularExpressions.Regex.Replace(
+            content,
+            @":::(\w+(?:-\w+)*)(?:\{[^}]*\})?\s*[\r\n]*[\s\S]*?[\r\n]*:::",
+            "",
+            System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        return System.Text.RegularExpressions.Regex.Replace(displayedContent, @"\n{3,}", "\n\n").Trim();
+    }
+
+    private static List<string> SplitThoughts(string? thoughtContent)
+    {
+        if (string.IsNullOrWhiteSpace(thoughtContent))
         {
-            return (content, new List<string>());
+            return new List<string>();
         }
 
-        var thoughts = new List<string>();
-        var displayedContent = content;
+        var steps = thoughtContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(step => step.Trim())
+            .Where(step => !string.IsNullOrWhiteSpace(step))
+            .ToList();
 
-        // 1. 移除所有 <think> 或 <thought> 标签的内容
-        var thinkMatches = Regex.Matches(content, @"<(?:think|thought)>(.*?)</(?:think|thought)>", 
-            RegexOptions.Singleline | RegexOptions.IgnoreCase);
-
-        if (thinkMatches.Count > 0)
-        {
-            foreach (Match match in thinkMatches)
-            {
-                var rawThought = match.Groups[1].Value.Trim();
-                if (!string.IsNullOrWhiteSpace(rawThought))
-                {
-                    // 统一按换行符拆分步骤，与流式输出保持一致
-                    var steps = rawThought.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                                        .Select(s => s.Trim())
-                                        .Where(s => !string.IsNullOrWhiteSpace(s))
-                                        .ToArray();
-                    
-                    if (steps.Length > 0)
-                    {
-                        thoughts.AddRange(steps);
-                    }
-                    else
-                    {
-                        thoughts.Add(rawThought);
-                    }
-                }
-                
-                // 从显示内容中移除思考过程
-                displayedContent = displayedContent.Replace(match.Value, "").Trim();
-            }
-        }
-        
-        // 2. 移除所有 :::block{...} 标记（这些已通过 OrderedBlocks 渲染）
-        displayedContent = Regex.Replace(displayedContent, 
-            @":::(\w+(?:-\w+)*)(?:\{[^}]*\})?\s*[\r\n]*[\s\S]*?[\r\n]*:::", 
-            "", 
-            RegexOptions.Multiline);
-        
-        // 清理多余的空行
-        displayedContent = Regex.Replace(displayedContent, @"\n{3,}", "\n\n").Trim();
-        
-        return (displayedContent, thoughts);
+        return steps.Count > 0 ? steps : new List<string> { thoughtContent.Trim() };
     }
 
     /// <summary>

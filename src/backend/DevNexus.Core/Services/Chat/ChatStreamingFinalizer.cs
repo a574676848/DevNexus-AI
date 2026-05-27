@@ -55,16 +55,16 @@ public sealed class ChatStreamingFinalizer
         }
 
         thinkingContent = await _thinkingCoordinator.MergeExternalThinkingAsync(aiMessage.Id, thinkingContent, cancellationToken);
-        var previousThinkingPartial = GetTransientContent(aiMessage, "thinking_partial");
+        var previousThinkingPartial = GetTransientContent(aiMessage, ChatMessageContentKeys.ThinkingPartial);
 
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", finalText }
+            { ChatMessageContentKeys.Text, finalText }
         };
 
         if (!string.IsNullOrEmpty(previousThinkingPartial))
         {
-            aiMessage.Content["thinking_partial"] = previousThinkingPartial;
+            aiMessage.Content[ChatMessageContentKeys.ThinkingPartial] = previousThinkingPartial;
         }
 
         ApplyThinkingContent(aiMessage, thinkingContent);
@@ -88,15 +88,15 @@ public sealed class ChatStreamingFinalizer
         bool streamStarted,
         CancellationToken cancellationToken = default)
     {
-        var previousThinkingPartial = GetTransientContent(aiMessage, "thinking_partial");
+        var previousThinkingPartial = GetTransientContent(aiMessage, ChatMessageContentKeys.ThinkingPartial);
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", partialText ?? string.Empty }
+            { ChatMessageContentKeys.Text, partialText ?? string.Empty }
         };
 
         if (!string.IsNullOrEmpty(previousThinkingPartial))
         {
-            aiMessage.Content["thinking_partial"] = previousThinkingPartial;
+            aiMessage.Content[ChatMessageContentKeys.ThinkingPartial] = previousThinkingPartial;
         }
 
         var resolvedParserThinking = streamStarted ? parserThinking ?? string.Empty : string.Empty;
@@ -140,7 +140,7 @@ public sealed class ChatStreamingFinalizer
         aiMessage.Status = ChatConstants.StatusError;
         aiMessage.Content = new Dictionary<string, object>
         {
-            { "text", (partialText ?? string.Empty) + renderedError }
+            { ChatMessageContentKeys.Text, (partialText ?? string.Empty) + renderedError }
         };
         aiMessage.UpdatedAt = DateTime.UtcNow;
 

@@ -15,6 +15,7 @@ public class SignalRService : ISignalRService
     private readonly IAuthService _authService;
     private readonly ISessionState _sessionState;
     private readonly ILogger<SignalRService> _logger;
+    private readonly PendingGenerationCancelQueue _pendingGenerationCancels = new();
     private HubConnection? _hubConnection;
     private HubConnection? _artifactHubConnection;
     private bool _isConnected;
@@ -290,8 +291,20 @@ public class SignalRService : ISignalRService
     /// <inheritdoc />
     public async Task CancelGenerationAsync(Guid sessionId)
     {
-        EnsureConnected();
-        await _hubConnection!.InvokeAsync("CancelMessageGeneration", sessionId);
+        if (!IsChatHubConnected())
+        {
+            EnqueueGenerationCancel(sessionId, "ChatHub 未连接");
+            return;
+        }
+
+        try
+        {
+            await SendCancelGenerationAsync(sessionId);
+        }
+        catch (Exception ex) when (ShouldReplayGenerationCancel(ex))
+        {
+            EnqueueGenerationCancel(sessionId, ex.Message);
+        }
     }
 
     /// <inheritdoc />
@@ -438,6 +451,56 @@ public class SignalRService : ISignalRService
         }
     }
 
+    private bool IsChatHubConnected()
+    {
+        return _hubConnection?.State == HubConnectionState.Connected;
+    }
+
+    private Task SendCancelGenerationAsync(Guid sessionId)
+    {
+        return _hubConnection!.InvokeAsync("CancelMessageGeneration", sessionId);
+    }
+
+    private void EnqueueGenerationCancel(Guid sessionId, string reason)
+    {
+        _pendingGenerationCancels.Enqueue(sessionId);
+        _logger.LogWarning(
+            "取消生成请求已进入重连重放队列 | SessionId={SessionId} Reason={Reason}",
+            sessionId,
+            reason);
+    }
+
+    private static bool ShouldReplayGenerationCancel(Exception ex)
+    {
+        return ex is InvalidOperationException
+            or TimeoutException
+            or HubException
+            or OperationCanceledException;
+    }
+
+    private async Task ReplayPendingGenerationCancelsAsync()
+    {
+        if (!IsChatHubConnected())
+        {
+            return;
+        }
+
+        foreach (var sessionId in _pendingGenerationCancels.Drain())
+        {
+            try
+            {
+                await SendCancelGenerationAsync(sessionId);
+                _logger.LogInformation(
+                    "已重放取消生成请求 | SessionId={SessionId}",
+                    sessionId);
+            }
+            catch (Exception ex) when (ShouldReplayGenerationCancel(ex))
+            {
+                EnqueueGenerationCancel(sessionId, ex.Message);
+            }
+        }
+    }
+
     private void EmitLocalRuntimeEvent(Guid sessionId, ServerEventType eventType, object? data)
     {
         OnServerEvent?.Invoke(new ServerEvent
@@ -477,6 +540,7 @@ public class SignalRService : ISignalRService
         _isChatHubConnected = true;
         _logger.LogInformation("SignalR ChatHub 已重连 | ConnectionId={ConnectionId}", connectionId);
         UpdateAggregateConnectionState();
+        _ = ReplayPendingGenerationCancelsAsync();
         _ = RequestSessionListRefreshAsync();
         return Task.CompletedTask;
     }

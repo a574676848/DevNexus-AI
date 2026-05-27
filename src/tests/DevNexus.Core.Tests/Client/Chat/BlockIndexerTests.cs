@@ -61,6 +61,19 @@ public sealed class BlockIndexerTests
         orderedBlocks.Select(block => block.Content).Should().Equal("one", "two");
     }
 
+    [Fact]
+    public void GetFullContent_ShouldReturnVisibleTextOnly()
+    {
+        var messageId = Guid.NewGuid();
+        var indexer = new BlockIndexer();
+
+        indexer.AddBlock(CreateThinkingBlock(messageId, "先分析"));
+        indexer.AddBlock(CreateTextBlock(messageId, "最终答案"));
+
+        indexer.GetFullContent().Should().Be("最终答案");
+        indexer.GetThinkingContent().Should().Be("先分析");
+    }
+
     private static BlockDto CreateTextBlock(Guid messageId, string content)
     {
         return new BlockDto
@@ -68,6 +81,17 @@ public sealed class BlockIndexerTests
             BlockId = Guid.NewGuid(),
             MessageId = messageId,
             BlockType = BlockType.TextDelta,
+            Content = content
+        };
+    }
+
+    private static BlockDto CreateThinkingBlock(Guid messageId, string content)
+    {
+        return new BlockDto
+        {
+            BlockId = Guid.NewGuid(),
+            MessageId = messageId,
+            BlockType = BlockType.Thinking,
             Content = content
         };
     }

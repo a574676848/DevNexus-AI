@@ -7,6 +7,7 @@ using DevNexus.Shared.Enums;
 using Microsoft.AspNetCore.SignalR;
 using System.Threading;
 using System.Threading.Tasks;
+using DevNexus.Core.Services.Swarm;
 
 namespace DevNexus.ApiService.Services;
 
@@ -17,16 +18,19 @@ namespace DevNexus.ApiService.Services;
 public class SwarmEventService : ISwarmEventService
 {
     private readonly IHubContext<SwarmHub> _hubContext;
-    private readonly DevNexus.Core.Services.Swarm.SwarmSessionRegistry _sessionRegistry;
+    private readonly SwarmSessionRegistry _sessionRegistry;
+    private readonly ISwarmAgentStatusStore _agentStatusStore;
     private readonly ILogger<SwarmEventService> _logger;
 
     public SwarmEventService(
         IHubContext<SwarmHub> hubContext,
-        DevNexus.Core.Services.Swarm.SwarmSessionRegistry sessionRegistry,
+        SwarmSessionRegistry sessionRegistry,
+        ISwarmAgentStatusStore agentStatusStore,
         ILogger<SwarmEventService> logger)
     {
         _hubContext = hubContext;
         _sessionRegistry = sessionRegistry;
+        _agentStatusStore = agentStatusStore;
         _logger = logger;
     }
 
@@ -92,8 +96,8 @@ public class SwarmEventService : ISwarmEventService
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Broadcasting context package snapshot for {id}", sessionId);
-        var isPaused = _sessionRegistry.GetStatus(sessionId) == DevNexus.Core.Services.Swarm.SwarmControlStatus.Paused;
-        var statusSummary = DevNexus.Core.Services.Swarm.SwarmSessionStatusSummaryBuilder.Build(packages, isPaused);
+        var sessionSnapshot = _sessionRegistry.GetSnapshot(sessionId);
+        var statusSummary = SwarmSessionStatusSummaryBuilder.Build(packages, sessionSnapshot.IsPaused);
         await SendServerEventAsync(
             sessionId,
             ServerEventType.SwarmContextPackagesUpdated,
@@ -119,8 +123,7 @@ public class SwarmEventService : ISwarmEventService
 
     public async Task NotifyAgentStatusChangedAsync(string sessionId, string agentName, string status, string currentAction, CancellationToken cancellationToken = default)
     {
-        // 同步到缓存，以便新连接客户端获取
-        SwarmHub.TrackAgentStatus(sessionId, agentName, status, currentAction);
+        _agentStatusStore.Upsert(sessionId, agentName, status, currentAction);
 
         await SendServerEventAsync(
             sessionId,
@@ -167,7 +170,7 @@ public class SwarmEventService : ISwarmEventService
     public async Task NotifySessionFinalizedAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Cleaning up session cache for {id}", sessionId);
-        SwarmHub.ClearSessionCache(sessionId);
+        _agentStatusStore.Clear(sessionId);
         await Task.CompletedTask;
     }
 

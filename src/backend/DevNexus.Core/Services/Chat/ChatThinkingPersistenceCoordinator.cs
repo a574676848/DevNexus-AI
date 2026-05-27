@@ -1,3 +1,4 @@
+using DevNexus.Shared.Constants;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Text;
@@ -40,14 +41,14 @@ public sealed class ChatThinkingPersistenceCoordinator
                 return;
             }
 
-            if (!message.Content.ContainsKey("thinking_partial"))
+            if (!message.Content.ContainsKey(ChatMessageContentKeys.ThinkingPartial))
             {
-                message.Content["thinking_partial"] = string.Empty;
+                message.Content[ChatMessageContentKeys.ThinkingPartial] = string.Empty;
             }
 
-            var existing = message.Content["thinking_partial"]?.ToString() ?? string.Empty;
-            message.Content["thinking_partial"] = existing + partialThinking;
-            var persisted = message.Content["thinking_partial"]?.ToString() ?? string.Empty;
+            var existing = message.Content[ChatMessageContentKeys.ThinkingPartial]?.ToString() ?? string.Empty;
+            message.Content[ChatMessageContentKeys.ThinkingPartial] = existing + partialThinking;
+            var persisted = message.Content[ChatMessageContentKeys.ThinkingPartial]?.ToString() ?? string.Empty;
 
             await chatMessageRepository.UpdateAsync(message, CancellationToken.None);
 
@@ -93,13 +94,13 @@ public sealed class ChatThinkingPersistenceCoordinator
                 return;
             }
 
-            if (!message.Content.ContainsKey("text_partial"))
+            if (!message.Content.ContainsKey(ChatMessageContentKeys.TextPartial))
             {
-                message.Content["text_partial"] = string.Empty;
+                message.Content[ChatMessageContentKeys.TextPartial] = string.Empty;
             }
 
-            var existing = message.Content["text_partial"]?.ToString() ?? string.Empty;
-            message.Content["text_partial"] = existing + partialText;
+            var existing = message.Content[ChatMessageContentKeys.TextPartial]?.ToString() ?? string.Empty;
+            message.Content[ChatMessageContentKeys.TextPartial] = existing + partialText;
 
             await chatMessageRepository.UpdateAsync(message, CancellationToken.None);
 
@@ -140,15 +141,15 @@ public sealed class ChatThinkingPersistenceCoordinator
         {
             MergePartialThinking(message, finalThinking);
         }
-        else if (message.Content.ContainsKey("thinking_partial"))
+        else if (message.Content.ContainsKey(ChatMessageContentKeys.ThinkingPartial))
         {
-            message.Content["thinking"] = message.Content["thinking_partial"]?.ToString() ?? string.Empty;
-            message.Content.Remove("thinking_partial");
+            message.Content[ChatMessageContentKeys.Thinking] = message.Content[ChatMessageContentKeys.ThinkingPartial]?.ToString() ?? string.Empty;
+            message.Content.Remove(ChatMessageContentKeys.ThinkingPartial);
         }
 
-        if (message.Content.ContainsKey("thinking_external_partial"))
+        if (message.Content.ContainsKey(ChatMessageContentKeys.ThinkingExternalPartial))
         {
-            message.Content.Remove("thinking_external_partial");
+            message.Content.Remove(ChatMessageContentKeys.ThinkingExternalPartial);
         }
     }
 
@@ -181,14 +182,19 @@ public sealed class ChatThinkingPersistenceCoordinator
             ThinkingTraceHelper.ComputeHash(contextThinking));
     }
 
+    private static string MergeThinking(string partialThinking, string finalThinking)
+    {
+        return string.Concat(partialThinking, finalThinking);
+    }
+
     private void MergePartialThinking(ChatMessage aiMessage, string finalThinking)
     {
-        if (aiMessage.Content.ContainsKey("thinking_partial"))
+        if (aiMessage.Content.ContainsKey(ChatMessageContentKeys.ThinkingPartial))
         {
-            var partialThinking = aiMessage.Content["thinking_partial"]?.ToString() ?? string.Empty;
-            var merged = partialThinking + finalThinking;
-            aiMessage.Content["thinking"] = merged;
-            aiMessage.Content.Remove("thinking_partial");
+            var partialThinking = aiMessage.Content[ChatMessageContentKeys.ThinkingPartial]?.ToString() ?? string.Empty;
+            var merged = MergeThinking(partialThinking, finalThinking);
+            aiMessage.Content[ChatMessageContentKeys.Thinking] = merged;
+            aiMessage.Content.Remove(ChatMessageContentKeys.ThinkingPartial);
 
             _logger.LogDebug(
                 "[Thinking.Trace] FinalMerge | Source={Source} MessageId={MessageId} PartialLength={PartialLength} PartialHash={PartialHash} FinalLength={FinalLength} FinalHash={FinalHash} MergedLength={MergedLength} MergedHash={MergedHash}",
@@ -203,7 +209,7 @@ public sealed class ChatThinkingPersistenceCoordinator
         }
         else
         {
-            aiMessage.Content["thinking"] = finalThinking;
+            aiMessage.Content[ChatMessageContentKeys.Thinking] = finalThinking;
 
             _logger.LogDebug(
                 "[Thinking.Trace] FinalMerge | Source={Source} MessageId={MessageId} PartialLength=0 FinalLength={FinalLength} FinalHash={FinalHash} MergedLength={MergedLength} MergedHash={MergedHash}",

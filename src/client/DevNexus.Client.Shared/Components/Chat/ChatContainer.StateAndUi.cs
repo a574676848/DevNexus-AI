@@ -21,14 +21,21 @@ public partial class ChatContainer
             return;
         }
 
+        _ = InvokeAsync(() => ApplyQueuedMessagesReceivedAsync(messages));
+    }
+
+    private Task ApplyQueuedMessagesReceivedAsync(List<QueuedChatMessageDto> messages)
+    {
         var sessionId = messages.FirstOrDefault()?.SessionId ?? ChatState.CurrentSessionId;
         if (sessionId == Guid.Empty)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         ChatState.SetQueuedMessages(sessionId, messages);
         ScheduleRuntimeRefresh(sessionId);
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     #endregion

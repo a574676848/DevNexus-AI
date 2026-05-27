@@ -75,13 +75,13 @@ public class SwarmSessionViewService : ISwarmSessionViewService
         string sessionId,
         IReadOnlyCollection<ContextWorkPackageDto> packages)
     {
-        var isPaused = _sessionControlService.GetStatus(sessionId) == SwarmControlStatus.Paused;
+        var sessionSnapshot = _sessionControlService.GetSnapshot(sessionId);
         return new ContextSwarmPackageSnapshotDto
         {
             SessionId = sessionId,
             Packages = packages.ToList(),
             PackageCount = packages.Count,
-            StatusSummary = SwarmSessionStatusSummaryBuilder.Build(packages, isPaused)
+            StatusSummary = SwarmSessionStatusSummaryBuilder.Build(packages, sessionSnapshot.IsPaused)
         };
     }
 }
